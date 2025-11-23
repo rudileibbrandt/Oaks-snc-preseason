@@ -38,6 +38,9 @@ test-results/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+.env.test
 
 # IDE / Editor
 .vscode/
@@ -59,9 +62,33 @@ ehthumbs.db
 Thumbs.db
 Desktop.ini
 
+# Firebase
+.firebase/
+.firebaserc
+
 # Misc
 .tmp/
 temp/
 *.pem
 *.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+
+# Secrets & Credentials
+secrets/
+credentials/
+*.secret
+*.credentials
+config.local.*
+*.local.json
+
+# Lock files (optional - some teams prefer to commit these)
+# Uncomment if you don't want to commit lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
