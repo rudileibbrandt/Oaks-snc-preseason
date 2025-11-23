@@ -245,8 +245,11 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
                       <div key={day.id} className={`rounded-xl border ${hasData ? 'border-neutral-700 bg-neutral-900/30' : 'border-neutral-800 bg-black'}`}>
                          <div className="p-3 border-b border-neutral-800 flex justify-between items-center">
                             <span className="font-bold text-neutral-200">{day.title}</span>
-                            <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${log?.completed ? 'bg-green-500/10 text-green-500' : 'text-neutral-600 bg-neutral-900'}`}>
-                               {log?.completed ? 'Complete' : 'Pending'}
+                            <span className="font-bold text-xs">
+                                <span className={`inline-block w-2 h-2 rounded-full mr-2 ${log?.completed ? 'bg-green-500' : 'bg-neutral-800'}`}></span>
+                                <span className={log?.completed ? 'text-green-500' : 'text-neutral-600'}>
+                                   {log?.completed ? 'Complete' : 'Pending'}
+                                </span>
                             </span>
                          </div>
                          
