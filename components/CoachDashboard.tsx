@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
-import { Trash2, UserPlus, LogOut, Check, Trophy, Activity, X, ChevronRight, Dumbbell } from 'lucide-react';
+import { Trash2, UserPlus, LogOut, Check, Trophy, Activity, X, ChevronRight } from 'lucide-react';
 import { PROGRAM } from '../services/programData';
 
 interface Props {
@@ -54,7 +54,6 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
   // Helper to get specific lift weight
   const getLiftWeight = (playerId: string, exerciseId: string) => {
     // Find any log containing this exercise data
-    // In this simple model, we search the specific day log, but simpler to search all player logs
     const playerLogs = logs.filter(l => l.playerId === playerId);
     for (const log of playerLogs) {
       if (log.data && log.data[`${exerciseId}_weight`]) {
@@ -65,61 +64,64 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
   };
 
   const BIG_LIFTS = [
-    { id: 'd1_1', label: 'Hex DL (D1)' },
-    { id: 'd2_3', label: 'Inc Bench (D2)' },
-    { id: 'd3_1', label: 'Squat (D3)' },
-    { id: 'd3_2', label: 'H. Clean (D3)' },
+    { id: 'd1_1', label: 'Hex DL' },
+    { id: 'd2_3', label: 'Incline' },
+    { id: 'd3_1', label: 'Squat' },
+    { id: 'd3_2', label: 'Clean' },
   ];
 
   return (
     <div className="pb-20 animate-fade-in relative">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-white flex items-center">
-          <Trophy className="mr-2 text-emerald-500" />
-          Team Leaderboard
-        </h2>
-        <button onClick={() => onNavigate('LANDING')} className="p-2 text-slate-400 hover:text-white">
+        <div>
+          <h2 className="text-2xl font-black text-white flex items-center tracking-tight">
+            <Trophy className="mr-2 text-amber-500" fill="currentColor" />
+            LEADERBOARD
+          </h2>
+          <p className="text-neutral-500 text-xs uppercase tracking-widest ml-1">Team Performance</p>
+        </div>
+        <button onClick={() => onNavigate('LANDING')} className="p-2 text-neutral-400 hover:text-white bg-neutral-900 rounded-lg border border-neutral-800">
           <LogOut size={20} />
         </button>
       </div>
 
       {/* View Toggle */}
-      <div className="flex space-x-2 mb-6 p-1 bg-slate-800 rounded-lg inline-flex border border-slate-700">
+      <div className="flex p-1 bg-neutral-900 rounded-xl mb-6 border border-neutral-800">
         <button
           onClick={() => setViewMode('completion')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-            viewMode === 'completion' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'
+          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
+            viewMode === 'completion' ? 'bg-neutral-800 text-white shadow-lg' : 'text-neutral-500 hover:text-white'
           }`}
         >
-          Completion
+          Workouts Completed
         </button>
         <button
           onClick={() => setViewMode('metrics')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-            viewMode === 'metrics' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'
+          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
+            viewMode === 'metrics' ? 'bg-amber-500 text-black shadow-lg' : 'text-neutral-500 hover:text-white'
           }`}
         >
-          Performance Numbers
+          Max Lifts
         </button>
       </div>
 
       {/* Main Table Area */}
-      <div className="bg-slate-800 rounded-xl overflow-hidden border border-slate-700 mb-8 shadow-xl">
+      <div className="bg-neutral-900/50 rounded-xl overflow-hidden border border-neutral-800 mb-8 shadow-xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-slate-400">
-            <thead className="bg-slate-900 text-slate-200 uppercase text-xs">
+          <table className="w-full text-sm text-left text-neutral-400">
+            <thead className="bg-black text-neutral-200 uppercase text-[10px] tracking-wider font-bold">
               <tr>
-                <th className="px-4 py-4">Player</th>
+                <th className="px-4 py-4 text-neutral-500">Player</th>
                 {viewMode === 'completion' ? (
                   <>
-                    <th className="px-2 py-3 text-center">Day 1</th>
-                    <th className="px-2 py-3 text-center">Day 2</th>
-                    <th className="px-2 py-3 text-center">Day 3</th>
-                    <th className="px-2 py-3 text-center">Day 4</th>
+                    <th className="px-2 py-3 text-center">D1</th>
+                    <th className="px-2 py-3 text-center">D2</th>
+                    <th className="px-2 py-3 text-center">D3</th>
+                    <th className="px-2 py-3 text-center">D4</th>
                   </>
                 ) : (
                   BIG_LIFTS.map(lift => (
-                    <th key={lift.id} className="px-2 py-3 text-center text-emerald-500">{lift.label}</th>
+                    <th key={lift.id} className="px-2 py-3 text-center text-amber-500">{lift.label}</th>
                   ))
                 )}
                 <th className="px-2 py-3 text-right"></th>
@@ -127,11 +129,16 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
             </thead>
             <tbody>
               {players.map(player => (
-                <tr key={player.id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
+                <tr key={player.id} className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors">
                   <td className="px-4 py-3 font-medium text-white cursor-pointer group" onClick={() => setSelectedPlayer(player)}>
                     <div className="flex items-center">
-                      {player.name}
-                      <Activity size={12} className="ml-2 text-slate-600 group-hover:text-emerald-500 opacity-0 group-hover:opacity-100 transition-all" />
+                      <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center mr-3 text-xs font-bold text-neutral-500 border border-neutral-700">
+                        {player.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="group-hover:text-amber-500 transition-colors">{player.name}</div>
+                        <div className="text-[10px] text-neutral-600 uppercase">{player.position}</div>
+                      </div>
                     </div>
                   </td>
                   
@@ -140,24 +147,24 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
                       const status = getStatus(player.id, day.id);
                       return (
                         <td key={day.id} className="px-2 py-3 text-center">
-                          <div className={`w-3 h-3 rounded-full mx-auto ${
-                            status === 'complete' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' :
+                          <div className={`w-3 h-3 rounded-sm rotate-45 mx-auto transition-all ${
+                            status === 'complete' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' :
                             status === 'started' ? 'bg-amber-500' :
-                            'bg-slate-700'
+                            'bg-neutral-800'
                           }`} />
                         </td>
                       );
                     })
                   ) : (
                     BIG_LIFTS.map(lift => (
-                      <td key={lift.id} className="px-2 py-3 text-center font-mono text-slate-300">
+                      <td key={lift.id} className="px-2 py-3 text-center font-mono text-white font-bold">
                         {getLiftWeight(player.id, lift.id)}
                       </td>
                     ))
                   )}
 
                   <td className="px-2 py-3 text-right">
-                     <button onClick={() => setSelectedPlayer(player)} className="p-1 text-slate-500 hover:text-emerald-500">
+                     <button onClick={() => setSelectedPlayer(player)} className="p-1 text-neutral-600 hover:text-amber-500">
                         <ChevronRight size={16} />
                      </button>
                   </td>
@@ -165,7 +172,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
               ))}
               {players.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-500">No players registered yet.</td>
+                  <td colSpan={6} className="p-8 text-center text-neutral-500">No players registered yet.</td>
                 </tr>
               )}
             </tbody>
@@ -174,9 +181,9 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
       </div>
 
       {/* Roster Mgmt */}
-      <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 opacity-80 hover:opacity-100 transition-opacity">
-        <h3 className="font-bold text-white mb-4 flex items-center text-sm uppercase tracking-wide text-slate-400">
-          <UserPlus size={16} className="mr-2" /> 
+      <div className="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+        <h3 className="font-bold text-white mb-4 flex items-center text-xs uppercase tracking-wide">
+          <UserPlus size={14} className="mr-2 text-amber-500" /> 
           Quick Add Player
         </h3>
         
@@ -186,63 +193,59 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
             value={newPlayerName}
             onChange={e => setNewPlayerName(e.target.value)}
             placeholder="Player Name"
-            className="flex-1 bg-slate-900 border border-slate-700 p-2 rounded text-white text-sm focus:outline-none focus:border-emerald-500"
+            className="flex-1 bg-black border border-neutral-800 p-3 rounded-lg text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
           />
           <select 
             value={newPlayerPos}
             onChange={(e: any) => setNewPlayerPos(e.target.value)}
-            className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-sm"
+            className="bg-black border border-neutral-800 p-3 rounded-lg text-white text-sm focus:outline-none focus:border-amber-500"
           >
             <option value="Forward">Fwd</option>
             <option value="Back">Back</option>
           </select>
-          <button type="submit" className="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-500">
+          <button type="submit" className="bg-amber-500 text-black p-3 rounded-lg hover:bg-amber-400 shadow-lg shadow-amber-900/20">
             <Check size={18} />
           </button>
         </form>
 
-        <div className="max-h-32 overflow-y-auto pr-2 custom-scrollbar">
-           {players.length > 0 && (
-             <div className="space-y-1">
-              {players.map(player => (
-                  <div key={player.id} className="flex justify-between items-center p-2 bg-slate-900/30 rounded border border-slate-700/30 hover:border-red-500/30 group">
-                  <span className="text-slate-400 text-xs">{player.name}</span>
-                  <button onClick={() => handleRemovePlayer(player.id)} className="text-slate-600 group-hover:text-red-500">
-                      <Trash2 size={12} />
-                  </button>
-                  </div>
-              ))}
-             </div>
-           )}
+        <div className="max-h-32 overflow-y-auto pr-2 custom-scrollbar space-y-2">
+           {players.length > 0 && players.map(player => (
+              <div key={player.id} className="flex justify-between items-center p-2 bg-black/50 rounded border border-neutral-800 hover:border-amber-500/50 group transition-colors">
+                <span className="text-neutral-400 text-xs font-medium">{player.name}</span>
+                <button onClick={() => handleRemovePlayer(player.id)} className="text-neutral-600 group-hover:text-amber-500">
+                    <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
         </div>
       </div>
 
       {/* Player Detail Modal */}
       {selectedPlayer && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedPlayer(null)} />
-          <div className="relative w-full max-w-md bg-slate-900 h-full shadow-2xl border-l border-slate-700 overflow-y-auto animate-fade-in-right">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onClick={() => setSelectedPlayer(null)} />
+          <div className="relative w-full max-w-md bg-neutral-950 h-full shadow-2xl border-l border-neutral-800 overflow-y-auto animate-slide-in">
              
-             <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-700 p-6 flex justify-between items-center z-10">
+             <div className="sticky top-0 bg-neutral-950/95 backdrop-blur border-b border-neutral-800 p-6 flex justify-between items-center z-10">
                 <div>
-                   <h3 className="text-2xl font-bold text-white">{selectedPlayer.name}</h3>
-                   <p className="text-emerald-500 text-sm font-mono uppercase">{selectedPlayer.position}</p>
+                   <h3 className="text-2xl font-black text-white tracking-tight">{selectedPlayer.name}</h3>
+                   <span className="inline-block bg-amber-500 text-black text-[10px] font-bold px-2 py-0.5 rounded uppercase mt-1">{selectedPlayer.position}</span>
                 </div>
-                <button onClick={() => setSelectedPlayer(null)} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-400">
+                <button onClick={() => setSelectedPlayer(null)} className="p-2 bg-neutral-900 rounded-full hover:bg-neutral-800 text-neutral-400">
                    <X size={20} />
                 </button>
              </div>
 
-             <div className="p-6 space-y-8">
+             <div className="p-6 space-y-6">
                 {PROGRAM.DAYS.map(day => {
                    const log = logs.find(l => l.playerId === selectedPlayer.id && l.dayId === day.id);
                    const hasData = log && Object.keys(log.data || {}).length > 0;
 
                    return (
-                      <div key={day.id} className={`rounded-xl border ${hasData ? 'border-slate-700 bg-slate-800/50' : 'border-slate-800 bg-slate-900'}`}>
-                         <div className="p-3 border-b border-slate-700/50 flex justify-between items-center">
-                            <span className="font-bold text-slate-200">{day.title}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded ${log?.completed ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-600'}`}>
+                      <div key={day.id} className={`rounded-xl border ${hasData ? 'border-neutral-700 bg-neutral-900/30' : 'border-neutral-800 bg-black'}`}>
+                         <div className="p-3 border-b border-neutral-800 flex justify-between items-center">
+                            <span className="font-bold text-neutral-200">{day.title}</span>
+                            <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${log?.completed ? 'bg-green-500/10 text-green-500' : 'text-neutral-600 bg-neutral-900'}`}>
                                {log?.completed ? 'Complete' : 'Pending'}
                             </span>
                          </div>
@@ -256,28 +259,28 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
                                const r = log?.data?.[`${ex.id}_reps`];
                                const hasEntry = w || s || r;
 
-                               if (!hasEntry && !log) return null; // Don't show empty fields if no log at all
+                               if (!hasEntry && !log) return null;
 
                                return (
                                   <div key={ex.id} className="flex justify-between items-center text-sm">
-                                     <span className="text-slate-400 w-1/2 truncate pr-2">{ex.name}</span>
+                                     <span className="text-neutral-400 w-1/2 truncate pr-2">{ex.name}</span>
                                      <div className="flex space-x-2 font-mono text-xs">
                                         {hasEntry ? (
                                            <>
-                                            <span className="text-emerald-400 bg-emerald-900/20 px-1.5 rounded">{w ? `${w}kg` : '-'}</span>
-                                            <span className="text-slate-300 bg-slate-700 px-1.5 rounded">{s ? `${s}s` : '-'}</span>
-                                            <span className="text-slate-300 bg-slate-700 px-1.5 rounded">{r ? `${r}r` : '-'}</span>
+                                            <span className="text-white bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-700 min-w-[3rem] text-center">{w ? `${w}kg` : '-'}</span>
+                                            <span className="text-neutral-400 bg-neutral-900 px-1.5 py-0.5 rounded min-w-[2rem] text-center">{s ? `${s}s` : '-'}</span>
+                                            <span className="text-neutral-400 bg-neutral-900 px-1.5 py-0.5 rounded min-w-[2rem] text-center">{r ? `${r}r` : '-'}</span>
                                            </>
                                         ) : (
-                                           <span className="text-slate-700">-</span>
+                                           <span className="text-neutral-700">-</span>
                                         )}
                                      </div>
                                   </div>
                                );
                             })}
                             {!hasData && (
-                               <div className="text-center py-2 text-xs text-slate-600 italic">
-                                  No data recorded.
+                               <div className="text-center py-4 text-xs text-neutral-700 italic">
+                                  No workout data logged yet.
                                </div>
                             )}
                          </div>

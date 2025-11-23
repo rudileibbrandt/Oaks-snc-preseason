@@ -22,7 +22,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-50 font-sans selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen bg-neutral-950 text-neutral-50 font-sans selection:bg-amber-500 selection:text-black">
       <main className="container mx-auto px-4 py-4 min-h-screen max-w-lg relative">
         {renderContent()}
       </main>

@@ -52,14 +52,14 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, onExit }) =
   return (
     <div className="flex flex-col h-full animate-fade-in pb-20">
       {/* Header */}
-      <div className="sticky top-0 bg-slate-900 z-20 pb-4 border-b border-slate-800 mb-6">
+      <div className="sticky top-0 bg-neutral-950 z-20 pb-4 border-b border-neutral-900 mb-6">
         <div className="flex items-center justify-between">
-          <button onClick={onExit} className="p-2 -ml-2 text-slate-400 hover:text-white">
+          <button onClick={onExit} className="p-2 -ml-2 text-neutral-400 hover:text-white">
             <ChevronLeft />
           </button>
           <div className="text-center">
             <h2 className="font-bold text-white text-lg">{day.title}</h2>
-            <p className="text-xs text-emerald-500 font-medium">{day.focus}</p>
+            <p className="text-xs text-amber-500 font-medium">{day.focus}</p>
           </div>
           <div className="w-8" />
         </div>
@@ -68,32 +68,32 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, onExit }) =
       <div className="space-y-8">
         
         {/* Warmup Section */}
-        <div className="bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
+        <div className="bg-neutral-900 rounded-xl overflow-hidden border border-neutral-800">
           <button 
             onClick={() => setWarmupOpen(!warmupOpen)}
-            className="w-full p-4 bg-slate-800 flex justify-between items-center text-left"
+            className="w-full p-4 bg-neutral-900 flex justify-between items-center text-left"
           >
             <div>
               <h3 className="text-amber-500 font-bold uppercase tracking-wider text-sm">Warm Up</h3>
-              <p className="text-xs text-slate-400">Mandatory Daily Protocol</p>
+              <p className="text-xs text-neutral-400">Mandatory Daily Protocol</p>
             </div>
-            <span className="text-slate-500 text-xs">{warmupOpen ? 'Hide' : 'Show'}</span>
+            <span className="text-neutral-500 text-xs">{warmupOpen ? 'Hide' : 'Show'}</span>
           </button>
           
           {warmupOpen && (
-            <div className="p-4 pt-0 space-y-4 border-t border-slate-700/50 mt-2">
+            <div className="p-4 pt-0 space-y-4 border-t border-neutral-800/50 mt-2">
               {PROGRAM.WARMUP.map(ex => (
-                <div key={ex.id} className="flex items-start justify-between py-2 border-b border-slate-700/50 last:border-0">
+                <div key={ex.id} className="flex items-start justify-between py-2 border-b border-neutral-800/50 last:border-0">
                   <div>
                     <div className="text-white font-medium">{ex.name}</div>
-                    <div className="text-slate-500 text-xs">{ex.reps}</div>
+                    <div className="text-neutral-500 text-xs">{ex.reps}</div>
                   </div>
                   {ex.videoUrl && (
                     <a 
                       href={ex.videoUrl} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="p-2 bg-slate-700 text-red-500 rounded-lg hover:bg-slate-600 transition-colors"
+                      className="p-2 bg-neutral-800 text-amber-500 rounded-lg hover:bg-neutral-700 transition-colors"
                     >
                       <Youtube size={20} />
                     </a>
@@ -109,11 +109,11 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, onExit }) =
           <h3 className="text-white font-bold mb-4 px-2">Main Session</h3>
           <div className="space-y-4">
             {day.exercises.map(ex => (
-              <div key={ex.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+              <div key={ex.id} className="bg-neutral-900 p-4 rounded-xl border border-neutral-800">
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h4 className="text-lg font-bold text-white">{ex.name}</h4>
-                    <span className="inline-block px-2 py-0.5 bg-slate-700 rounded text-xs text-slate-300 font-mono">
+                    <span className="inline-block px-2 py-0.5 bg-neutral-800 rounded text-xs text-neutral-300 font-mono">
                       {ex.reps}
                     </span>
                   </div>
@@ -122,7 +122,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, onExit }) =
                       href={ex.videoUrl} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="text-red-500 hover:text-red-400 p-1"
+                      className="text-amber-500 hover:text-amber-400 p-1"
                     >
                       <Youtube size={24} />
                     </a>
@@ -132,7 +132,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, onExit }) =
                 {ex.isMetric ? (
                   <div className="mt-3 grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-[10px] text-slate-500 mb-1 uppercase font-bold tracking-wider">Weight (kg)</label>
+                      <label className="block text-[10px] text-neutral-500 mb-1 uppercase font-bold tracking-wider">Weight (kg)</label>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -140,11 +140,11 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, onExit }) =
                         value={logData[`${ex.id}_weight`] || ''}
                         onChange={e => handleInput(ex.id, 'weight', e.target.value)}
                         onBlur={() => handleSave(false)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-emerald-500 outline-none transition-colors text-center font-mono"
+                        className="w-full bg-black border border-neutral-800 rounded-lg p-3 text-white focus:border-amber-500 outline-none transition-colors text-center font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 mb-1 uppercase font-bold tracking-wider">Sets</label>
+                      <label className="block text-[10px] text-neutral-500 mb-1 uppercase font-bold tracking-wider">Sets</label>
                       <input
                         type="text"
                         inputMode="numeric"
@@ -152,11 +152,11 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, onExit }) =
                         value={logData[`${ex.id}_sets`] || ''}
                         onChange={e => handleInput(ex.id, 'sets', e.target.value)}
                         onBlur={() => handleSave(false)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-emerald-500 outline-none transition-colors text-center font-mono"
+                        className="w-full bg-black border border-neutral-800 rounded-lg p-3 text-white focus:border-amber-500 outline-none transition-colors text-center font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 mb-1 uppercase font-bold tracking-wider">Reps</label>
+                      <label className="block text-[10px] text-neutral-500 mb-1 uppercase font-bold tracking-wider">Reps</label>
                       <input
                         type="text"
                         inputMode="numeric"
@@ -164,12 +164,12 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, onExit }) =
                         value={logData[`${ex.id}_reps`] || ''}
                         onChange={e => handleInput(ex.id, 'reps', e.target.value)}
                         onBlur={() => handleSave(false)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-emerald-500 outline-none transition-colors text-center font-mono"
+                        className="w-full bg-black border border-neutral-800 rounded-lg p-3 text-white focus:border-amber-500 outline-none transition-colors text-center font-mono"
                       />
                     </div>
                   </div>
                 ) : (
-                   <div className="mt-2 text-xs text-emerald-500 flex items-center">
+                   <div className="mt-2 text-xs text-green-500 flex items-center">
                      <CheckCircle size={14} className="mr-1" /> No entry required
                    </div>
                 )}
@@ -184,8 +184,8 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, onExit }) =
           className={`
             w-full py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center transition-all
             ${completed 
-              ? 'bg-slate-700 text-emerald-400 cursor-default' 
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95'
+              ? 'bg-neutral-800 text-green-400 cursor-default' 
+              : 'bg-amber-500 hover:bg-amber-400 text-black active:scale-95'
             }
           `}
         >
