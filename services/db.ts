@@ -106,7 +106,7 @@ const ensureAuth = async () => {
 const handleFirebaseError = (e: any, context: string) => {
   console.error(`Error in ${context}:`, e);
   if (e.code === 'permission-denied') {
-    const msg = "Database Permission Denied. The app cannot read/write to Firestore. Solution: Run 'firebase deploy --only firestore:rules' in your terminal.";
+    const msg = "Database Permission Denied. Solution: Run 'firebase deploy --only firestore:rules --project oaks-snc' in your terminal.";
     console.error(`🚨 ${msg}`);
     // Return a simpler error object for the UI to display
     const err = new Error(msg);
