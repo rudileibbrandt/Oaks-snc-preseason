@@ -1,11 +1,40 @@
-<div align="center">
+# The Oaks Performance Portal
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+A progressive web app (PWA) for The Oaks Rugby Team to track pre-season Strength & Conditioning.
 
-  <h1>Built with AI Studio</h2>
+## Features
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+*   **Athlete Portal**: Frictionless login (select name), daily workout tracking, and video guides.
+*   **Coach Dashboard**: Team-wide leaderboard, traffic-light completion tracking, and detailed performance metrics.
+*   **Offline Capable**: Works via LocalStorage if Firebase is not configured.
+*   **Cloud Sync**: Real-time updates via Firebase Firestore.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Tech Stack
 
-</div>
+*   React 18 + TypeScript
+*   Vite (Build Tool)
+*   Tailwind CSS (Styling)
+*   Firebase (Auth, Firestore)
+*   Lucide React (Icons)
+
+## Setup
+
+1.  **Install dependencies**
+    ```bash
+    npm install
+    ```
+
+2.  **Configure Firebase**
+    *   Create a project at [console.firebase.google.com](https://console.firebase.google.com)
+    *   Copy your config object
+    *   Paste it into `services/db.ts`
+
+3.  **Run Locally**
+    ```bash
+    npm run dev
+    ```
+
+4.  **Build for Production**
+    ```bash
+    npm run build
+    ```
