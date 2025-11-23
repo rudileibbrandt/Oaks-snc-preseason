@@ -29,7 +29,7 @@ if (isConfigured) {
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
-    const app = firebase.app();
+    // const app = firebase.app(); // Removed unused variable
     const auth = firebase.auth();
     dbInstance = firebase.firestore();
     
@@ -106,9 +106,8 @@ const ensureAuth = async () => {
 const handleFirebaseError = (e: any, context: string) => {
   console.error(`Error in ${context}:`, e);
   if (e.code === 'permission-denied') {
-    const msg = "Database Permission Denied. Solution: Run 'firebase deploy --only firestore:rules --project oaks-snc' in your terminal.";
+    const msg = "Database Locked. Run 'npm run deploy' in terminal to update rules.";
     console.error(`🚨 ${msg}`);
-    // Return a simpler error object for the UI to display
     const err = new Error(msg);
     (err as any).code = 'permission-denied';
     throw err;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
-import { Trash2, UserPlus, LogOut, Trophy, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Trash2, UserPlus, LogOut, Trophy, ChevronRight, AlertCircle, Loader2, X } from 'lucide-react';
 import { PROGRAM } from '../services/programData';
 
 interface Props {
@@ -264,6 +264,59 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
             ))}
         </div>
       </div>
+      
+      {/* Player Details Modal */}
+      {selectedPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPlayer(null)}>
+          <div className="bg-neutral-900 w-full max-w-lg max-h-[80vh] rounded-2xl border border-neutral-800 shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-black/40">
+              <div>
+                <h3 className="text-2xl font-black text-white italic">{selectedPlayer.name}</h3>
+                <p className="text-amber-500 text-xs font-bold uppercase tracking-widest">{selectedPlayer.position}</p>
+              </div>
+              <button onClick={() => setSelectedPlayer(null)} className="text-neutral-500 hover:text-white transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-4 custom-scrollbar">
+              {PROGRAM.DAYS.map(day => {
+                const dayLog = logs.find(l => l.playerId === selectedPlayer.id && l.dayId === day.id);
+                const isComplete = dayLog?.completed;
+                
+                return (
+                  <div key={day.id} className={`p-4 rounded-xl border ${isComplete ? 'bg-neutral-900/50 border-green-900/30' : 'bg-neutral-900 border-neutral-800'}`}>
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="font-bold text-neutral-300 text-sm uppercase">{day.title}: {day.focus}</h4>
+                      {isComplete ? (
+                         <span className="px-2 py-1 bg-green-900/20 text-green-500 text-[10px] font-bold uppercase rounded tracking-wider">Complete</span>
+                      ) : (
+                         <span className="px-2 py-1 bg-neutral-800 text-neutral-500 text-[10px] font-bold uppercase rounded tracking-wider">Incomplete</span>
+                      )}
+                    </div>
+                    
+                    {dayLog && dayLog.data && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(dayLog.data).map(([key, val]) => {
+                           const [exId, type] = key.split('_');
+                           if (!val) return null;
+                           const exName = day.exercises.find(e => e.id === exId)?.name || exId;
+                           return (
+                             <div key={key} className="text-xs bg-black/40 p-2 rounded border border-neutral-800/50 flex justify-between">
+                               <span className="text-neutral-500 mr-2">{exName} ({type}):</span>
+                               <span className="font-mono text-amber-500 font-bold">{val}</span>
+                             </div>
+                           );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
