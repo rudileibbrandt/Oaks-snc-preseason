@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
-import { Trash2, UserPlus, LogOut, Check, Trophy, Activity, X, ChevronRight } from 'lucide-react';
+import { Trash2, UserPlus, LogOut, Check, Trophy, X, ChevronRight } from 'lucide-react';
 import { PROGRAM } from '../services/programData';
 
 interface Props {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Landing from './components/Landing';
 import CoachDashboard from './components/CoachDashboard';
 import AthleteView from './components/AthleteView';
+import SetupWarning from './components/SetupWarning';
 import { AppView } from './types';
 
 const App: React.FC = () => {
@@ -23,6 +24,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 font-sans selection:bg-amber-500 selection:text-black">
+      <SetupWarning />
       <main className="container mx-auto px-4 py-4 min-h-screen max-w-lg relative">
         {renderContent()}
       </main>

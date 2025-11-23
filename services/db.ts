@@ -32,7 +32,7 @@ const firebaseConfig = {
 };
 
 // Check if config is set
-const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+export const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
 
 // Initialize Variables
 let dbInstance: any = null;
