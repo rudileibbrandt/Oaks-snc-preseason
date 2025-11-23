@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
 import { PROGRAM } from '../services/programData';
-import { ChevronLeft, CheckCircle2, User, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, User, ChevronRight, Plus, AlertCircle, Loader2 } from 'lucide-react';
 import WorkoutSession from './WorkoutSession';
 
 interface Props {
@@ -20,6 +20,8 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPos, setNewPos] = useState<'Forward' | 'Back'>('Forward');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadPlayers();
@@ -32,7 +34,12 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   }, [selectedPlayer, activeDayId]); // Reload logs if activeDayId changes (implies return from workout)
 
   const loadPlayers = async () => {
-    setPlayers(await db.getPlayers());
+    try {
+      const p = await db.getPlayers();
+      setPlayers(p);
+    } catch (e) {
+      console.error("Failed to load players", e);
+    }
   };
 
   const loadLogs = async (id: string) => {
@@ -47,12 +54,25 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
     e.preventDefault();
     if (!newName.trim()) return;
     
-    // Add player and immediately select them
-    const newPlayer = await db.addPlayer(newName, newPos);
-    setPlayers(prev => [...prev, newPlayer]);
-    setSelectedPlayer(newPlayer);
-    setIsRegistering(false);
-    setNewName(''); // Reset form
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      // Add player and immediately select them
+      const newPlayer = await db.addPlayer(newName, newPos);
+      setPlayers(prev => [...prev, newPlayer]);
+      setSelectedPlayer(newPlayer);
+      setIsRegistering(false);
+      setNewName(''); // Reset form
+    } catch (err: any) {
+      console.error("Registration failed:", err);
+      let msg = "Failed to create profile. Please try again.";
+      if (err.code === 'permission-denied') msg = "Database permission denied. Check Firebase Console Rules.";
+      if (err.message) msg = err.message;
+      setError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const filteredPlayers = players.filter(p => 
@@ -71,6 +91,13 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
         </header>
 
         <form onSubmit={handleRegister} className="space-y-6">
+          {error && (
+            <div className="bg-red-900/20 border border-red-900/50 p-4 rounded-xl flex items-start text-red-500 text-sm">
+              <AlertCircle size={18} className="mr-2 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div>
             <label className="block text-neutral-400 text-sm mb-2 font-medium">Full Name</label>
             <input
@@ -80,6 +107,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
               value={newName}
               onChange={e => setNewName(e.target.value)}
               className="w-full bg-neutral-900 border border-neutral-800 p-4 rounded-xl text-white focus:ring-2 focus:ring-amber-500 outline-none placeholder:text-neutral-600"
+              disabled={isSubmitting}
             />
           </div>
 
@@ -89,6 +117,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setNewPos('Forward')}
+                disabled={isSubmitting}
                 className={`p-4 rounded-xl border font-bold transition-all ${
                   newPos === 'Forward' 
                     ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]' 
@@ -100,6 +129,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setNewPos('Back')}
+                disabled={isSubmitting}
                 className={`p-4 rounded-xl border font-bold transition-all ${
                   newPos === 'Back' 
                     ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]' 
@@ -113,9 +143,16 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
 
           <button
             type="submit"
-            className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold p-4 rounded-xl mt-8 shadow-lg shadow-amber-900/20 active:scale-95 transition-transform"
+            disabled={isSubmitting}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold p-4 rounded-xl mt-8 shadow-lg shadow-amber-900/20 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
           >
-            Create Profile & Start
+            {isSubmitting ? (
+              <>
+                <Loader2 size={20} className="mr-2 animate-spin" /> Saving...
+              </>
+            ) : (
+              'Create Profile & Start'
+            )}
           </button>
         </form>
       </div>
@@ -142,6 +179,10 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
         />
 
         <div className="flex-1 overflow-y-auto space-y-2 pr-2 pb-20 custom-scrollbar">
+          {filteredPlayers.length === 0 && players.length > 0 && searchTerm && (
+             <div className="text-center text-neutral-500 py-8">No players found matching "{searchTerm}"</div>
+          )}
+          
           {filteredPlayers.map(player => (
             <button
               key={player.id}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
-import { Trash2, UserPlus, LogOut, Check, Trophy, X, ChevronRight } from 'lucide-react';
+import { Trash2, UserPlus, LogOut, Trophy, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
 import { PROGRAM } from '../services/programData';
 
 interface Props {
@@ -17,30 +17,59 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
   // View States
   const [viewMode, setViewMode] = useState<'completion' | 'metrics'>('completion');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  
+  // Async states
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const p = await db.getPlayers();
-    const l = await db.getLogs();
-    setPlayers(p);
-    setLogs(l);
+    try {
+      const p = await db.getPlayers();
+      const l = await db.getLogs();
+      setPlayers(p);
+      setLogs(l);
+    } catch (e: any) {
+      console.error("Load failed", e);
+      if (e.code === 'permission-denied') {
+        setError("Database Permission Denied. Run: firebase deploy --only firestore:rules");
+      }
+    }
   };
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPlayerName.trim()) return;
-    await db.addPlayer(newPlayerName, newPlayerPos);
-    setNewPlayerName('');
-    loadData();
+    
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await db.addPlayer(newPlayerName, newPlayerPos);
+      setNewPlayerName('');
+      loadData();
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'permission-denied') {
+         setError("Permission denied. Check Firestore Rules in Firebase Console.");
+      } else {
+         setError(err.message || "Failed to add player");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRemovePlayer = async (id: string) => {
     if (confirm('Remove this player? Data will be preserved but they cannot log in.')) {
-      await db.removePlayer(id);
-      loadData();
+      try {
+        await db.removePlayer(id);
+        loadData();
+      } catch (err) {
+        alert("Failed to remove player. Check console.");
+      }
     }
   };
 
@@ -104,6 +133,13 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
           Max Lifts
         </button>
       </div>
+
+      {error && (
+            <div className="mb-6 bg-red-900/20 border border-red-900/50 p-4 rounded-xl flex items-start text-red-500 text-sm">
+              <AlertCircle size={20} className="mr-2 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+      )}
 
       {/* Main Table Area */}
       <div className="bg-neutral-900/50 rounded-xl overflow-hidden border border-neutral-800 mb-8 shadow-xl">
@@ -193,108 +229,41 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate }) => {
             value={newPlayerName}
             onChange={e => setNewPlayerName(e.target.value)}
             placeholder="Player Name"
-            className="flex-1 bg-black border border-neutral-800 p-3 rounded-lg text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+            disabled={isSubmitting}
+            className="flex-1 bg-black border border-neutral-800 p-3 rounded-lg text-white text-sm focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
           />
           <select 
             value={newPlayerPos}
             onChange={(e: any) => setNewPlayerPos(e.target.value)}
-            className="bg-black border border-neutral-800 p-3 rounded-lg text-white text-sm focus:outline-none focus:border-amber-500"
+            disabled={isSubmitting}
+            className="bg-black border border-neutral-800 p-3 rounded-lg text-white text-sm focus:outline-none focus:border-amber-500 disabled:opacity-50"
           >
             <option value="Forward">Fwd</option>
             <option value="Back">Back</option>
           </select>
-          <button type="submit" className="bg-amber-500 text-black p-3 rounded-lg hover:bg-amber-400 shadow-lg shadow-amber-900/20">
-            <Check size={18} />
+          <button 
+            type="submit" 
+            disabled={isSubmitting}
+            className="bg-amber-500 text-black p-3 rounded-lg hover:bg-amber-400 shadow-lg shadow-amber-900/20 disabled:opacity-50 disabled:cursor-not-allowed w-12 flex justify-center items-center"
+          >
+            {isSubmitting ? <Loader2 size={18} className="animate-spin"/> : <Trophy size={18} />}
           </button>
         </form>
 
         <div className="max-h-32 overflow-y-auto pr-2 custom-scrollbar space-y-2">
-           {players.length > 0 && players.map(player => (
-              <div key={player.id} className="flex justify-between items-center p-2 bg-black/50 rounded border border-neutral-800 hover:border-amber-500/50 group transition-colors">
-                <span className="text-neutral-400 text-xs font-medium">{player.name}</span>
-                <button onClick={() => handleRemovePlayer(player.id)} className="text-neutral-600 group-hover:text-amber-500">
-                    <Trash2 size={12} />
-                </button>
-              </div>
+            {players.map(p => (
+                <div key={p.id} className="flex justify-between items-center p-2 bg-black/40 rounded border border-neutral-800/50">
+                    <span className="text-xs text-neutral-400">{p.name} ({p.position})</span>
+                    <button 
+                        onClick={() => handleRemovePlayer(p.id)}
+                        className="text-neutral-600 hover:text-red-500"
+                    >
+                        <Trash2 size={12} />
+                    </button>
+                </div>
             ))}
         </div>
       </div>
-
-      {/* Player Detail Modal */}
-      {selectedPlayer && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onClick={() => setSelectedPlayer(null)} />
-          <div className="relative w-full max-w-md bg-neutral-950 h-full shadow-2xl border-l border-neutral-800 overflow-y-auto animate-slide-in">
-             
-             <div className="sticky top-0 bg-neutral-950/95 backdrop-blur border-b border-neutral-800 p-6 flex justify-between items-center z-10">
-                <div>
-                   <h3 className="text-2xl font-black text-white tracking-tight">{selectedPlayer.name}</h3>
-                   <span className="inline-block bg-amber-500 text-black text-[10px] font-bold px-2 py-0.5 rounded uppercase mt-1">{selectedPlayer.position}</span>
-                </div>
-                <button onClick={() => setSelectedPlayer(null)} className="p-2 bg-neutral-900 rounded-full hover:bg-neutral-800 text-neutral-400">
-                   <X size={20} />
-                </button>
-             </div>
-
-             <div className="p-6 space-y-6">
-                {PROGRAM.DAYS.map(day => {
-                   const log = logs.find(l => l.playerId === selectedPlayer.id && l.dayId === day.id);
-                   const hasData = log && Object.keys(log.data || {}).length > 0;
-
-                   return (
-                      <div key={day.id} className={`rounded-xl border ${hasData ? 'border-neutral-700 bg-neutral-900/30' : 'border-neutral-800 bg-black'}`}>
-                         <div className="p-3 border-b border-neutral-800 flex justify-between items-center">
-                            <span className="font-bold text-neutral-200">{day.title}</span>
-                            <span className="font-bold text-xs">
-                                <span className={`inline-block w-2 h-2 rounded-full mr-2 ${log?.completed ? 'bg-green-500' : 'bg-neutral-800'}`}></span>
-                                <span className={log?.completed ? 'text-green-500' : 'text-neutral-600'}>
-                                   {log?.completed ? 'Complete' : 'Pending'}
-                                </span>
-                            </span>
-                         </div>
-                         
-                         <div className="p-3 space-y-3">
-                            {day.exercises.map(ex => {
-                               if (!ex.isMetric) return null;
-                               
-                               const w = log?.data?.[`${ex.id}_weight`];
-                               const s = log?.data?.[`${ex.id}_sets`];
-                               const r = log?.data?.[`${ex.id}_reps`];
-                               const hasEntry = w || s || r;
-
-                               if (!hasEntry && !log) return null;
-
-                               return (
-                                  <div key={ex.id} className="flex justify-between items-center text-sm">
-                                     <span className="text-neutral-400 w-1/2 truncate pr-2">{ex.name}</span>
-                                     <div className="flex space-x-2 font-mono text-xs">
-                                        {hasEntry ? (
-                                           <>
-                                            <span className="text-white bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-700 min-w-[3rem] text-center">{w ? `${w}kg` : '-'}</span>
-                                            <span className="text-neutral-400 bg-neutral-900 px-1.5 py-0.5 rounded min-w-[2rem] text-center">{s ? `${s}s` : '-'}</span>
-                                            <span className="text-neutral-400 bg-neutral-900 px-1.5 py-0.5 rounded min-w-[2rem] text-center">{r ? `${r}r` : '-'}</span>
-                                           </>
-                                        ) : (
-                                           <span className="text-neutral-700">-</span>
-                                        )}
-                                     </div>
-                                  </div>
-                               );
-                            })}
-                            {!hasData && (
-                               <div className="text-center py-4 text-xs text-neutral-700 italic">
-                                  No workout data logged yet.
-                               </div>
-                            )}
-                         </div>
-                      </div>
-                   );
-                })}
-             </div>
-
-          </div>
-        </div>
-      )}
     </div>
   );
 };

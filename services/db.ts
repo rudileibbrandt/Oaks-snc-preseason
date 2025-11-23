@@ -1,34 +1,19 @@
 import { Player, WorkoutLog } from '../types';
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  getDocs, 
-  addDoc, 
-  deleteDoc, 
-  doc, 
-  setDoc, 
-  query, 
-  where 
-} from 'firebase/firestore';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
 
 // ---------------------------------------------------------
 // 1. FIREBASE CONFIGURATION
 // ---------------------------------------------------------
-// INSTRUCTIONS:
-// 1. Go to console.firebase.google.com
-// 2. Create a new project
-// 3. Register a Web App
-// 4. Copy the config object and paste it below
-// ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "SENDER_ID",
-  appId: "APP_ID"
+  apiKey: "AIzaSyD7mPaCU8OVMGLJdPh7EcRSPgCepEszEWs",
+  authDomain: "oaks-snc.firebaseapp.com",
+  projectId: "oaks-snc",
+  storageBucket: "oaks-snc.firebasestorage.app",
+  messagingSenderId: "517477387458",
+  appId: "1:517477387458:web:7067c6c41aaeedb9efff5b",
+  measurementId: "G-KDQE66YWZS"
 };
 
 // Check if config is set
@@ -36,26 +21,35 @@ export const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
 
 // Initialize Variables
 let dbInstance: any = null;
+let authPromise: Promise<any> = Promise.resolve();
 
 if (isConfigured) {
   try {
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    // Authenticate anonymously so we can write to DB without forcing user login
-    signInAnonymously(auth).catch((error) => {
-        console.error("Auth Error", error);
-    });
-    dbInstance = getFirestore(app);
+    // V8/Compat Initialization
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const app = firebase.app();
+    const auth = firebase.auth();
+    dbInstance = firebase.firestore();
+    
+    // Initiate Auth immediately
+    authPromise = auth.signInAnonymously()
+      .then(() => console.log("✅ Firebase Auth: Signed in anonymously"))
+      .catch((error) => {
+        console.error("❌ Auth Failed: Enable Anonymous Auth in Firebase Console -> Authentication", error);
+        throw error;
+      });
+
   } catch (error) {
     console.error("Firebase Init Failed:", error);
   }
 } else {
   console.warn("⚠️ FIREBASE NOT CONFIGURED. USING LOCAL STORAGE FALLBACK.");
-  console.warn("Update services/db.ts with your Firebase credentials to enable cloud sync.");
 }
 
 // ---------------------------------------------------------
-// LOCAL STORAGE FALLBACK IMPLEMENTATION
+// LOCAL STORAGE FALLBACK
 // ---------------------------------------------------------
 const ROSTER_KEY = 'oaks_roster_v1';
 const LOGS_KEY = 'oaks_logs_v1';
@@ -99,16 +93,39 @@ const ls = {
 // DATABASE INTERFACE
 // ---------------------------------------------------------
 
+const ensureAuth = async () => {
+  if (isConfigured && dbInstance) {
+    try {
+      await authPromise;
+    } catch (e) {
+      console.warn("Proceeding without auth (might fail if rules require it)");
+    }
+  }
+};
+
+const handleFirebaseError = (e: any, context: string) => {
+  console.error(`Error in ${context}:`, e);
+  if (e.code === 'permission-denied') {
+    const msg = "Database Permission Denied. The app cannot read/write to Firestore. Solution: Run 'firebase deploy --only firestore:rules' in your terminal.";
+    console.error(`🚨 ${msg}`);
+    // Return a simpler error object for the UI to display
+    const err = new Error(msg);
+    (err as any).code = 'permission-denied';
+    throw err;
+  }
+  throw e;
+};
+
 export const db = {
   getPlayers: async (): Promise<Player[]> => {
     if (!isConfigured || !dbInstance) return ls.getPlayers();
     
     try {
-      const snapshot = await getDocs(collection(dbInstance, 'roster'));
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
+      await ensureAuth();
+      const snapshot = await dbInstance.collection('roster').get();
+      return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Player));
     } catch (e) {
-      console.error("Error fetching players:", e);
-      return [];
+      return handleFirebaseError(e, 'getPlayers');
     }
   },
 
@@ -116,11 +133,11 @@ export const db = {
     if (!isConfigured || !dbInstance) return ls.addPlayer(name, position);
 
     try {
-      const docRef = await addDoc(collection(dbInstance, 'roster'), { name, position });
+      await ensureAuth();
+      const docRef = await dbInstance.collection('roster').add({ name, position });
       return { id: docRef.id, name, position };
     } catch (e) {
-      console.error("Error adding player:", e);
-      throw e;
+      return handleFirebaseError(e, 'addPlayer');
     }
   },
 
@@ -128,9 +145,10 @@ export const db = {
     if (!isConfigured || !dbInstance) return ls.removePlayer(id);
     
     try {
-      await deleteDoc(doc(dbInstance, 'roster', id));
+      await ensureAuth();
+      await dbInstance.collection('roster').doc(id).delete();
     } catch (e) {
-      console.error("Error removing player:", e);
+      return handleFirebaseError(e, 'removePlayer');
     }
   },
 
@@ -138,12 +156,11 @@ export const db = {
     if (!isConfigured || !dbInstance) return ls.saveLog(log);
 
     try {
-      // Use composite key to ensure one log per day per player
-      // This prevents duplicates and allows updating existing logs easily
+      await ensureAuth();
       const logId = `${log.playerId}_${log.dayId}`;
-      await setDoc(doc(dbInstance, 'logs', logId), log);
+      await dbInstance.collection('logs').doc(logId).set(log);
     } catch (e) {
-      console.error("Error saving log:", e);
+      return handleFirebaseError(e, 'saveLog');
     }
   },
 
@@ -151,11 +168,11 @@ export const db = {
     if (!isConfigured || !dbInstance) return ls.getLogs();
 
     try {
-      const snapshot = await getDocs(collection(dbInstance, 'logs'));
-      return snapshot.docs.map(doc => doc.data() as WorkoutLog);
+      await ensureAuth();
+      const snapshot = await dbInstance.collection('logs').get();
+      return snapshot.docs.map((doc: any) => doc.data() as WorkoutLog);
     } catch (e) {
-      console.error("Error fetching logs:", e);
-      return [];
+      return handleFirebaseError(e, 'getLogs');
     }
   },
 
@@ -163,12 +180,11 @@ export const db = {
     if (!isConfigured || !dbInstance) return ls.getPlayerLogs(playerId);
 
     try {
-      const q = query(collection(dbInstance, 'logs'), where('playerId', '==', playerId));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => doc.data() as WorkoutLog);
+      await ensureAuth();
+      const snapshot = await dbInstance.collection('logs').where('playerId', '==', playerId).get();
+      return snapshot.docs.map((doc: any) => doc.data() as WorkoutLog);
     } catch (e) {
-      console.error("Error fetching player logs:", e);
-      return [];
+      return handleFirebaseError(e, 'getPlayerLogs');
     }
   }
 };
