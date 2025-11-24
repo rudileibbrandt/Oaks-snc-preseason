@@ -52,7 +52,7 @@ const DAY4: WorkoutDay = {
   title: 'Day 4',
   focus: 'Speed',
   exercises: [
-    { id: 'd4_1', name: 'Sprints (30m)', reps: '8x30m (100%)', isMetric: true }, // No link provided in source for sprints specifically, handled generic description
+    { id: 'd4_1', name: 'Sprints (30m)', reps: '8x30m (100%)', isMetric: true, isSprint: true }, // No link provided in source for sprints specifically, handled generic description
   ]
 };
 

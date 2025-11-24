@@ -28,6 +28,12 @@ A progressive web app (PWA) for The Oaks Rugby Team to track pre-season Strength
     *   Create a project at [console.firebase.google.com](https://console.firebase.google.com)
     *   Copy your config object
     *   Paste it into `services/db.ts`
+    *   **Enable OAuth Providers:**
+        *   Go to Authentication → Sign-in method
+        *   Enable **Google** (requires OAuth consent screen setup)
+        *   Enable **Microsoft** (requires Azure AD app registration)
+        *   Enable **Apple** (requires Apple Developer account)
+        *   Add authorized domains: your hosting domain (e.g., `oaks-snc.web.app`)
 
 3.  **Run Locally**
     ```bash

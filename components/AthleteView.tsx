@@ -2,8 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
 import { PROGRAM } from '../services/programData';
-import { ChevronLeft, CheckCircle2, User, ChevronRight, Plus, AlertCircle, Loader2 } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, User, ChevronRight, Settings, Users } from 'lucide-react';
 import WorkoutSession from './WorkoutSession';
+import { 
+  getCurrentISOWeek, 
+  getISOWeekFromTimestamp, 
+  getISOWeekStart, 
+  getISOWeekEnd,
+  getISOWeek,
+  formatWeekIdentifier,
+  parseWeekIdentifier,
+  WeekIdentifier
+} from '../utils/weekUtils';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -12,26 +22,77 @@ interface Props {
 const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  const [playerLogs, setPlayerLogs] = useState<WorkoutLog[]>([]);
+  const [allPlayerLogs, setAllPlayerLogs] = useState<WorkoutLog[]>([]);
   const [activeDayId, setActiveDayId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentWeek, setCurrentWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
+  const [selectedWeek, setSelectedWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
 
-  // Registration State
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newPos, setNewPos] = useState<'Forward' | 'Back'>('Forward');
+  // Position Update State
+  const [isUpdatingPosition, setIsUpdatingPosition] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadPlayers();
+    // Auto-link user to their player profile on mount
+    autoLinkUserToPlayer();
   }, []);
+
+  const autoLinkUserToPlayer = async () => {
+    try {
+      const linkedPlayer = await db.getOrCreatePlayerForUser();
+      // Set as selected for both Players and Coaches (coaches can log workouts too)
+      setSelectedPlayer(linkedPlayer);
+      // Update players list if needed
+      setPlayers(prev => {
+        const exists = prev.find(p => p.id === linkedPlayer.id);
+        if (exists) return prev;
+        return [...prev, linkedPlayer];
+      });
+    } catch (e: any) {
+      console.error("Failed to auto-link player:", e);
+      // If error is about missing profile, redirect to landing
+      if (e.message?.includes('not found') || e.message?.includes('complete registration')) {
+        onNavigate('LANDING');
+      }
+    }
+  };
+
+  // Filter logs for selected week (use weekYear/week if available, fallback to weekNumber, then timestamp)
+  const playerLogs = allPlayerLogs.filter(log => {
+    if (log.weekYear && log.week) {
+      return log.weekYear === selectedWeek.year && log.week === selectedWeek.week;
+    }
+    // Fallback for old logs with weekNumber
+    if (log.weekNumber) {
+      const logWeek = getISOWeekFromTimestamp(log.timestamp);
+      return logWeek.year === selectedWeek.year && logWeek.week === selectedWeek.week;
+    }
+    // Fallback to timestamp-based filtering
+    const weekStart = getISOWeekStart(selectedWeek.year, selectedWeek.week).getTime();
+    const weekEnd = getISOWeekEnd(selectedWeek.year, selectedWeek.week).getTime();
+    return log.timestamp >= weekStart && log.timestamp <= weekEnd;
+  });
 
   useEffect(() => {
     if (selectedPlayer) {
       loadLogs(selectedPlayer.id);
     }
+    // Update current week periodically
+    const interval = setInterval(() => {
+      setCurrentWeek(getCurrentISOWeek());
+    }, 60000);
+    return () => clearInterval(interval);
   }, [selectedPlayer, activeDayId]); // Reload logs if activeDayId changes (implies return from workout)
+
+  // Reload logs when selectedWeek changes (user navigates to different week)
+  useEffect(() => {
+    if (selectedPlayer) {
+      console.log('[AthleteView] Selected week changed, reloading logs for week:', selectedWeek.year, 'W' + selectedWeek.week);
+      loadLogs(selectedPlayer.id);
+    }
+  }, [selectedWeek.year, selectedWeek.week]);
 
   const loadPlayers = async () => {
     try {
@@ -43,33 +104,48 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   };
 
   const loadLogs = async (id: string) => {
-    setPlayerLogs(await db.getPlayerLogs(id));
+    const logs = await db.getPlayerLogs(id);
+    console.log('[AthleteView] Loaded', logs.length, 'logs for player', id);
+    if (logs.length > 0) {
+      console.log('[AthleteView] Sample logs:', logs.slice(0, 3).map(log => ({
+        dayId: log.dayId,
+        weekYear: log.weekYear,
+        week: log.week,
+        weekNumber: log.weekNumber,
+        completed: log.completed
+      })));
+    }
+    setAllPlayerLogs(logs);
+    // Set current week, but preserve selectedWeek if user has manually selected one
+    const current = getCurrentISOWeek();
+    setCurrentWeek(current);
+    // Only update selectedWeek if it's still the current week (preserve user's selection)
+    if (selectedWeek.year === current.year && selectedWeek.week === current.week) {
+      setSelectedWeek(current);
+    }
   };
 
   const isDayComplete = (dayId: string) => {
+    // Check if day is complete in the selected week
     return playerLogs.some(l => l.dayId === dayId && l.completed);
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim()) return;
+  const handleUpdatePosition = async (position: 'Forward' | 'Back') => {
+    if (!selectedPlayer) return;
     
     setIsSubmitting(true);
     setError(null);
-
+    
     try {
-      // Add player and immediately select them
-      const newPlayer = await db.addPlayer(newName, newPos);
-      setPlayers(prev => [...prev, newPlayer]);
-      setSelectedPlayer(newPlayer);
-      setIsRegistering(false);
-      setNewName(''); // Reset form
+      await db.updatePlayerPosition(selectedPlayer.id, position);
+      // Update local state
+      const updatedPlayer = { ...selectedPlayer, position };
+      setSelectedPlayer(updatedPlayer);
+      setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? updatedPlayer : p));
+      setIsUpdatingPosition(false);
     } catch (err: any) {
-      console.error("Registration failed:", err);
-      let msg = "Failed to create profile. Please try again.";
-      if (err.code === 'permission-denied') msg = "Database permission denied. Check Firebase Console Rules.";
-      if (err.message) msg = err.message;
-      setError(msg);
+      console.error("Update position failed:", err);
+      setError(err.message || "Failed to update position");
     } finally {
       setIsSubmitting(false);
     }
@@ -79,88 +155,18 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // VIEW 1: REGISTRATION FORM
-  if (isRegistering) {
+  // If no player selected yet, show loading while we auto-link
+  if (!selectedPlayer) {
     return (
-      <div className="flex flex-col h-[85vh] animate-fade-in">
-        <header className="flex items-center mb-6">
-          <button onClick={() => setIsRegistering(false)} className="mr-4 text-neutral-400 hover:text-white">
-            <ChevronLeft />
-          </button>
-          <h2 className="text-xl font-bold text-white">Join The Squad</h2>
-        </header>
-
-        <form onSubmit={handleRegister} className="space-y-6">
-          {error && (
-            <div className="bg-red-900/20 border border-red-900/50 p-4 rounded-xl flex items-start text-red-500 text-sm">
-              <AlertCircle size={18} className="mr-2 flex-shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-neutral-400 text-sm mb-2 font-medium">Full Name</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Tom Curry"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-800 p-4 rounded-xl text-white focus:ring-2 focus:ring-amber-500 outline-none placeholder:text-neutral-600"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          <div>
-            <label className="block text-neutral-400 text-sm mb-2 font-medium">Position Group</label>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setNewPos('Forward')}
-                disabled={isSubmitting}
-                className={`p-4 rounded-xl border font-bold transition-all ${
-                  newPos === 'Forward' 
-                    ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]' 
-                    : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-amber-500/50'
-                }`}
-              >
-                Forward
-              </button>
-              <button
-                type="button"
-                onClick={() => setNewPos('Back')}
-                disabled={isSubmitting}
-                className={`p-4 rounded-xl border font-bold transition-all ${
-                  newPos === 'Back' 
-                    ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]' 
-                    : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-amber-500/50'
-                }`}
-              >
-                Back
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold p-4 rounded-xl mt-8 shadow-lg shadow-amber-900/20 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 size={20} className="mr-2 animate-spin" /> Saving...
-              </>
-            ) : (
-              'Create Profile & Start'
-            )}
-          </button>
-        </form>
+      <div className="flex items-center justify-center min-h-[85vh]">
+        <div className="text-neutral-400">Loading your profile...</div>
       </div>
     );
   }
 
-  // VIEW 2: SELECT PLAYER
-  if (!selectedPlayer) {
+  // VIEW: SELECT PLAYER (for switching between players - only shown if user manually cleared selection)
+  // Note: This view is rarely shown since we auto-link on mount
+  if (players.length > 0 && !selectedPlayer) {
     return (
       <div className="flex flex-col h-[85vh] animate-fade-in">
         <header className="flex items-center mb-6">
@@ -194,21 +200,11 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
               </div>
               <div>
                 <div className="font-semibold text-white">{player.name}</div>
-                <div className="text-xs text-neutral-400">{player.position}</div>
+                <div className="text-xs text-neutral-400">{player.position || 'No position set'}</div>
               </div>
               <ChevronRight className="ml-auto text-neutral-500 group-hover:text-amber-500 transition-colors" size={20} />
             </button>
           ))}
-          
-          <div className="pt-4 pb-8 text-center">
-             <button 
-                onClick={() => setIsRegistering(true)}
-                className="inline-flex items-center px-4 py-2 rounded-full bg-neutral-900 text-amber-500 font-medium hover:text-amber-400 hover:bg-neutral-800 border border-dashed border-amber-500/30 hover:border-amber-500 transition-all"
-             >
-                <Plus size={18} className="mr-2" /> 
-                Not on the list? Join Team
-             </button>
-          </div>
         </div>
       </div>
     );
@@ -218,11 +214,14 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   if (activeDayId) {
     const day = PROGRAM.DAYS.find(d => d.id === activeDayId);
     if (!day) return null;
+    // Find log for this day in the selected week
+    const weekLog = playerLogs.find(l => l.dayId === activeDayId);
     return (
       <WorkoutSession
         player={selectedPlayer}
         day={day}
-        existingLog={playerLogs.find(l => l.dayId === activeDayId)}
+        existingLog={weekLog}
+        selectedWeek={selectedWeek}
         onExit={() => setActiveDayId(null)}
       />
     );
@@ -231,15 +230,138 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   // VIEW 4: ATHLETE DASHBOARD (Select Day)
   return (
     <div className="pb-20 animate-fade-in">
-      <header className="flex items-center justify-between mb-8">
+      <header className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Welcome, {selectedPlayer.name.split(' ')[0]}</h1>
-          <p className="text-neutral-400 text-sm">Ready to work?</p>
+          <p className="text-neutral-400 text-sm">
+            {selectedPlayer.role === 'Player' 
+              ? (selectedPlayer.position ? `${selectedPlayer.position}` : 'Position not set')
+              : 'Coach'
+            }
+          </p>
         </div>
-        <button onClick={() => setSelectedPlayer(null)} className="text-xs text-amber-500 font-medium hover:text-amber-400">
-          Switch User
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => onNavigate('COACH')} 
+            className="text-xs text-neutral-400 font-medium hover:text-amber-500 flex items-center gap-1 transition-colors"
+          >
+            <Users size={14} />
+            Stat Board
+          </button>
+          {selectedPlayer.role === 'Player' && (
+            <button 
+              onClick={() => setIsUpdatingPosition(true)} 
+              className="text-xs text-amber-500 font-medium hover:text-amber-400 flex items-center gap-1"
+            >
+              <Settings size={14} />
+              {selectedPlayer.position ? 'Update Position' : 'Set Position'}
+            </button>
+          )}
+        </div>
       </header>
+
+      {/* Week Navigation */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              // Go to previous week
+              const prevWeekStart = getISOWeekStart(selectedWeek.year, selectedWeek.week);
+              prevWeekStart.setUTCDate(prevWeekStart.getUTCDate() - 7);
+              setSelectedWeek(getISOWeek(prevWeekStart));
+            }}
+            className="p-2 bg-neutral-900 hover:bg-neutral-800 rounded-lg border border-neutral-800 transition-colors"
+          >
+            <ChevronLeft size={18} className="text-neutral-400" />
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={formatWeekIdentifier(selectedWeek)}
+              onChange={(e) => {
+                const parsed = parseWeekIdentifier(e.target.value);
+                if (parsed) {
+                  setSelectedWeek(parsed);
+                }
+              }}
+              className="w-24 px-3 py-2 bg-black border border-neutral-800 rounded-lg text-white text-center font-bold text-sm focus:outline-none focus:border-amber-500"
+              placeholder="2024-W48"
+            />
+            {selectedWeek.year === currentWeek.year && selectedWeek.week === currentWeek.week && (
+              <span className="text-xs text-amber-500 font-medium">(Current)</span>
+            )}
+          </div>
+          
+          <button
+            onClick={() => {
+              // Go to next week
+              const nextWeekStart = getISOWeekStart(selectedWeek.year, selectedWeek.week);
+              nextWeekStart.setUTCDate(nextWeekStart.getUTCDate() + 7);
+              setSelectedWeek(getISOWeek(nextWeekStart));
+            }}
+            className="p-2 bg-neutral-900 hover:bg-neutral-800 rounded-lg border border-neutral-800 transition-colors"
+          >
+            <ChevronRight size={18} className="text-neutral-400" />
+          </button>
+          
+          {(selectedWeek.year !== currentWeek.year || selectedWeek.week !== currentWeek.week) && (
+            <button
+              onClick={() => setSelectedWeek(currentWeek)}
+              className="ml-2 px-3 py-2 bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold rounded-lg transition-colors"
+            >
+              Current Week
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Position Update Modal */}
+      {isUpdatingPosition && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setIsUpdatingPosition(false)}>
+          <div className="bg-neutral-900 rounded-2xl p-6 max-w-sm w-full border border-neutral-800" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-white mb-4">Update Position</h3>
+            
+            {error && (
+              <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-lg text-red-500 text-sm mb-4">
+                {error}
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <button
+                onClick={() => handleUpdatePosition('Forward')}
+                disabled={isSubmitting}
+                className={`p-4 rounded-xl border font-bold transition-all ${
+                  selectedPlayer.position === 'Forward' 
+                    ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]' 
+                    : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-amber-500/50'
+                } disabled:opacity-50`}
+              >
+                Forward
+              </button>
+              <button
+                onClick={() => handleUpdatePosition('Back')}
+                disabled={isSubmitting}
+                className={`p-4 rounded-xl border font-bold transition-all ${
+                  selectedPlayer.position === 'Back' 
+                    ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]' 
+                    : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-amber-500/50'
+                } disabled:opacity-50`}
+              >
+                Back
+              </button>
+            </div>
+            
+            <button
+              onClick={() => setIsUpdatingPosition(false)}
+              className="w-full bg-neutral-800 text-neutral-300 p-3 rounded-xl hover:bg-neutral-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4">
         {PROGRAM.DAYS.map((day, index) => {
