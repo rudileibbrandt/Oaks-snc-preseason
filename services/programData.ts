@@ -6,7 +6,7 @@ const WARMUP: ExerciseDef[] = [
   { id: 'wu3', name: 'Two Leg Pogos', reps: '2x20', videoUrl: 'https://youtube.com/shorts/mOlZ8IIaAVo?si=EpeSYIBqoz3kfN_M', isMetric: false },
   { id: 'wu4', name: 'Vertical Bounds', reps: '2x10', videoUrl: 'https://youtube.com/shorts/OAhgPwTLJoo?si=NpXYFOOEA5G1_usq', isMetric: false },
   { id: 'wu5', name: 'Horizontal Bounds', reps: '2x10', videoUrl: 'https://youtu.be/xAk2tKNPsUw?si=LfC0pCiyJr2m1zCY', isMetric: false },
-  { id: 'wu6', name: 'A-Skip', reps: '2x20', isMetric: false },
+  { id: 'wu6', name: 'A-Skip', reps: '2x20', videoUrl: 'https://youtu.be/A7r6yCpmSrA?si=rG1ZF8wY7VsJoVBl', isMetric: false },
   { id: 'wu7', name: 'B-Skip', reps: '2x20', videoUrl: 'https://youtu.be/A7r6yCpmSrA?si=rG1ZF8wY7VsJoVBl', isMetric: false },
 ];
 

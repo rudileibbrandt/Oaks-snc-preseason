@@ -25,6 +25,38 @@ interface NumberInputProps {
   onBlur?: () => void;
 }
 
+// Helper function to format reps string (e.g., "4x5" -> "4 sets, 5 reps")
+const formatRepsString = (reps: string): string => {
+  if (!reps) return reps;
+  
+  // Match patterns like "4x5", "3x8 (Alt)", "2x60s (Toes)", "8x30m (100%)", "2x2min (Toes)"
+  // Pattern: number x number [optional unit] [optional extra text]
+  const match = reps.match(/^(\d+)x(\d+)([a-z]*)(?:\s+(.+))?$/i);
+  if (match) {
+    const sets = match[1];
+    const number = match[2];
+    const unit = (match[3] || '').toLowerCase(); // 's', 'm', 'min', or empty
+    const extra = match[4] ? match[4].trim() : ''; // "(Alt)", "(Toes)", "(100%)", etc.
+    
+    let repsPart = '';
+    if (unit === 's') {
+      repsPart = `${number} seconds`;
+    } else if (unit === 'm') {
+      repsPart = `${number}m`;
+    } else if (unit === 'min') {
+      repsPart = `${number} min`;
+    } else {
+      repsPart = `${number} reps`;
+    }
+    
+    const result = `${sets} sets, ${repsPart}`;
+    return extra ? `${result} ${extra}` : result;
+  }
+  
+  // If no pattern matches, return as-is
+  return reps;
+};
+
 const NumberInput: React.FC<NumberInputProps> = React.memo(({ 
   id, 
   field, 
@@ -75,6 +107,7 @@ const NumberInput: React.FC<NumberInputProps> = React.memo(({
 const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWeek, onExit }) => {
   const [logData, setLogData] = useState<Record<string, string>>({});
   const logDataRef = useRef<Record<string, string>>({});
+  const [customWorkout, setCustomWorkout] = useState<string>('');
   const [completed, setCompleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [warmupOpen, setWarmupOpen] = useState(true);
@@ -88,10 +121,29 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
     if (existingLog) {
       setLogData(existingLog.data || {});
       logDataRef.current = existingLog.data || {};
+      setCustomWorkout(existingLog.customWorkout || '');
       setCompleted(existingLog.completed);
       setWarmupOpen(false);
+    } else {
+      // Initialize with default "0" values for all exercise fields
+      const defaultData: Record<string, string> = {};
+      day.exercises.forEach(ex => {
+        if (ex.isMetric) {
+          if (ex.isSprint) {
+            defaultData[`${ex.id}_sets`] = '0';
+            defaultData[`${ex.id}_time`] = '0';
+          } else {
+            defaultData[`${ex.id}_weight`] = '0';
+            defaultData[`${ex.id}_sets`] = '0';
+            defaultData[`${ex.id}_reps`] = '0';
+          }
+        }
+      });
+      setLogData(defaultData);
+      logDataRef.current = defaultData;
+      setCustomWorkout('');
     }
-  }, [existingLog]);
+  }, [existingLog, day.exercises]);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -163,7 +215,8 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
       weekYear: weekId.year,
       week: weekId.week,
       data: currentLogData,
-      completed: markComplete
+      completed: markComplete,
+      customWorkout: customWorkout.trim() || undefined
     };
     
     console.log('[WorkoutSession] Saving log:', {
@@ -240,7 +293,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
                 <div key={ex.id} className="flex items-center justify-between py-2 border-b border-neutral-800/50 last:border-0">
                   <div>
                     <div className="text-white font-medium">{ex.name}</div>
-                    <div className="text-neutral-500 text-xs mt-0.5">{ex.reps}</div>
+                    <div className="text-neutral-500 text-xs mt-0.5">{formatRepsString(ex.reps)}</div>
                   </div>
                   {ex.videoUrl && (
                     <a 
@@ -266,7 +319,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
               <div className="p-4 bg-neutral-950/50 border-b border-neutral-800 flex items-center justify-between">
                 <div className="flex-1">
                   <h4 className="text-xl font-bold text-white mb-1">{ex.name}</h4>
-                  <p className="text-sm text-neutral-400">{ex.reps}</p>
+                  <p className="text-sm text-neutral-400">{formatRepsString(ex.reps)}</p>
                 </div>
                 {ex.videoUrl && (
                   <a 
@@ -288,7 +341,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
                       id={ex.id}
                       field="sets"
                       label="Sets"
-                      value={logData[`${ex.id}_sets`] || ''}
+                      value={logData[`${ex.id}_sets`] || '0'}
                       placeholder="8"
                       inputMode="numeric"
                       onChange={handleInput}
@@ -298,7 +351,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
                       id={ex.id}
                       field="time"
                       label="Time"
-                      value={logData[`${ex.id}_time`] || ''}
+                      value={logData[`${ex.id}_time`] || '0'}
                       placeholder="4.5"
                       inputMode="decimal"
                       unit="sec"
@@ -312,7 +365,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
                       id={ex.id}
                       field="weight"
                       label="Weight"
-                      value={logData[`${ex.id}_weight`] || ''}
+                      value={logData[`${ex.id}_weight`] || '0'}
                       placeholder="225"
                       inputMode="decimal"
                       unit="lbs"
@@ -324,7 +377,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
                         id={ex.id}
                         field="sets"
                         label="Sets"
-                        value={logData[`${ex.id}_sets`] || ''}
+                        value={logData[`${ex.id}_sets`] || '0'}
                         placeholder="4"
                         inputMode="numeric"
                         onChange={handleInput}
@@ -334,7 +387,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
                         id={ex.id}
                         field="reps"
                         label="Reps"
-                        value={logData[`${ex.id}_reps`] || ''}
+                        value={logData[`${ex.id}_reps`] || '0'}
                         placeholder="5"
                         inputMode="numeric"
                         onChange={handleInput}
@@ -352,6 +405,28 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
               )}
             </div>
           ))}
+        </div>
+
+        {/* Did My Own Workout Section */}
+        <div className="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden">
+          <div className="p-4 bg-neutral-950/50 border-b border-neutral-800">
+            <h3 className="text-lg font-bold text-white">Did My Own Workout</h3>
+            <p className="text-xs text-neutral-400 mt-1">Describe what you did instead of the assigned workout</p>
+          </div>
+          <div className="p-4">
+            <textarea
+              value={customWorkout}
+              onChange={(e) => setCustomWorkout(e.target.value)}
+              onBlur={() => handleSave(false)}
+              placeholder="Describe what you did for your workout today..."
+              rows={4}
+              className="w-full bg-neutral-950 border-2 border-neutral-800 rounded-xl px-4 py-3 text-white text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all resize-none"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="true"
+            />
+          </div>
         </div>
 
         {error && (

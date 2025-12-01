@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
 import { UserPlus, LogOut, Trophy, ChevronRight, AlertCircle, X, Dumbbell, ChevronLeft, TrendingUp, Users } from 'lucide-react';
@@ -26,6 +26,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
   const [allLogs, setAllLogs] = useState<WorkoutLog[]>([]);
   const [currentWeek, setCurrentWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
   const [selectedWeek, setSelectedWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
+  const isNavigatingRef = useRef<string | null>(null);
   
   // View States
   const [viewMode, setViewMode] = useState<'completion' | 'metrics' | 'analytics' | 'performers'>('completion');
@@ -659,11 +660,36 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => {
-              // Go to previous week
-              const prevWeekStart = getISOWeekStart(selectedWeek.year, selectedWeek.week);
-              prevWeekStart.setUTCDate(prevWeekStart.getUTCDate() - 7);
-              setSelectedWeek(getISOWeek(prevWeekStart));
+              if (isNavigatingRef.current === 'prev') {
+                return;
+              }
+              
+              isNavigatingRef.current = 'prev';
+              console.log('[CoachDashboard] Previous clicked, current week:', selectedWeek);
+              
+              setSelectedWeek(current => {
+                let newYear = current.year;
+                let newWeek = current.week - 1;
+                
+                if (newWeek < 1) {
+                  newYear = current.year - 1;
+                  // Get last week of previous year
+                  const dec28 = new Date(Date.UTC(newYear, 11, 28));
+                  const dec28Week = getISOWeek(dec28);
+                  newWeek = dec28Week.year === newYear ? dec28Week.week : 52;
+                }
+                
+                const result = { year: newYear, week: newWeek };
+                console.log('[CoachDashboard] Previous:', current, '->', result);
+                
+                setTimeout(() => {
+                  isNavigatingRef.current = null;
+                }, 100);
+                
+                return result;
+              });
             }}
             className="p-2 bg-neutral-900 hover:bg-neutral-800 rounded-lg border border-neutral-800 transition-colors"
           >
@@ -673,6 +699,8 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
           <div className="flex items-center gap-2">
             <input
               type="text"
+              id="week-input-coach"
+              name="week-input-coach"
               value={formatWeekIdentifier(selectedWeek)}
               onChange={(e) => {
                 const parsed = parseWeekIdentifier(e.target.value);
@@ -689,11 +717,38 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
           </div>
           
           <button
+            type="button"
             onClick={() => {
-              // Go to next week
-              const nextWeekStart = getISOWeekStart(selectedWeek.year, selectedWeek.week);
-              nextWeekStart.setUTCDate(nextWeekStart.getUTCDate() + 7);
-              setSelectedWeek(getISOWeek(nextWeekStart));
+              if (isNavigatingRef.current === 'next') {
+                return;
+              }
+              
+              isNavigatingRef.current = 'next';
+              console.log('[CoachDashboard] Next clicked, current week:', selectedWeek);
+              
+              setSelectedWeek(current => {
+                let newYear = current.year;
+                let newWeek = current.week + 1;
+                
+                // Check if we need to go to next year
+                const dec28 = new Date(Date.UTC(current.year, 11, 28));
+                const dec28Week = getISOWeek(dec28);
+                const maxWeeks = dec28Week.year === current.year ? dec28Week.week : 52;
+                
+                if (newWeek > maxWeeks) {
+                  newYear = current.year + 1;
+                  newWeek = 1;
+                }
+                
+                const result = { year: newYear, week: newWeek };
+                console.log('[CoachDashboard] Next:', current, '->', result);
+                
+                setTimeout(() => {
+                  isNavigatingRef.current = null;
+                }, 100);
+                
+                return result;
+              });
             }}
             className="p-2 bg-neutral-900 hover:bg-neutral-800 rounded-lg border border-neutral-800 transition-colors"
           >
@@ -712,10 +767,10 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       </div>
 
       {/* View Toggle */}
-      <div className="flex p-1 bg-neutral-900 rounded-xl mb-6 border border-neutral-800">
+      <div className={`flex p-1 bg-neutral-900 rounded-xl mb-6 border border-neutral-800 ${currentPlayer?.role === 'Coach' ? 'flex-wrap gap-1' : ''}`}>
         <button
           onClick={() => setViewMode('completion')}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
+          className={`${currentPlayer?.role === 'Coach' ? 'flex-[1_1_auto] min-w-[120px]' : 'flex-1'} py-2.5 rounded-lg text-sm font-bold transition-all ${
             viewMode === 'completion' ? 'bg-neutral-800 text-white shadow-lg' : 'text-neutral-500 hover:text-white'
           }`}
         >
@@ -723,7 +778,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
         </button>
         <button
           onClick={() => setViewMode('metrics')}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
+          className={`${currentPlayer?.role === 'Coach' ? 'flex-[1_1_auto] min-w-[80px]' : 'flex-1'} py-2.5 rounded-lg text-sm font-bold transition-all ${
             viewMode === 'metrics' ? 'bg-amber-500 text-black shadow-lg' : 'text-neutral-500 hover:text-white'
           }`}
         >
@@ -731,21 +786,23 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
         </button>
         <button
           onClick={() => setViewMode('analytics')}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
+          className={`${currentPlayer?.role === 'Coach' ? 'flex-[1_1_auto] min-w-[100px]' : 'flex-1'} py-2.5 rounded-lg text-sm font-bold transition-all ${
             viewMode === 'analytics' ? 'bg-amber-500 text-black shadow-lg' : 'text-neutral-500 hover:text-white'
           }`}
         >
           Analytics
         </button>
         {currentPlayer?.role === 'Coach' && (
-          <button
-            onClick={() => setViewMode('performers')}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
-              viewMode === 'performers' ? 'bg-amber-500 text-black shadow-lg' : 'text-neutral-500 hover:text-white'
-            }`}
-          >
-            Performers
-          </button>
+          <>
+            <button
+              onClick={() => setViewMode('performers')}
+              className={`flex-[1_1_auto] min-w-[110px] py-2.5 rounded-lg text-sm font-bold transition-all ${
+                viewMode === 'performers' ? 'bg-amber-500 text-black shadow-lg' : 'text-neutral-500 hover:text-white'
+              }`}
+            >
+              Performers
+            </button>
+          </>
         )}
       </div>
 
@@ -1022,6 +1079,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
           </div>
         </div>
       )}
+
 
       {/* Main Table Area - Hide in analytics and performers views */}
       {viewMode !== 'analytics' && viewMode !== 'performers' && (

@@ -73,3 +73,35 @@ export function compareWeekIdentifiers(a: WeekIdentifier, b: WeekIdentifier): nu
   return a.week - b.week;
 }
 
+// Get previous week - simplified approach
+export function getPreviousWeek(weekId: WeekIdentifier): WeekIdentifier {
+  // Simple: just subtract 1 from week, handle year boundary
+  if (weekId.week > 1) {
+    return { year: weekId.year, week: weekId.week - 1 };
+  } else {
+    // Week 1 -> go to last week of previous year
+    // Most years have 52 weeks, some have 53
+    // Use a simple check: if Dec 28 is in week 53, the year has 53 weeks
+    const dec28 = new Date(Date.UTC(weekId.year - 1, 11, 28));
+    const dec28Week = getISOWeek(dec28);
+    const lastWeek = dec28Week.year === weekId.year - 1 ? dec28Week.week : 52;
+    return { year: weekId.year - 1, week: lastWeek };
+  }
+}
+
+// Get next week - simplified approach
+export function getNextWeek(weekId: WeekIdentifier): WeekIdentifier {
+  // Simple: just add 1 to week, handle year boundary
+  // Check if current week is the last week of the year
+  const dec28 = new Date(Date.UTC(weekId.year, 11, 28));
+  const dec28Week = getISOWeek(dec28);
+  const maxWeeks = dec28Week.year === weekId.year ? dec28Week.week : 52;
+  
+  if (weekId.week < maxWeeks) {
+    return { year: weekId.year, week: weekId.week + 1 };
+  } else {
+    // Last week -> go to week 1 of next year
+    return { year: weekId.year + 1, week: 1 };
+  }
+}
+

@@ -32,6 +32,7 @@ export interface WorkoutLog {
   week?: number; // ISO week number (1-53)
   data: Record<string, string>; // exerciseId -> value (e.g., "100lbs")
   completed: boolean;
+  customWorkout?: string; // Optional text description when player did their own workout
 }
 
-export type AppView = 'LOGIN' | 'LANDING' | 'COACH' | 'ATHLETE_SELECT' | 'ATHLETE_DASHBOARD' | 'WORKOUT_SESSION';
+export type AppView = 'LOGIN' | 'LANDING' | 'COACH' | 'ATHLETE_SELECT' | 'ATHLETE_DASHBOARD' | 'WORKOUT_SESSION' | 'TRACKER';

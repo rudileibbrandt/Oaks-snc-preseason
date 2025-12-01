@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Dumbbell, Users, LogOut } from 'lucide-react';
+import { Shield, Dumbbell, Users, LogOut, Table } from 'lucide-react';
 import { AppView, Player } from '../types';
 import { signOut, getCurrentUser } from '../services/auth';
 
@@ -93,6 +93,24 @@ const Landing: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
              </div>
           </div>
         </button>
+
+        {/* Show Tracker button for coaches only */}
+        {isCoach && (
+          <button
+            onClick={() => onNavigate('TRACKER')}
+            className="w-full group relative flex items-center justify-between p-5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all active:scale-95"
+          >
+            <div className="flex items-center">
+               <div className="p-2 bg-neutral-800 rounded-lg mr-4">
+                 <Table size={24} className="text-neutral-300" />
+               </div>
+               <div className="text-left">
+                 <span className="block text-neutral-200 font-bold text-lg">TRACKER</span>
+                 <span className="text-neutral-500 text-xs">Spreadsheet view</span>
+               </div>
+            </div>
+          </button>
+        )}
       </div>
       
       <div className="text-xs text-neutral-600 mt-auto font-mono">

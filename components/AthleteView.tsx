@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
 import { PROGRAM } from '../services/programData';
@@ -27,6 +27,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentWeek, setCurrentWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
   const [selectedWeek, setSelectedWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
+  const isNavigatingRef = useRef<string | null>(null);
 
   // Position Update State
   const [isUpdatingPosition, setIsUpdatingPosition] = useState(false);
@@ -119,10 +120,8 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
     // Set current week, but preserve selectedWeek if user has manually selected one
     const current = getCurrentISOWeek();
     setCurrentWeek(current);
-    // Only update selectedWeek if it's still the current week (preserve user's selection)
-    if (selectedWeek.year === current.year && selectedWeek.week === current.week) {
-      setSelectedWeek(current);
-    }
+    // Don't auto-update selectedWeek - let user control it via navigation buttons
+    // Only update if we're initializing (selectedWeek is current week and we just loaded)
   };
 
   const isDayComplete = (dayId: string) => {
@@ -264,11 +263,36 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => {
-              // Go to previous week
-              const prevWeekStart = getISOWeekStart(selectedWeek.year, selectedWeek.week);
-              prevWeekStart.setUTCDate(prevWeekStart.getUTCDate() - 7);
-              setSelectedWeek(getISOWeek(prevWeekStart));
+              if (isNavigatingRef.current === 'prev') {
+                return;
+              }
+              
+              isNavigatingRef.current = 'prev';
+              console.log('[AthleteView] Previous clicked, current week:', selectedWeek);
+              
+              setSelectedWeek(current => {
+                let newYear = current.year;
+                let newWeek = current.week - 1;
+                
+                if (newWeek < 1) {
+                  newYear = current.year - 1;
+                  // Get last week of previous year
+                  const dec28 = new Date(Date.UTC(newYear, 11, 28));
+                  const dec28Week = getISOWeek(dec28);
+                  newWeek = dec28Week.year === newYear ? dec28Week.week : 52;
+                }
+                
+                const result = { year: newYear, week: newWeek };
+                console.log('[AthleteView] Previous:', current, '->', result);
+                
+                setTimeout(() => {
+                  isNavigatingRef.current = null;
+                }, 100);
+                
+                return result;
+              });
             }}
             className="p-2 bg-neutral-900 hover:bg-neutral-800 rounded-lg border border-neutral-800 transition-colors"
           >
@@ -278,6 +302,8 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
           <div className="flex items-center gap-2">
             <input
               type="text"
+              id="week-input-athlete"
+              name="week-input-athlete"
               value={formatWeekIdentifier(selectedWeek)}
               onChange={(e) => {
                 const parsed = parseWeekIdentifier(e.target.value);
@@ -294,11 +320,38 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
           </div>
           
           <button
+            type="button"
             onClick={() => {
-              // Go to next week
-              const nextWeekStart = getISOWeekStart(selectedWeek.year, selectedWeek.week);
-              nextWeekStart.setUTCDate(nextWeekStart.getUTCDate() + 7);
-              setSelectedWeek(getISOWeek(nextWeekStart));
+              if (isNavigatingRef.current === 'next') {
+                return;
+              }
+              
+              isNavigatingRef.current = 'next';
+              console.log('[AthleteView] Next clicked, current week:', selectedWeek);
+              
+              setSelectedWeek(current => {
+                let newYear = current.year;
+                let newWeek = current.week + 1;
+                
+                // Check if we need to go to next year
+                const dec28 = new Date(Date.UTC(current.year, 11, 28));
+                const dec28Week = getISOWeek(dec28);
+                const maxWeeks = dec28Week.year === current.year ? dec28Week.week : 52;
+                
+                if (newWeek > maxWeeks) {
+                  newYear = current.year + 1;
+                  newWeek = 1;
+                }
+                
+                const result = { year: newYear, week: newWeek };
+                console.log('[AthleteView] Next:', current, '->', result);
+                
+                setTimeout(() => {
+                  isNavigatingRef.current = null;
+                }, 100);
+                
+                return result;
+              });
             }}
             className="p-2 bg-neutral-900 hover:bg-neutral-800 rounded-lg border border-neutral-800 transition-colors"
           >

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Landing from './components/Landing';
 import CoachDashboard from './components/CoachDashboard';
 import AthleteView from './components/AthleteView';
+import TrackerView from './components/TrackerView';
 import SetupWarning from './components/SetupWarning';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
@@ -162,6 +163,8 @@ const App: React.FC = () => {
         return <Landing onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
       case 'COACH':
         return <CoachDashboard onNavigate={setCurrentView} currentPlayer={currentPlayer} refreshTrigger={coachDashboardRefresh} />;
+      case 'TRACKER':
+        return <TrackerView onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
       case 'ATHLETE_SELECT':
       case 'ATHLETE_DASHBOARD':
         return <AthleteView onNavigate={setCurrentView} />;
