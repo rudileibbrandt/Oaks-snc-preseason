@@ -108,8 +108,10 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
   const [logData, setLogData] = useState<Record<string, string>>({});
   const logDataRef = useRef<Record<string, string>>({});
   const [customWorkout, setCustomWorkout] = useState<string>('');
+  const customWorkoutRef = useRef<string>('');
   const [completed, setCompleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false); // Ref to prevent double-clicks
   const [warmupOpen, setWarmupOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -119,9 +121,20 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
 
   useEffect(() => {
     if (existingLog) {
+      console.log('[WorkoutSession] Loading existing log:', {
+        dayId: existingLog.dayId,
+        completed: existingLog.completed,
+        hasCustomWorkout: !!existingLog.customWorkout,
+        customWorkout: existingLog.customWorkout,
+        customWorkoutType: typeof existingLog.customWorkout,
+        allKeys: Object.keys(existingLog)
+      });
       setLogData(existingLog.data || {});
       logDataRef.current = existingLog.data || {};
-      setCustomWorkout(existingLog.customWorkout || '');
+      const loadedCustomWorkout = existingLog.customWorkout || '';
+      console.log('[WorkoutSession] Setting customWorkout state to:', loadedCustomWorkout);
+      setCustomWorkout(loadedCustomWorkout);
+      customWorkoutRef.current = loadedCustomWorkout; // Update ref immediately
       setCompleted(existingLog.completed);
       setWarmupOpen(false);
     } else {
@@ -145,10 +158,14 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
     }
   }, [existingLog, day.exercises]);
 
-  // Keep ref in sync with state
+  // Keep refs in sync with state
   useEffect(() => {
     logDataRef.current = logData;
   }, [logData]);
+
+  useEffect(() => {
+    customWorkoutRef.current = customWorkout;
+  }, [customWorkout]);
 
   const handleInput = useCallback((id: string, field: 'weight' | 'sets' | 'reps' | 'time', value: string) => {
     // Allow any numeric input (including decimals for weight)
@@ -173,12 +190,20 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
   }, []);
 
   const handleSave = useCallback(async (markComplete: boolean) => {
+    // Prevent double-clicks - check if already saving
+    if (isSavingRef.current) {
+      console.log('[WorkoutSession] Save already in progress, ignoring click');
+      return;
+    }
+    
     // Prevent saving to future weeks
     if (isFutureWeek) {
       setError('Cannot log workouts for future weeks');
       return;
     }
     
+    // Set saving state immediately to prevent double-clicks
+    isSavingRef.current = true;
     setIsSaving(true);
     setError(null);
     
@@ -205,9 +230,11 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
       console.log('[WorkoutSession] No selected week, using current week:', weekId.year, 'W' + weekId.week);
     }
     
-    // Use ref to get latest logData without including it in dependencies
+    // Use refs to get latest values without including them in dependencies
     const currentLogData = logDataRef.current;
+    const currentCustomWorkout = customWorkoutRef.current;
     
+    // Build log object, only including customWorkout if it has a value
     const newLog: WorkoutLog = {
       playerId: player.id,
       dayId: day.id,
@@ -215,9 +242,14 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
       weekYear: weekId.year,
       week: weekId.week,
       data: currentLogData,
-      completed: markComplete,
-      customWorkout: customWorkout.trim() || undefined
+      completed: markComplete
     };
+    
+    // Only add customWorkout if it has a value (Firestore doesn't accept undefined)
+    const trimmedCustomWorkout = currentCustomWorkout.trim();
+    if (trimmedCustomWorkout) {
+      newLog.customWorkout = trimmedCustomWorkout;
+    }
     
     console.log('[WorkoutSession] Saving log:', {
       playerId: newLog.playerId,
@@ -225,13 +257,15 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
       weekYear: newLog.weekYear,
       week: newLog.week,
       completed: newLog.completed,
-      dataKeys: Object.keys(newLog.data)
+      dataKeys: Object.keys(newLog.data),
+      customWorkout: newLog.customWorkout || '(none)'
     });
     
     try {
       await db.saveLog(newLog);
       console.log('[WorkoutSession] Log saved successfully with weekYear:', newLog.weekYear, 'week:', newLog.week);
       setCompleted(markComplete);
+      isSavingRef.current = false;
       setIsSaving(false);
       
       // Don't exit immediately - let user see the saved state
@@ -245,6 +279,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
     } catch (err: any) {
       console.error('[WorkoutSession] Error saving workout:', err);
       setError(err.message || 'Failed to save workout');
+      isSavingRef.current = false;
       setIsSaving(false);
     }
   }, [isFutureWeek, selectedWeek, player.id, day.id, onExit]);
@@ -415,8 +450,11 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
           </div>
           <div className="p-4">
             <textarea
-              value={customWorkout}
-              onChange={(e) => setCustomWorkout(e.target.value)}
+              value={customWorkout || ''}
+              onChange={(e) => {
+                console.log('[WorkoutSession] Textarea onChange:', e.target.value);
+                setCustomWorkout(e.target.value);
+              }}
               onBlur={() => handleSave(false)}
               placeholder="Describe what you did for your workout today..."
               rows={4}
@@ -426,6 +464,12 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
               autoCapitalize="off"
               spellCheck="true"
             />
+            {/* Debug info - remove after fixing */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-2 text-xs text-neutral-600">
+                Debug: customWorkout state = "{customWorkout}" (length: {customWorkout.length})
+              </div>
+            )}
           </div>
         </div>
 

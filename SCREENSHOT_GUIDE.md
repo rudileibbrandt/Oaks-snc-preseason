@@ -34,7 +34,7 @@ This guide tells you exactly which screenshots to take and where to add them in 
 - The main landing page showing "MY WORKOUTS" and "STAT BOARD" buttons
 - The Oaks logo/header
 - Sign Out button in top right
-- Location in manual: After "Step 3: Navigate the App" section
+- Location in manual: After "Step 3: Navig  ate the App" section
 
 ### 4. Workout Days List
 **File**: `04-workout-days.png`
