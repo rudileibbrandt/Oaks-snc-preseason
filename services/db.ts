@@ -6,18 +6,20 @@ import 'firebase/compat/firestore';
 // ---------------------------------------------------------
 // 1. FIREBASE CONFIGURATION
 // ---------------------------------------------------------
+// Load from environment variables (Vite requires VITE_ prefix)
+// Falls back to hardcoded values if env vars not set (for backwards compatibility)
 const firebaseConfig = {
-  apiKey: "AIzaSyD7mPaCU8OVMGLJdPh7EcRSPgCepEszEWs",
-  authDomain: "oaks-snc.firebaseapp.com",
-  projectId: "oaks-snc",
-  storageBucket: "oaks-snc.firebasestorage.app",
-  messagingSenderId: "517477387458",
-  appId: "1:517477387458:web:7067c6c41aaeedb9efff5b",
-  measurementId: "G-KDQE66YWZS"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD7mPaCU8OVMGLJdPh7EcRSPgCepEszEWs",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "oaks-snc.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "oaks-snc",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "oaks-snc.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "517477387458",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:517477387458:web:7067c6c41aaeedb9efff5b",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-KDQE66YWZS"
 };
 
 // Check if config is set
-export const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+export const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" && firebaseConfig.apiKey !== "";
 
 // Initialize Variables
 let dbInstance: any = null;
