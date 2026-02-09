@@ -3,12 +3,17 @@ import Landing from './components/Landing';
 import CoachDashboard from './components/CoachDashboard';
 import AthleteView from './components/AthleteView';
 import TrackerView from './components/TrackerView';
+import PlayerList from './components/PlayerList';
 import SetupWarning from './components/SetupWarning';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
+import RatingAnalytics from './components/RatingAnalytics';
 import { AppView, Player } from './types';
 import { onAuthStateChanged } from './services/auth';
-import { db } from './services/db';
+import { db, migrateRatingsTo5PointScale } from './services/db';
+
+// Run migration on app startup
+migrateRatingsTo5PointScale().catch(e => console.error('[App] Migration error:', e));
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>('LOGIN');
@@ -165,6 +170,10 @@ const App: React.FC = () => {
         return <CoachDashboard onNavigate={setCurrentView} currentPlayer={currentPlayer} refreshTrigger={coachDashboardRefresh} />;
       case 'TRACKER':
         return <TrackerView onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
+      case 'ROSTER':
+        return <PlayerList onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
+      case 'RATING_ANALYTICS':
+        return <RatingAnalytics onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
       case 'ATHLETE_SELECT':
       case 'ATHLETE_DASHBOARD':
         return <AthleteView onNavigate={setCurrentView} />;

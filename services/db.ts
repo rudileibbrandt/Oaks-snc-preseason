@@ -1,4 +1,4 @@
-import { Player, WorkoutLog } from '../types';
+import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry } from '../types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -47,6 +47,9 @@ if (isConfigured) {
 // ---------------------------------------------------------
 const ROSTER_KEY = 'oaks_roster_v1';
 const LOGS_KEY = 'oaks_logs_v1';
+const INJURIES_KEY = 'oaks_injuries_v1';
+const RATINGS_KEY = 'oaks_ratings_v1';
+const RATING_HISTORY_KEY = 'oaks_rating_history_v1';
 
 const ls = {
   getPlayers: async (): Promise<Player[]> => {
@@ -92,6 +95,122 @@ const ls = {
   getPlayerLogs: async (playerId: string): Promise<WorkoutLog[]> => {
     const logs = await ls.getLogs();
     return logs.filter(l => l.playerId === playerId);
+  },
+
+  // Injury operations
+  getInjuries: async (): Promise<InjuryRecord[]> => {
+    const data = localStorage.getItem(INJURIES_KEY);
+    return data ? JSON.parse(data) : [];
+  },
+  getActiveInjuries: async (): Promise<InjuryRecord[]> => {
+    const injuries = await ls.getInjuries();
+    return injuries.filter(i => i.currentStatus !== 'Returned to Play');
+  },
+  getPlayerInjuries: async (playerName: string): Promise<InjuryRecord[]> => {
+    const injuries = await ls.getInjuries();
+    const normalized = playerName.toLowerCase().trim();
+    return injuries.filter(i => i.playerName.toLowerCase().trim() === normalized);
+  },
+  addInjury: async (injury: Omit<InjuryRecord, 'id'>): Promise<InjuryRecord> => {
+    const injuries = await ls.getInjuries();
+    const newInjury: InjuryRecord = {
+      ...injury,
+      id: `inj-${Date.now()}`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    injuries.push(newInjury);
+    localStorage.setItem(INJURIES_KEY, JSON.stringify(injuries));
+    return newInjury;
+  },
+  updateInjury: async (id: string, updates: Partial<InjuryRecord>): Promise<InjuryRecord | null> => {
+    const injuries = await ls.getInjuries();
+    const index = injuries.findIndex(i => i.id === id);
+    if (index === -1) return null;
+    injuries[index] = { ...injuries[index], ...updates, updatedAt: Date.now() };
+    localStorage.setItem(INJURIES_KEY, JSON.stringify(injuries));
+    return injuries[index];
+  },
+  setInjuries: async (injuries: InjuryRecord[]): Promise<void> => {
+    localStorage.setItem(INJURIES_KEY, JSON.stringify(injuries));
+  },
+
+  // Rating operations
+  getRatings: async (): Promise<PlayerRating[]> => {
+    const data = localStorage.getItem(RATINGS_KEY);
+    return data ? JSON.parse(data) : [];
+  },
+  getPlayerRatings: async (playerName: string): Promise<PlayerRating[]> => {
+    const ratings = await ls.getRatings();
+    const normalized = playerName.toLowerCase().trim();
+    return ratings.filter(r => r.playerName.toLowerCase().trim() === normalized);
+  },
+  getMyRatingForPlayer: async (raterId: string, playerName: string): Promise<PlayerRating | null> => {
+    const ratings = await ls.getRatings();
+    const normalized = playerName.toLowerCase().trim();
+    const found = ratings.find(r =>
+      r.raterId === raterId &&
+      r.playerName.toLowerCase().trim() === normalized
+    );
+    return found || null;
+  },
+  getRatingHistory: async (playerName: string, raterId?: string): Promise<RatingHistoryEntry[]> => {
+    const data = localStorage.getItem(RATING_HISTORY_KEY);
+    const history: RatingHistoryEntry[] = data ? JSON.parse(data) : [];
+    const normalized = playerName.toLowerCase().trim();
+    return history.filter(h =>
+      h.playerName.toLowerCase().trim() === normalized &&
+      (!raterId || h.raterId === raterId)
+    ).sort((a, b) => b.timestamp - a.timestamp);
+  },
+  saveRating: async (rating: Omit<PlayerRating, 'id' | 'createdAt' | 'updatedAt'>): Promise<PlayerRating> => {
+    const ratings = await ls.getRatings();
+    const normalized = rating.playerName.toLowerCase().trim();
+    const existingIndex = ratings.findIndex(r =>
+      r.raterId === rating.raterId &&
+      r.playerName.toLowerCase().trim() === normalized
+    );
+
+    const now = Date.now();
+    let savedRating: PlayerRating;
+
+    if (existingIndex >= 0) {
+      // Update existing rating
+      savedRating = {
+        ...ratings[existingIndex],
+        ...rating,
+        updatedAt: now,
+      };
+      ratings[existingIndex] = savedRating;
+    } else {
+      // Create new rating
+      savedRating = {
+        ...rating,
+        id: `rating-${now}`,
+        createdAt: now,
+        updatedAt: now,
+      };
+      ratings.push(savedRating);
+    }
+
+    localStorage.setItem(RATINGS_KEY, JSON.stringify(ratings));
+
+    // Add to history
+    const historyData = localStorage.getItem(RATING_HISTORY_KEY);
+    const history: RatingHistoryEntry[] = historyData ? JSON.parse(historyData) : [];
+    const historyEntry: RatingHistoryEntry = {
+      id: `history-${now}`,
+      ratingId: savedRating.id,
+      playerName: savedRating.playerName,
+      raterId: savedRating.raterId,
+      raterName: savedRating.raterName,
+      ratings: savedRating.ratings,
+      timestamp: now,
+    };
+    history.push(historyEntry);
+    localStorage.setItem(RATING_HISTORY_KEY, JSON.stringify(history));
+
+    return savedRating;
   }
 };
 
@@ -180,7 +299,7 @@ export const db = {
           .where('userId', '==', user.uid)
           .limit(1)
           .get(),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
         )
       ]) as any;
@@ -189,42 +308,36 @@ export const db = {
 
       if (!userSnapshot.empty) {
         const doc = userSnapshot.docs[0];
-        const player = { id: doc.id, ...doc.data() } as Player;
-        console.log('[getOrCreatePlayerForUser] Found existing player:', player.id);
-        return player;
-      }
+        const existingData = doc.data();
 
-      // Try to find by email
-      if (user.email) {
-        console.log('[getOrCreatePlayerForUser] Querying by email...');
-        let emailSnapshot;
-        try {
-          emailSnapshot = await Promise.race([
-            dbInstance.collection('roster')
-              .where('email', '==', user.email)
-              .limit(1)
-              .get(),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
-            )
-          ]) as any;
-        } catch (queryError: any) {
-          console.error('[getOrCreatePlayerForUser] Email query error:', queryError);
-          if (queryError.code === 'failed-precondition') {
-            throw new Error('Database index required. Please check Firebase Console for index creation.');
-          }
-          throw queryError;
-        }
+        // Check if this is a mislinked account (linked to wrong roster player)
+        // If the stored name doesn't match the Google display name and it's a roster player (not a coach account),
+        // clear the link and let them create a new profile
+        const googleDisplayName = user.displayName || '';
+        const storedName = existingData.name || '';
 
-        if (!emailSnapshot.empty) {
-          const doc = emailSnapshot.docs[0];
-          // Update with userId
-          await dbInstance.collection('roster').doc(doc.id).update({ userId: user.uid });
-          const player = { id: doc.id, ...doc.data(), userId: user.uid } as Player;
-          console.log('[getOrCreatePlayerForUser] Found by email, updated:', player.id);
+        // If this looks like a roster player link (name mismatch with Google account)
+        // and user has a Google display name, unlink it
+        if (googleDisplayName && storedName &&
+            !storedName.toLowerCase().includes(googleDisplayName.toLowerCase().split(' ')[0]) &&
+            !googleDisplayName.toLowerCase().includes(storedName.toLowerCase().split(' ')[0])) {
+          console.log('[getOrCreatePlayerForUser] Detected mislinked account, clearing link');
+          console.log('  Google name:', googleDisplayName, '| Stored name:', storedName);
+          // Clear the userId from the mislinked document
+          await dbInstance.collection('roster').doc(doc.id).update({
+            userId: null,
+            email: null
+          });
+          // Fall through to create new profile
+        } else {
+          const player = { id: doc.id, ...doc.data() } as Player;
+          console.log('[getOrCreatePlayerForUser] Found existing player:', player.id);
           return player;
         }
       }
+
+      // Email-matching disabled - users create their own profiles
+      // This prevents accidentally linking to wrong roster entries
 
       // No match found - if role provided, create new player from user profile
       if (role) {
@@ -277,12 +390,30 @@ export const db = {
 
   updatePlayerPosition: async (id: string, position: 'Forward' | 'Back') => {
     if (!isConfigured || !dbInstance) return ls.updatePlayerPosition(id, position);
-    
+
     try {
       await ensureAuth();
       await dbInstance.collection('roster').doc(id).update({ position });
     } catch (e) {
       return handleFirebaseError(e, 'updatePlayerPosition');
+    }
+  },
+
+  updatePlayerName: async (id: string, name: string) => {
+    if (!isConfigured || !dbInstance) {
+      // LocalStorage fallback
+      const data = localStorage.getItem('oaks_roster_v1');
+      const players = data ? JSON.parse(data) : [];
+      const updated = players.map((p: any) => p.id === id ? { ...p, name } : p);
+      localStorage.setItem('oaks_roster_v1', JSON.stringify(updated));
+      return;
+    }
+
+    try {
+      await ensureAuth();
+      await dbInstance.collection('roster').doc(id).update({ name });
+    } catch (e) {
+      return handleFirebaseError(e, 'updatePlayerName');
     }
   },
 
@@ -335,5 +466,611 @@ export const db = {
     } catch (e) {
       return handleFirebaseError(e, 'getPlayerLogs');
     }
+  },
+
+  // ---------------------------------------------------------
+  // INJURY OPERATIONS
+  // ---------------------------------------------------------
+
+  getInjuries: async (): Promise<InjuryRecord[]> => {
+    if (!isConfigured || !dbInstance) {
+      console.log('[db.getInjuries] Using localStorage fallback');
+      return ls.getInjuries();
+    }
+
+    try {
+      await ensureAuth();
+      console.log('[db.getInjuries] Fetching from Firebase...');
+      const snapshot = await dbInstance.collection('injuries').get();
+      const injuries = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as InjuryRecord));
+      console.log('[db.getInjuries] Found', injuries.length, 'injuries in Firebase');
+      if (injuries.length > 0) {
+        console.log('[db.getInjuries] IDs:', injuries.map((i: InjuryRecord) => i.id).join(', '));
+      }
+      return injuries;
+    } catch (e) {
+      console.error('[db.getInjuries] Error:', e);
+      return handleFirebaseError(e, 'getInjuries');
+    }
+  },
+
+  getActiveInjuries: async (): Promise<InjuryRecord[]> => {
+    if (!isConfigured || !dbInstance) return ls.getActiveInjuries();
+
+    try {
+      await ensureAuth();
+      const snapshot = await dbInstance.collection('injuries')
+        .where('currentStatus', '!=', 'Returned to Play')
+        .get();
+      return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as InjuryRecord));
+    } catch (e) {
+      return handleFirebaseError(e, 'getActiveInjuries');
+    }
+  },
+
+  getPlayerInjuries: async (playerName: string): Promise<InjuryRecord[]> => {
+    if (!isConfigured || !dbInstance) return ls.getPlayerInjuries(playerName);
+
+    try {
+      await ensureAuth();
+      const snapshot = await dbInstance.collection('injuries')
+        .where('playerName', '==', playerName)
+        .orderBy('createdAt', 'desc')
+        .get();
+      return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as InjuryRecord));
+    } catch (e) {
+      // If index not created, fall back to getting all and filtering
+      console.warn('[getPlayerInjuries] Query failed, falling back to filter:', e);
+      const all = await db.getInjuries();
+      const normalized = playerName.toLowerCase().trim();
+      return all.filter(i => i.playerName.toLowerCase().trim() === normalized);
+    }
+  },
+
+  addInjury: async (injury: Omit<InjuryRecord, 'id'>): Promise<InjuryRecord> => {
+    if (!isConfigured || !dbInstance) return ls.addInjury(injury);
+
+    try {
+      await ensureAuth();
+      const now = Date.now();
+      const injuryData = {
+        ...injury,
+        createdAt: injury.createdAt || now,
+        updatedAt: now,
+      };
+      const docRef = await dbInstance.collection('injuries').add(injuryData);
+      console.log('[db.addInjury] Added injury:', docRef.id);
+      return { id: docRef.id, ...injuryData };
+    } catch (e) {
+      return handleFirebaseError(e, 'addInjury');
+    }
+  },
+
+  updateInjury: async (id: string, updates: Partial<InjuryRecord>): Promise<InjuryRecord | null> => {
+    console.log('[db.updateInjury] Attempting to update injury:', id);
+    console.log('[db.updateInjury] Updates:', JSON.stringify(updates));
+
+    if (!isConfigured || !dbInstance) {
+      console.log('[db.updateInjury] Using localStorage fallback');
+      return ls.updateInjury(id, updates);
+    }
+
+    try {
+      await ensureAuth();
+      const docRef = dbInstance.collection('injuries').doc(id);
+      console.log('[db.updateInjury] Checking if document exists...');
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        console.error('[db.updateInjury] Document NOT FOUND in Firebase:', id);
+        console.error('[db.updateInjury] This injury needs to be seeded to Firebase first');
+        return null;
+      }
+      console.log('[db.updateInjury] Document exists, current data:', JSON.stringify(doc.data()));
+
+      // Filter out undefined values (Firebase doesn't accept them)
+      const updateData: Record<string, unknown> = { updatedAt: Date.now() };
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) {
+          updateData[key] = value;
+        }
+      }
+      console.log('[db.updateInjury] Filtered update data:', JSON.stringify(updateData));
+
+      await docRef.update(updateData);
+      console.log('[db.updateInjury] Successfully updated injury:', id);
+      return { id, ...doc.data(), ...updateData } as InjuryRecord;
+    } catch (e: unknown) {
+      console.error('[db.updateInjury] Error:', e);
+      return handleFirebaseError(e, 'updateInjury');
+    }
+  },
+
+  setInjuries: async (injuries: InjuryRecord[]): Promise<void> => {
+    if (!isConfigured || !dbInstance) return ls.setInjuries(injuries);
+
+    try {
+      await ensureAuth();
+      // Use batch write for efficiency
+      const batch = dbInstance.batch();
+      for (const injury of injuries) {
+        const docRef = dbInstance.collection('injuries').doc(injury.id);
+        batch.set(docRef, injury);
+      }
+      await batch.commit();
+      console.log('[db.setInjuries] Set', injuries.length, 'injuries');
+    } catch (e) {
+      return handleFirebaseError(e, 'setInjuries');
+    }
+  },
+
+  // ---------------------------------------------------------
+  // RATING OPERATIONS (360-degree player reviews)
+  // ---------------------------------------------------------
+
+  getRatings: async (): Promise<PlayerRating[]> => {
+    if (!isConfigured || !dbInstance) {
+      console.log('[db.getRatings] Using localStorage fallback');
+      return ls.getRatings();
+    }
+
+    try {
+      await ensureAuth();
+      console.log('[db.getRatings] Fetching from Firebase...');
+      const snapshot = await dbInstance.collection('ratings').get();
+      const ratings = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as PlayerRating));
+      console.log('[db.getRatings] Found', ratings.length, 'ratings in Firebase');
+      return ratings;
+    } catch (e) {
+      console.error('[db.getRatings] Error:', e);
+      return handleFirebaseError(e, 'getRatings');
+    }
+  },
+
+  getPlayerRatings: async (playerName: string): Promise<PlayerRating[]> => {
+    if (!isConfigured || !dbInstance) return ls.getPlayerRatings(playerName);
+
+    try {
+      await ensureAuth();
+      const snapshot = await dbInstance.collection('ratings')
+        .where('playerName', '==', playerName)
+        .get();
+      return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as PlayerRating));
+    } catch (e) {
+      // Fall back to getting all and filtering if index not created
+      console.warn('[getPlayerRatings] Query failed, falling back to filter:', e);
+      const all = await db.getRatings();
+      const normalized = playerName.toLowerCase().trim();
+      return all.filter(r => r.playerName.toLowerCase().trim() === normalized);
+    }
+  },
+
+  getMyRatingForPlayer: async (raterId: string, playerName: string): Promise<PlayerRating | null> => {
+    if (!isConfigured || !dbInstance) return ls.getMyRatingForPlayer(raterId, playerName);
+
+    try {
+      await ensureAuth();
+      const snapshot = await dbInstance.collection('ratings')
+        .where('raterId', '==', raterId)
+        .where('playerName', '==', playerName)
+        .limit(1)
+        .get();
+      if (snapshot.empty) return null;
+      const doc = snapshot.docs[0];
+      return { id: doc.id, ...doc.data() } as PlayerRating;
+    } catch (e) {
+      // Fall back to getting all and filtering if compound index not created
+      console.warn('[getMyRatingForPlayer] Query failed, falling back to filter:', e);
+      const all = await db.getRatings();
+      const normalized = playerName.toLowerCase().trim();
+      const found = all.find(r =>
+        r.raterId === raterId &&
+        r.playerName.toLowerCase().trim() === normalized
+      );
+      return found || null;
+    }
+  },
+
+  getRatingHistory: async (playerName: string, raterId?: string): Promise<RatingHistoryEntry[]> => {
+    if (!isConfigured || !dbInstance) return ls.getRatingHistory(playerName, raterId);
+
+    try {
+      await ensureAuth();
+      let query = dbInstance.collection('ratingHistory')
+        .where('playerName', '==', playerName);
+
+      if (raterId) {
+        query = query.where('raterId', '==', raterId);
+      }
+
+      const snapshot = await query.orderBy('timestamp', 'desc').get();
+      return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as RatingHistoryEntry));
+    } catch (e) {
+      // Fall back to getting all and filtering if index not created
+      console.warn('[getRatingHistory] Query failed, falling back to filter:', e);
+      const allRatings = await db.getRatings();
+      const normalized = playerName.toLowerCase().trim();
+
+      // Build history from ratings (since we may not have history collection)
+      const history: RatingHistoryEntry[] = allRatings
+        .filter(r =>
+          r.playerName.toLowerCase().trim() === normalized &&
+          (!raterId || r.raterId === raterId)
+        )
+        .map(r => ({
+          id: `history-${r.id}`,
+          ratingId: r.id,
+          playerName: r.playerName,
+          raterId: r.raterId,
+          raterName: r.raterName,
+          ratings: r.ratings,
+          timestamp: r.updatedAt,
+        }))
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      return history;
+    }
+  },
+
+  deleteRating: async (ratingId: string): Promise<boolean> => {
+    if (!isConfigured || !dbInstance) {
+      // LocalStorage fallback
+      const data = localStorage.getItem(RATINGS_KEY);
+      const ratings: PlayerRating[] = data ? JSON.parse(data) : [];
+      const filtered = ratings.filter(r => r.id !== ratingId);
+      if (filtered.length === ratings.length) return false;
+      localStorage.setItem(RATINGS_KEY, JSON.stringify(filtered));
+
+      // Also delete from history
+      const historyData = localStorage.getItem(RATING_HISTORY_KEY);
+      const history: RatingHistoryEntry[] = historyData ? JSON.parse(historyData) : [];
+      const filteredHistory = history.filter(h => h.ratingId !== ratingId);
+      localStorage.setItem(RATING_HISTORY_KEY, JSON.stringify(filteredHistory));
+
+      return true;
+    }
+
+    try {
+      await ensureAuth();
+      console.log('[db.deleteRating] Deleting rating:', ratingId);
+
+      const docRef = dbInstance.collection('ratings').doc(ratingId);
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        console.log('[db.deleteRating] Rating not found:', ratingId);
+        return false;
+      }
+
+      await docRef.delete();
+      console.log('[db.deleteRating] Deleted rating:', ratingId);
+
+      // Also delete associated history entries
+      const historySnapshot = await dbInstance.collection('ratingHistory')
+        .where('ratingId', '==', ratingId)
+        .get();
+
+      if (!historySnapshot.empty) {
+        const batch = dbInstance.batch();
+        historySnapshot.docs.forEach((histDoc: any) => {
+          batch.delete(histDoc.ref);
+        });
+        await batch.commit();
+        console.log('[db.deleteRating] Deleted', historySnapshot.size, 'history entries');
+      }
+
+      return true;
+    } catch (e) {
+      console.error('[db.deleteRating] Error:', e);
+      return handleFirebaseError(e, 'deleteRating');
+    }
+  },
+
+  deleteRatingsByRater: async (raterId: string): Promise<number> => {
+    if (!isConfigured || !dbInstance) {
+      // LocalStorage fallback
+      const data = localStorage.getItem(RATINGS_KEY);
+      const ratings: PlayerRating[] = data ? JSON.parse(data) : [];
+      const filtered = ratings.filter(r => r.raterId !== raterId);
+      const deleted = ratings.length - filtered.length;
+      localStorage.setItem(RATINGS_KEY, JSON.stringify(filtered));
+
+      // Also delete from history
+      const historyData = localStorage.getItem(RATING_HISTORY_KEY);
+      const history: RatingHistoryEntry[] = historyData ? JSON.parse(historyData) : [];
+      const filteredHistory = history.filter(h => h.raterId !== raterId);
+      localStorage.setItem(RATING_HISTORY_KEY, JSON.stringify(filteredHistory));
+
+      return deleted;
+    }
+
+    try {
+      await ensureAuth();
+      console.log('[db.deleteRatingsByRater] Deleting ratings by rater:', raterId);
+
+      // Get all ratings by this rater
+      const snapshot = await dbInstance.collection('ratings')
+        .where('raterId', '==', raterId)
+        .get();
+
+      console.log('[db.deleteRatingsByRater] Found', snapshot.size, 'ratings to delete');
+
+      // Delete each rating
+      const batch = dbInstance.batch();
+      snapshot.docs.forEach((doc: any) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
+      // Also delete rating history by this rater
+      const historySnapshot = await dbInstance.collection('ratingHistory')
+        .where('raterId', '==', raterId)
+        .get();
+
+      console.log('[db.deleteRatingsByRater] Found', historySnapshot.size, 'history entries to delete');
+
+      const historyBatch = dbInstance.batch();
+      historySnapshot.docs.forEach((doc: any) => {
+        historyBatch.delete(doc.ref);
+      });
+      await historyBatch.commit();
+
+      console.log('[db.deleteRatingsByRater] Done');
+      return snapshot.size;
+    } catch (e) {
+      console.error('[db.deleteRatingsByRater] Error:', e);
+      return handleFirebaseError(e, 'deleteRatingsByRater');
+    }
+  },
+
+  deleteRatingsForPlayer: async (playerName: string): Promise<number> => {
+    if (!isConfigured || !dbInstance) {
+      // LocalStorage fallback
+      const data = localStorage.getItem(RATINGS_KEY);
+      const ratings: PlayerRating[] = data ? JSON.parse(data) : [];
+      const normalized = playerName.toLowerCase().trim();
+      const filtered = ratings.filter(r => r.playerName.toLowerCase().trim() !== normalized);
+      const deleted = ratings.length - filtered.length;
+      localStorage.setItem(RATINGS_KEY, JSON.stringify(filtered));
+      return deleted;
+    }
+
+    try {
+      await ensureAuth();
+      console.log('[db.deleteRatingsForPlayer] Deleting ratings for:', playerName);
+
+      // Get all ratings for this player
+      const snapshot = await dbInstance.collection('ratings')
+        .where('playerName', '==', playerName)
+        .get();
+
+      console.log('[db.deleteRatingsForPlayer] Found', snapshot.size, 'ratings to delete');
+
+      // Delete each rating
+      const batch = dbInstance.batch();
+      snapshot.docs.forEach((doc: any) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
+      // Also delete rating history
+      const historySnapshot = await dbInstance.collection('ratingHistory')
+        .where('playerName', '==', playerName)
+        .get();
+
+      console.log('[db.deleteRatingsForPlayer] Found', historySnapshot.size, 'history entries to delete');
+
+      const historyBatch = dbInstance.batch();
+      historySnapshot.docs.forEach((doc: any) => {
+        historyBatch.delete(doc.ref);
+      });
+      await historyBatch.commit();
+
+      console.log('[db.deleteRatingsForPlayer] Done');
+      return snapshot.size;
+    } catch (e) {
+      console.error('[db.deleteRatingsForPlayer] Error:', e);
+      return handleFirebaseError(e, 'deleteRatingsForPlayer');
+    }
+  },
+
+  saveRating: async (rating: Omit<PlayerRating, 'id' | 'createdAt' | 'updatedAt'>): Promise<PlayerRating> => {
+    if (!isConfigured || !dbInstance) return ls.saveRating(rating);
+
+    try {
+      await ensureAuth();
+      const auth = firebase.auth();
+      const user = auth.currentUser;
+      const now = Date.now();
+
+      // Include the auth UID for security rules
+      const raterUserId = user?.uid || '';
+
+      // Check for existing rating
+      const existingRating = await db.getMyRatingForPlayer(rating.raterId, rating.playerName);
+
+      let savedRating: PlayerRating;
+
+      if (existingRating) {
+        // Update existing rating
+        savedRating = {
+          ...existingRating,
+          ...rating,
+          raterUserId,
+          updatedAt: now,
+        };
+        await dbInstance.collection('ratings').doc(existingRating.id).update({
+          ratings: rating.ratings,
+          raterName: rating.raterName,
+          raterUserId,
+          updatedAt: now,
+        });
+        console.log('[db.saveRating] Updated existing rating:', existingRating.id);
+      } else {
+        // Create new rating
+        const ratingData = {
+          ...rating,
+          raterUserId,
+          createdAt: now,
+          updatedAt: now,
+        };
+        const docRef = await dbInstance.collection('ratings').add(ratingData);
+        savedRating = { id: docRef.id, ...ratingData };
+        console.log('[db.saveRating] Created new rating:', docRef.id);
+      }
+
+      // Add to history
+      const historyEntry = {
+        ratingId: savedRating.id,
+        playerName: savedRating.playerName,
+        raterId: savedRating.raterId,
+        raterUserId,
+        raterName: savedRating.raterName,
+        ratings: savedRating.ratings,
+        timestamp: now,
+      };
+      await dbInstance.collection('ratingHistory').add(historyEntry);
+      console.log('[db.saveRating] Added history entry');
+
+      return savedRating;
+    } catch (e) {
+      console.error('[db.saveRating] Error:', e);
+      return handleFirebaseError(e, 'saveRating');
+    }
   }
 };
+
+// ---------------------------------------------------------
+// MIGRATION: 1-3 rating scale to 1-5 rating scale
+// ---------------------------------------------------------
+const MIGRATION_FLAG = 'oaks_ratings_migrated_v2';
+
+function mapRatingValue(value: number): number {
+  // Spread mapping: 1→1, 2→3, 3→5
+  const mapping: Record<number, number> = { 1: 1, 2: 3, 3: 5 };
+  return mapping[value] ?? value;
+}
+
+function migrateRatingsObject(ratings: Record<string, number>): Record<string, number> {
+  const migrated: Record<string, number> = {};
+  for (const [key, value] of Object.entries(ratings)) {
+    if (value >= 1 && value <= 3) {
+      migrated[key] = mapRatingValue(value);
+    } else {
+      migrated[key] = value;
+    }
+  }
+  return migrated;
+}
+
+function needsMigration(ratings: Record<string, number>): boolean {
+  // If any value is > 3, assume already migrated
+  return Object.values(ratings).every(v => v <= 3) &&
+         Object.values(ratings).some(v => v >= 1);
+}
+
+export async function migrateRatingsTo5PointScale(): Promise<void> {
+  if (localStorage.getItem(MIGRATION_FLAG)) {
+    console.log('[migration] Already migrated to 5-point scale, skipping');
+    return;
+  }
+
+  console.log('[migration] Starting 1-3 → 1-5 rating scale migration...');
+
+  if (isConfigured && dbInstance) {
+    // Firebase migration
+    try {
+      await ensureAuth();
+
+      // Migrate ratings collection
+      const ratingsSnapshot = await dbInstance.collection('ratings').get();
+      if (!ratingsSnapshot.empty) {
+        const batch = dbInstance.batch();
+        let migratedCount = 0;
+
+        ratingsSnapshot.docs.forEach((doc: any) => {
+          const data = doc.data();
+          if (data.ratings && needsMigration(data.ratings)) {
+            const migratedRatings = migrateRatingsObject(data.ratings);
+            batch.update(doc.ref, { ratings: migratedRatings });
+            migratedCount++;
+          }
+        });
+
+        if (migratedCount > 0) {
+          await batch.commit();
+          console.log(`[migration] Migrated ${migratedCount} ratings in Firebase`);
+        } else {
+          console.log('[migration] No Firebase ratings needed migration');
+        }
+      }
+
+      // Migrate ratingHistory collection
+      const historySnapshot = await dbInstance.collection('ratingHistory').get();
+      if (!historySnapshot.empty) {
+        const batch = dbInstance.batch();
+        let migratedCount = 0;
+
+        historySnapshot.docs.forEach((doc: any) => {
+          const data = doc.data();
+          if (data.ratings && needsMigration(data.ratings)) {
+            const migratedRatings = migrateRatingsObject(data.ratings);
+            batch.update(doc.ref, { ratings: migratedRatings });
+            migratedCount++;
+          }
+        });
+
+        if (migratedCount > 0) {
+          await batch.commit();
+          console.log(`[migration] Migrated ${migratedCount} history entries in Firebase`);
+        } else {
+          console.log('[migration] No Firebase history entries needed migration');
+        }
+      }
+    } catch (e) {
+      console.error('[migration] Firebase migration error:', e);
+      // Don't set the flag - allow retry on next load
+      return;
+    }
+  } else {
+    // LocalStorage migration
+    const ratingsData = localStorage.getItem(RATINGS_KEY);
+    if (ratingsData) {
+      const ratings: PlayerRating[] = JSON.parse(ratingsData);
+      let migratedCount = 0;
+
+      const migrated = ratings.map(r => {
+        if (r.ratings && needsMigration(r.ratings as unknown as Record<string, number>)) {
+          migratedCount++;
+          return { ...r, ratings: migrateRatingsObject(r.ratings as unknown as Record<string, number>) as unknown as typeof r.ratings };
+        }
+        return r;
+      });
+
+      if (migratedCount > 0) {
+        localStorage.setItem(RATINGS_KEY, JSON.stringify(migrated));
+        console.log(`[migration] Migrated ${migratedCount} ratings in localStorage`);
+      }
+    }
+
+    const historyData = localStorage.getItem(RATING_HISTORY_KEY);
+    if (historyData) {
+      const history: RatingHistoryEntry[] = JSON.parse(historyData);
+      let migratedCount = 0;
+
+      const migrated = history.map(h => {
+        if (h.ratings && needsMigration(h.ratings as unknown as Record<string, number>)) {
+          migratedCount++;
+          return { ...h, ratings: migrateRatingsObject(h.ratings as unknown as Record<string, number>) as unknown as typeof h.ratings };
+        }
+        return h;
+      });
+
+      if (migratedCount > 0) {
+        localStorage.setItem(RATING_HISTORY_KEY, JSON.stringify(migrated));
+        console.log(`[migration] Migrated ${migratedCount} history entries in localStorage`);
+      }
+    }
+  }
+
+  localStorage.setItem(MIGRATION_FLAG, new Date().toISOString());
+  console.log('[migration] Migration complete, flag set');
+}
