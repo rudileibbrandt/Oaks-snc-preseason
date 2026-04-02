@@ -41,7 +41,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
           }
         } catch (err) {
           console.error('[RatingModal] Error loading rating:', err);
-          setError('Failed to load existing rating');
+          setError('Failed to load existing feedback');
         } finally {
           setIsLoading(false);
         }
@@ -56,7 +56,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
 
   const handleSave = async () => {
     if (!areRatingsComplete(ratings)) {
-      setError('Please rate all skills before saving');
+      setError('Please score all skills before saving');
       return;
     }
 
@@ -75,7 +75,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
       onClose();
     } catch (err) {
       console.error('[RatingModal] Error saving rating:', err);
-      setError('Failed to save rating. Please try again.');
+      setError('Failed to save feedback. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -94,11 +94,11 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
         onSave();
         onClose();
       } else {
-        setError('Rating not found');
+        setError('Feedback not found');
       }
     } catch (err) {
       console.error('[RatingModal] Error deleting rating:', err);
-      setError('Failed to delete rating. Please try again.');
+      setError('Failed to delete feedback. Please try again.');
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
@@ -115,7 +115,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
       <div className="bg-neutral-900 rounded-xl border border-neutral-800 max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-neutral-900 border-b border-neutral-800 p-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Rate Player</h2>
+          <h2 className="text-lg font-bold text-white">Player Feedback</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-neutral-800 rounded-lg transition-colors"
@@ -147,7 +147,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
               <p className="text-sm text-neutral-400">{player.squad} • {player.trainingGroup} Group</p>
               {existingRating && (
                 <p className="text-xs text-amber-400 mt-1">
-                  Last rated: {new Date(existingRating.updatedAt).toLocaleDateString()}
+                  Last feedback: {new Date(existingRating.updatedAt).toLocaleDateString()}
                 </p>
               )}
             </div>
@@ -204,7 +204,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
 
           {/* Rating Scale Legend */}
           <div className="mt-4 p-3 bg-neutral-800/30 rounded-lg">
-            <p className="text-xs text-neutral-500 mb-2">Rating Scale</p>
+            <p className="text-xs text-neutral-500 mb-2">Feedback Scale</p>
             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
               {[1, 2, 3, 4, 5].map(value => (
                 <div key={value} className="flex items-center gap-1">
@@ -226,7 +226,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
           {showDeleteConfirm && existingRating && (
             <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
               <p className="text-sm text-red-400 mb-3">
-                Are you sure you want to delete your rating for {player.name}?
+                Are you sure you want to delete your feedback for {player.name}?
               </p>
               <div className="flex gap-2">
                 <button
@@ -247,7 +247,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
                       Deleting...
                     </>
                   ) : (
-                    'Delete Rating'
+                    'Delete Feedback'
                   )}
                 </button>
               </div>
@@ -261,7 +261,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
                 onClick={() => setShowDeleteConfirm(true)}
                 className="py-3 px-4 bg-neutral-800 text-red-400 rounded-lg font-medium hover:bg-red-500/20 transition-colors"
                 disabled={isSaving || isDeleting}
-                title="Delete rating"
+                title="Delete feedback"
               >
                 <Trash2 size={18} />
               </button>
@@ -288,7 +288,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
                   Saving...
                 </>
               ) : (
-                'Save Rating'
+                'Save Feedback'
               )}
             </button>
           </div>

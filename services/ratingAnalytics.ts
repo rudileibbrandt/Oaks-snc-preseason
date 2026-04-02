@@ -37,6 +37,7 @@ export interface VarianceHotspot {
 export interface PlayerAggregation {
   playerName: string;
   overallMean: number;
+  kickingMean?: number;
   totalRaters: number;
   selfRating?: number;
   peerMean?: number;
@@ -121,16 +122,30 @@ export function aggregatePlayerRatings(
     };
   }).filter(s => s.count > 0);
 
-  // Calculate overall mean from all skills
-  const allSkillMeans = skills.filter(s => s.mean > 0).map(s => s.mean);
-  const overallMean = allSkillMeans.length > 0
-    ? Math.round((allSkillMeans.reduce((a, b) => a + b, 0) / allSkillMeans.length) * 10) / 10
+  // Identify specialist skill keys
+  const specialistKeys = new Set(RATING_SKILLS.filter(s => s.specialist).map(s => s.key));
+
+  // Calculate overall mean from core skills only (excludes specialist/kicking)
+  const coreSkillMeans = skills
+    .filter(s => s.mean > 0 && !specialistKeys.has(s.skill))
+    .map(s => s.mean);
+  const overallMean = coreSkillMeans.length > 0
+    ? Math.round((coreSkillMeans.reduce((a, b) => a + b, 0) / coreSkillMeans.length) * 10) / 10
     : 0;
 
-  // Calculate peer mean for comparison with self-rating
+  // Calculate kicking mean from specialist skills (if any rated)
+  const kickingSkillMeans = skills
+    .filter(s => s.mean > 0 && specialistKeys.has(s.skill))
+    .map(s => s.mean);
+  const kickingMean = kickingSkillMeans.length > 0
+    ? Math.round((kickingSkillMeans.reduce((a, b) => a + b, 0) / kickingSkillMeans.length) * 10) / 10
+    : undefined;
+
+  // Calculate peer mean for comparison with self-rating (core skills only)
   let peerMean: number | undefined;
   if (selfRatingRecord && peerRatings.length > 0) {
     const peerSkillMeans = skills
+      .filter(s => !specialistKeys.has(s.skill))
       .filter(s => {
         const peerValues = peerRatings
           .map(r => r.ratings[s.skill])
@@ -149,12 +164,13 @@ export function aggregatePlayerRatings(
     }
   }
 
-  // Calculate self-rating overall
+  // Calculate self-rating overall (core skills only)
   let selfRatingOverall: number | undefined;
   if (selfRatingRecord) {
-    const selfValues = Object.values(selfRatingRecord.ratings).filter(
-      (v): v is number => v !== undefined && v > 0
-    );
+    const selfValues = RATING_SKILLS
+      .filter(s => !s.specialist)
+      .map(s => selfRatingRecord.ratings[s.key])
+      .filter((v): v is number => v !== undefined && v > 0);
     if (selfValues.length > 0) {
       selfRatingOverall = Math.round((selfValues.reduce((a, b) => a + b, 0) / selfValues.length) * 10) / 10;
     }
@@ -163,6 +179,7 @@ export function aggregatePlayerRatings(
   return {
     playerName,
     overallMean,
+    kickingMean,
     totalRaters: playerRatings.length,
     selfRating: selfRatingOverall,
     peerMean,

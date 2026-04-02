@@ -310,6 +310,26 @@ export const db = {
         const doc = userSnapshot.docs[0];
         const existingData = doc.data();
 
+        // Check if this account has been merged into another
+        if (existingData.mergedInto) {
+          console.log('[getOrCreatePlayerForUser] Account merged into:', existingData.mergedInto);
+          try {
+            const targetDoc = await dbInstance.collection('roster').doc(existingData.mergedInto).get();
+            if (targetDoc.exists && !targetDoc.data().mergedInto) {
+              const targetPlayer = { id: targetDoc.id, ...targetDoc.data() } as Player;
+              console.log('[getOrCreatePlayerForUser] Redirecting to canonical account:', targetPlayer.id);
+              return targetPlayer;
+            }
+            // Target gone or also merged → clear stale mergedInto, fall through
+            console.log('[getOrCreatePlayerForUser] Merge target invalid, clearing mergedInto');
+            await dbInstance.collection('roster').doc(doc.id).update({ mergedInto: firebase.firestore.FieldValue.delete() });
+          } catch (redirectError) {
+            console.error('[getOrCreatePlayerForUser] Error following merge redirect:', redirectError);
+            // Clear stale mergedInto and fall through
+            await dbInstance.collection('roster').doc(doc.id).update({ mergedInto: firebase.firestore.FieldValue.delete() });
+          }
+        }
+
         // Check if this is a mislinked account (linked to wrong roster player)
         // If the stored name doesn't match the Google display name and it's a roster player (not a coach account),
         // clear the link and let them create a new profile
@@ -396,6 +416,23 @@ export const db = {
       await dbInstance.collection('roster').doc(id).update({ position });
     } catch (e) {
       return handleFirebaseError(e, 'updatePlayerPosition');
+    }
+  },
+
+  updatePlayerRole: async (id: string, role: 'Player' | 'Coach') => {
+    if (!isConfigured || !dbInstance) {
+      const data = localStorage.getItem('oaks_roster_v1');
+      const players = data ? JSON.parse(data) : [];
+      const updated = players.map((p: any) => p.id === id ? { ...p, role } : p);
+      localStorage.setItem('oaks_roster_v1', JSON.stringify(updated));
+      return;
+    }
+
+    try {
+      await ensureAuth();
+      await dbInstance.collection('roster').doc(id).update({ role });
+    } catch (e) {
+      return handleFirebaseError(e, 'updatePlayerRole');
     }
   },
 
@@ -939,13 +976,390 @@ export const db = {
 };
 
 // ---------------------------------------------------------
+// ACCOUNT MERGE (duplicate detection + consolidation)
+// ---------------------------------------------------------
+
+export interface MergeResult {
+  ratingsReattributed: number;
+  ratingsDeduplicated: number;
+  historyReattributed: number;
+  injuriesUpdated: number;
+}
+
+function normalizeName(name: string): string {
+  return name.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+export async function findDuplicatesByName(currentPlayer: Player): Promise<Player[]> {
+  const allPlayers = await db.getPlayers();
+  const currentNorm = normalizeName(currentPlayer.name);
+  return allPlayers.filter(p =>
+    p.id !== currentPlayer.id &&
+    !p.mergedInto &&
+    normalizeName(p.name) === currentNorm
+  );
+}
+
+export async function mergeAccounts(keepPlayer: Player, removePlayer: Player): Promise<MergeResult> {
+  if (keepPlayer.id === removePlayer.id) {
+    throw new Error('Cannot merge an account into itself');
+  }
+
+  const result: MergeResult = {
+    ratingsReattributed: 0,
+    ratingsDeduplicated: 0,
+    historyReattributed: 0,
+    injuriesUpdated: 0,
+  };
+
+  if (!isConfigured || !dbInstance) {
+    // LocalStorage path
+    const ratingsData = localStorage.getItem(RATINGS_KEY);
+    const ratings: PlayerRating[] = ratingsData ? JSON.parse(ratingsData) : [];
+
+    // Build set of playerNames that keepPlayer already rated
+    const keepRatedPlayers = new Set(
+      ratings.filter(r => r.raterId === keepPlayer.id).map(r => r.playerName.toLowerCase().trim())
+    );
+
+    const updatedRatings: PlayerRating[] = [];
+    for (const r of ratings) {
+      if (r.raterId !== removePlayer.id) {
+        updatedRatings.push(r);
+        continue;
+      }
+      const playerKey = r.playerName.toLowerCase().trim();
+      if (keepRatedPlayers.has(playerKey)) {
+        // Duplicate — keep the keepPlayer's version, discard removePlayer's
+        result.ratingsDeduplicated++;
+      } else {
+        // Re-attribute to keepPlayer
+        updatedRatings.push({
+          ...r,
+          raterId: keepPlayer.id,
+          raterName: keepPlayer.name,
+          raterUserId: keepPlayer.userId,
+        });
+        result.ratingsReattributed++;
+      }
+    }
+    localStorage.setItem(RATINGS_KEY, JSON.stringify(updatedRatings));
+
+    // History
+    const historyData = localStorage.getItem(RATING_HISTORY_KEY);
+    const history: RatingHistoryEntry[] = historyData ? JSON.parse(historyData) : [];
+    const updatedHistory = history.map(h => {
+      if (h.raterId !== removePlayer.id) return h;
+      result.historyReattributed++;
+      return {
+        ...h,
+        raterId: keepPlayer.id,
+        raterName: keepPlayer.name,
+        raterUserId: keepPlayer.userId,
+      };
+    });
+    localStorage.setItem(RATING_HISTORY_KEY, JSON.stringify(updatedHistory));
+
+    // Injuries
+    const injuriesData = localStorage.getItem(INJURIES_KEY);
+    const injuries: InjuryRecord[] = injuriesData ? JSON.parse(injuriesData) : [];
+    if (normalizeName(removePlayer.name) !== normalizeName(keepPlayer.name)) {
+      const updatedInjuries = injuries.map(inj => {
+        if (normalizeName(inj.coachSubmitting) !== normalizeName(removePlayer.name)) return inj;
+        result.injuriesUpdated++;
+        return { ...inj, coachSubmitting: keepPlayer.name };
+      });
+      localStorage.setItem(INJURIES_KEY, JSON.stringify(updatedInjuries));
+    }
+
+    // Mark removePlayer as merged
+    const playersData = localStorage.getItem(ROSTER_KEY);
+    const players: Player[] = playersData ? JSON.parse(playersData) : [];
+    const updatedPlayers = players.map(p =>
+      p.id === removePlayer.id ? { ...p, mergedInto: keepPlayer.id } : p
+    );
+    localStorage.setItem(ROSTER_KEY, JSON.stringify(updatedPlayers));
+
+    return result;
+  }
+
+  // Firebase path
+  await ensureAuth();
+
+  // 1. Load ratings by removePlayer
+  const removeRatingsSnap = await dbInstance.collection('ratings')
+    .where('raterId', '==', removePlayer.id)
+    .get();
+
+  // Load ratings by keepPlayer to detect duplicates
+  const keepRatingsSnap = await dbInstance.collection('ratings')
+    .where('raterId', '==', keepPlayer.id)
+    .get();
+
+  const keepRatedPlayers = new Set(
+    keepRatingsSnap.docs.map((doc: any) => (doc.data().playerName as string).toLowerCase().trim())
+  );
+
+  // Firestore batch limit is 500, use multiple batches if needed
+  let batch = dbInstance.batch();
+  let batchCount = 0;
+
+  const commitBatchIfNeeded = async () => {
+    if (batchCount >= 450) {
+      await batch.commit();
+      batch = dbInstance.batch();
+      batchCount = 0;
+    }
+  };
+
+  for (const doc of removeRatingsSnap.docs) {
+    const data = doc.data();
+    const playerKey = (data.playerName as string).toLowerCase().trim();
+
+    if (keepRatedPlayers.has(playerKey)) {
+      // Both rated same player — find keepPlayer's rating for comparison
+      const keepDoc = keepRatingsSnap.docs.find((d: any) =>
+        (d.data().playerName as string).toLowerCase().trim() === playerKey
+      );
+      if (keepDoc && data.updatedAt > keepDoc.data().updatedAt) {
+        // removePlayer's is newer — update keepPlayer's doc with removePlayer's data
+        batch.update(keepDoc.ref, {
+          ratings: data.ratings,
+          updatedAt: data.updatedAt,
+        });
+        batchCount++;
+        await commitBatchIfNeeded();
+      }
+      // Delete removePlayer's rating either way
+      batch.delete(doc.ref);
+      batchCount++;
+      result.ratingsDeduplicated++;
+    } else {
+      // Re-attribute to keepPlayer
+      batch.update(doc.ref, {
+        raterId: keepPlayer.id,
+        raterName: keepPlayer.name,
+        raterUserId: keepPlayer.userId || '',
+      });
+      batchCount++;
+      result.ratingsReattributed++;
+    }
+    await commitBatchIfNeeded();
+  }
+
+  // 2. Re-attribute rating history
+  const removeHistorySnap = await dbInstance.collection('ratingHistory')
+    .where('raterId', '==', removePlayer.id)
+    .get();
+
+  for (const doc of removeHistorySnap.docs) {
+    batch.update(doc.ref, {
+      raterId: keepPlayer.id,
+      raterName: keepPlayer.name,
+      raterUserId: keepPlayer.userId || '',
+    });
+    batchCount++;
+    result.historyReattributed++;
+    await commitBatchIfNeeded();
+  }
+
+  // 3. Update injuries if names differ
+  if (normalizeName(removePlayer.name) !== normalizeName(keepPlayer.name)) {
+    const injuriesSnap = await dbInstance.collection('injuries')
+      .where('coachSubmitting', '==', removePlayer.name)
+      .get();
+
+    for (const doc of injuriesSnap.docs) {
+      batch.update(doc.ref, { coachSubmitting: keepPlayer.name });
+      batchCount++;
+      result.injuriesUpdated++;
+      await commitBatchIfNeeded();
+    }
+  }
+
+  // 4. Mark removePlayer's roster doc as merged
+  const removeDocRef = dbInstance.collection('roster').doc(removePlayer.id);
+  batch.update(removeDocRef, { mergedInto: keepPlayer.id });
+  batchCount++;
+
+  // Commit remaining
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  console.log('[mergeAccounts] Merge complete:', result);
+  return result;
+}
+
+// ---------------------------------------------------------
+// RESTORE RATINGS FROM HISTORY (data recovery)
+// ---------------------------------------------------------
+
+export interface RestoreResult {
+  ratingsRestored: number;
+  ratingsSkipped: number;
+}
+
+export async function restoreRatingsFromHistory(playerIds: string[]): Promise<RestoreResult> {
+  const result: RestoreResult = { ratingsRestored: 0, ratingsSkipped: 0 };
+
+  if (!isConfigured || !dbInstance) {
+    // LocalStorage path
+    const historyData = localStorage.getItem(RATING_HISTORY_KEY);
+    const history: RatingHistoryEntry[] = historyData ? JSON.parse(historyData) : [];
+    const ratingsData = localStorage.getItem(RATINGS_KEY);
+    const ratings: PlayerRating[] = ratingsData ? JSON.parse(ratingsData) : [];
+
+    // Find latest history entry per (raterId, playerName)
+    const latestMap = new Map<string, RatingHistoryEntry>();
+    for (const h of history) {
+      if (!playerIds.includes(h.raterId)) continue;
+      const key = `${h.raterId}::${h.playerName.toLowerCase().trim()}`;
+      const existing = latestMap.get(key);
+      if (!existing || h.timestamp > existing.timestamp) {
+        latestMap.set(key, h);
+      }
+    }
+
+    for (const entry of latestMap.values()) {
+      // Check if rating already exists
+      const exists = ratings.some(r =>
+        r.raterId === entry.raterId &&
+        r.playerName.toLowerCase().trim() === entry.playerName.toLowerCase().trim()
+      );
+      if (exists) {
+        result.ratingsSkipped++;
+        continue;
+      }
+      ratings.push({
+        id: `rating-restored-${Date.now()}-${result.ratingsRestored}`,
+        playerName: entry.playerName,
+        raterId: entry.raterId,
+        raterUserId: entry.raterUserId,
+        raterName: entry.raterName,
+        ratings: entry.ratings,
+        createdAt: entry.timestamp,
+        updatedAt: entry.timestamp,
+      });
+      result.ratingsRestored++;
+    }
+
+    localStorage.setItem(RATINGS_KEY, JSON.stringify(ratings));
+    return result;
+  }
+
+  // Firebase path
+  await ensureAuth();
+  const auth = firebase.auth();
+  const user = auth.currentUser;
+  if (!user) throw new Error('Must be authenticated');
+
+  // Load all history entries for the given player IDs
+  const allHistory: RatingHistoryEntry[] = [];
+  for (const pid of playerIds) {
+    const snap = await dbInstance.collection('ratingHistory')
+      .where('raterId', '==', pid)
+      .get();
+    for (const doc of snap.docs) {
+      allHistory.push({ id: doc.id, ...doc.data() } as RatingHistoryEntry);
+    }
+  }
+
+  console.log('[restoreRatingsFromHistory] Found', allHistory.length, 'history entries for', playerIds);
+
+  // Find latest history entry per (raterId, playerName)
+  const latestMap = new Map<string, RatingHistoryEntry>();
+  for (const h of allHistory) {
+    const key = `${h.raterId}::${h.playerName.toLowerCase().trim()}`;
+    const existing = latestMap.get(key);
+    if (!existing || h.timestamp > existing.timestamp) {
+      latestMap.set(key, h);
+    }
+  }
+
+  console.log('[restoreRatingsFromHistory] Unique (rater, player) combos:', latestMap.size);
+
+  // Check which ratings already exist
+  const existingRatings: PlayerRating[] = [];
+  for (const pid of playerIds) {
+    const snap = await dbInstance.collection('ratings')
+      .where('raterId', '==', pid)
+      .get();
+    for (const doc of snap.docs) {
+      existingRatings.push({ id: doc.id, ...doc.data() } as PlayerRating);
+    }
+  }
+
+  const existingKeys = new Set(
+    existingRatings.map(r => `${r.raterId}::${r.playerName.toLowerCase().trim()}`)
+  );
+
+  // Recreate missing ratings
+  let batch = dbInstance.batch();
+  let batchCount = 0;
+
+  for (const entry of latestMap.values()) {
+    const key = `${entry.raterId}::${entry.playerName.toLowerCase().trim()}`;
+    if (existingKeys.has(key)) {
+      result.ratingsSkipped++;
+      continue;
+    }
+
+    const newDocRef = dbInstance.collection('ratings').doc();
+    batch.set(newDocRef, {
+      playerName: entry.playerName,
+      raterId: entry.raterId,
+      raterUserId: user.uid,  // Use current auth UID so Firestore rules allow it
+      raterName: entry.raterName,
+      ratings: entry.ratings,
+      createdAt: entry.timestamp,
+      updatedAt: entry.timestamp,
+    });
+    batchCount++;
+    result.ratingsRestored++;
+
+    if (batchCount >= 450) {
+      await batch.commit();
+      batch = dbInstance.batch();
+      batchCount = 0;
+    }
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  console.log('[restoreRatingsFromHistory] Restore complete:', result);
+  return result;
+}
+
+// Also: clear mergedInto from a roster doc (for undo)
+export async function clearMergedInto(playerId: string): Promise<void> {
+  if (!isConfigured || !dbInstance) {
+    const data = localStorage.getItem(ROSTER_KEY);
+    const players: Player[] = data ? JSON.parse(data) : [];
+    const updated = players.map(p =>
+      p.id === playerId ? { ...p, mergedInto: undefined } : p
+    );
+    localStorage.setItem(ROSTER_KEY, JSON.stringify(updated));
+    return;
+  }
+
+  await ensureAuth();
+  await dbInstance.collection('roster').doc(playerId).update({
+    mergedInto: firebase.firestore.FieldValue.delete(),
+  });
+  console.log('[clearMergedInto] Cleared mergedInto for:', playerId);
+}
+
+// ---------------------------------------------------------
 // MIGRATION: 1-3 rating scale to 1-5 rating scale
 // ---------------------------------------------------------
-const MIGRATION_FLAG = 'oaks_ratings_migrated_v2';
+const MIGRATION_FLAG = 'oaks_ratings_migrated_v4';
 
 function mapRatingValue(value: number): number {
-  // Spread mapping: 1→1, 2→3, 3→5
-  const mapping: Record<number, number> = { 1: 1, 2: 3, 3: 5 };
+  // Shift up mapping: 1→2, 2→3, 3→4
+  const mapping: Record<number, number> = { 1: 2, 2: 3, 3: 4 };
   return mapping[value] ?? value;
 }
 
@@ -1073,4 +1487,70 @@ export async function migrateRatingsTo5PointScale(): Promise<void> {
 
   localStorage.setItem(MIGRATION_FLAG, new Date().toISOString());
   console.log('[migration] Migration complete, flag set');
+}
+
+// Manual migration triggered from admin panel — ignores flag, returns counts
+export async function manualMigrateTo5PointScale(): Promise<{ ratingsCount: number; historyCount: number }> {
+  let ratingsCount = 0;
+  let historyCount = 0;
+
+  if (isConfigured && dbInstance) {
+    await ensureAuth();
+
+    const ratingsSnapshot = await dbInstance.collection('ratings').get();
+    if (!ratingsSnapshot.empty) {
+      const batch = dbInstance.batch();
+      ratingsSnapshot.docs.forEach((doc: any) => {
+        const data = doc.data();
+        if (data.ratings && needsMigration(data.ratings)) {
+          batch.update(doc.ref, { ratings: migrateRatingsObject(data.ratings) });
+          ratingsCount++;
+        }
+      });
+      if (ratingsCount > 0) await batch.commit();
+    }
+
+    const historySnapshot = await dbInstance.collection('ratingHistory').get();
+    if (!historySnapshot.empty) {
+      const batch = dbInstance.batch();
+      historySnapshot.docs.forEach((doc: any) => {
+        const data = doc.data();
+        if (data.ratings && needsMigration(data.ratings)) {
+          batch.update(doc.ref, { ratings: migrateRatingsObject(data.ratings) });
+          historyCount++;
+        }
+      });
+      if (historyCount > 0) await batch.commit();
+    }
+  } else {
+    const ratingsData = localStorage.getItem(RATINGS_KEY);
+    if (ratingsData) {
+      const ratings: PlayerRating[] = JSON.parse(ratingsData);
+      const migrated = ratings.map(r => {
+        if (r.ratings && needsMigration(r.ratings as unknown as Record<string, number>)) {
+          ratingsCount++;
+          return { ...r, ratings: migrateRatingsObject(r.ratings as unknown as Record<string, number>) as unknown as typeof r.ratings };
+        }
+        return r;
+      });
+      if (ratingsCount > 0) localStorage.setItem(RATINGS_KEY, JSON.stringify(migrated));
+    }
+
+    const historyData = localStorage.getItem(RATING_HISTORY_KEY);
+    if (historyData) {
+      const history: RatingHistoryEntry[] = JSON.parse(historyData);
+      const migrated = history.map(h => {
+        if (h.ratings && needsMigration(h.ratings as unknown as Record<string, number>)) {
+          historyCount++;
+          return { ...h, ratings: migrateRatingsObject(h.ratings as unknown as Record<string, number>) as unknown as typeof h.ratings };
+        }
+        return h;
+      });
+      if (historyCount > 0) localStorage.setItem(RATING_HISTORY_KEY, JSON.stringify(migrated));
+    }
+  }
+
+  localStorage.setItem(MIGRATION_FLAG, new Date().toISOString());
+  console.log(`[migration] Manual migration complete: ${ratingsCount} feedback, ${historyCount} history`);
+  return { ratingsCount, historyCount };
 }

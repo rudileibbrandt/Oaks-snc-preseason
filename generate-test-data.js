@@ -1,16 +1,18 @@
 // Script to generate test workout data for the last 8 weeks
+import 'dotenv/config';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
 import 'firebase/compat/auth';
 
+// Load from environment variables with fallback to hardcoded values
 const firebaseConfig = {
-  apiKey: "AIzaSyD7mPaCU8OVMGLJdPh7EcRSPgCepEszEWs",
-  authDomain: "oaks-snc.firebaseapp.com",
-  projectId: "oaks-snc",
-  storageBucket: "oaks-snc.firebasestorage.app",
-  messagingSenderId: "517477387458",
-  appId: "1:517477387458:web:7067c6c41aaeedb9efff5b",
-  measurementId: "G-KDQE66YWZS"
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyD7mPaCU8OVMGLJdPh7EcRSPgCepEszEWs",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "oaks-snc.firebaseapp.com",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "oaks-snc",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "oaks-snc.firebasestorage.app",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "517477387458",
+  appId: process.env.VITE_FIREBASE_APP_ID || "1:517477387458:web:7067c6c41aaeedb9efff5b",
+  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID || "G-KDQE66YWZS"
 };
 
 if (!firebase.apps.length) {

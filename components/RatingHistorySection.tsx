@@ -38,7 +38,7 @@ const RatingHistorySection: React.FC<Props> = ({ playerName, currentPlayer }) =>
       <div className="mt-4 p-4 bg-neutral-800/50 rounded-lg">
         <div className="flex items-center gap-2 text-neutral-400">
           <Loader2 size={16} className="animate-spin" />
-          <span className="text-sm">Loading rating history...</span>
+          <span className="text-sm">Loading feedback history...</span>
         </div>
       </div>
     );
@@ -64,7 +64,7 @@ const RatingHistorySection: React.FC<Props> = ({ playerName, currentPlayer }) =>
     <div className="mt-4">
       <div className="flex items-center gap-2 mb-3">
         <Star size={16} className="text-amber-400" />
-        <h3 className="text-sm font-bold text-white">Your Rating History</h3>
+        <h3 className="text-sm font-bold text-white">Your Feedback History</h3>
         <span className="text-xs text-neutral-500">({history.length} {history.length === 1 ? 'entry' : 'entries'})</span>
         {trend && (
           <span className="ml-auto">

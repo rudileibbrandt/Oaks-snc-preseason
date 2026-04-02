@@ -7,6 +7,7 @@ export interface RatingSkill {
   label: string;
   shortLabel: string;
   description: string;
+  specialist?: boolean;
 }
 
 export const RATING_SKILLS: RatingSkill[] = [
@@ -42,9 +43,9 @@ export const RATING_SKILLS: RatingSkill[] = [
   },
   {
     key: 'character',
-    label: 'Character',
-    shortLabel: 'Chr',
-    description: 'Attitude, work ethic, coachability',
+    label: 'Oaks V&E',
+    shortLabel: 'V&E',
+    description: 'Oaks Values & Effort - attitude, work ethic, coachability',
   },
   {
     key: 'overallSense',
@@ -63,12 +64,14 @@ export const RATING_SKILLS: RatingSkill[] = [
     label: 'Tactical Kicking',
     shortLabel: 'TKk',
     description: 'Kicking in open play, territory management',
+    specialist: true,
   },
   {
     key: 'goalKicking',
     label: 'Goal Kicking',
     shortLabel: 'GKk',
     description: 'Conversions and penalty kicks',
+    specialist: true,
   },
 ];
 
@@ -162,10 +165,32 @@ export async function deleteRatingsByRater(raterId: string): Promise<number> {
   return result;
 }
 
-// Calculate average rating across all rated skills (excludes unrated optional skills)
+// Core skill keys (non-specialist) for average calculations
+const CORE_SKILL_KEYS: (keyof PlayerRatings)[] = RATING_SKILLS
+  .filter(s => !s.specialist)
+  .map(s => s.key);
+
+// Specialist skill keys (kicking)
+const SPECIALIST_SKILL_KEYS: (keyof PlayerRatings)[] = RATING_SKILLS
+  .filter(s => s.specialist)
+  .map(s => s.key);
+
+// Calculate average rating across core skills only (excludes specialist/kicking skills)
 export function calculateAverageRating(ratings: PlayerRatings): number {
-  const values = Object.values(ratings).filter(val => val !== undefined && val >= 1);
+  const values = CORE_SKILL_KEYS
+    .map(key => ratings[key])
+    .filter((val): val is number => val !== undefined && val >= 1);
   if (values.length === 0) return 0;
+  const sum = values.reduce((acc, val) => acc + val, 0);
+  return Math.round((sum / values.length) * 10) / 10;
+}
+
+// Calculate kicking average (specialist skills only), returns null if no kicking scores
+export function calculateKickingAverage(ratings: PlayerRatings): number | null {
+  const values = SPECIALIST_SKILL_KEYS
+    .map(key => ratings[key])
+    .filter((val): val is number => val !== undefined && val >= 1);
+  if (values.length === 0) return null;
   const sum = values.reduce((acc, val) => acc + val, 0);
   return Math.round((sum / values.length) * 10) / 10;
 }

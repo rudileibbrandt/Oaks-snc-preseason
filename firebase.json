@@ -8,6 +8,10 @@
     ],
     "rewrites": [
       {
+        "source": "/film-review/**",
+        "destination": "/film-review/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

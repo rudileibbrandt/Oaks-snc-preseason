@@ -21,6 +21,12 @@ interface Props {
   refreshTrigger?: number; // Optional prop to trigger refresh
 }
 
+// Helper function to check if a value is a valid, finite number
+// This is better than isNaN() because it doesn't coerce types and also rejects Infinity
+const isValidNumber = (value: number): boolean => {
+  return Number.isFinite(value);
+};
+
 const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTrigger }) => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [allLogs, setAllLogs] = useState<WorkoutLog[]>([]);
@@ -166,7 +172,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
     for (const log of playerLogs) {
       if (isSprint) {
         const time = parseFloat(log.data[`${exerciseId}_time`]);
-        if (!isNaN(time)) {
+        if (isValidNumber(time)) {
           if (bestValue === null || time < bestValue) { // Lower time is better for sprints
             bestValue = time;
             unit = 's';
@@ -174,7 +180,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
         }
       } else {
         const weight = parseFloat(log.data[`${exerciseId}_weight`]);
-        if (!isNaN(weight)) {
+        if (isValidNumber(weight)) {
           if (bestValue === null || weight > bestValue) { // Higher weight is better for lifts
             bestValue = weight;
             unit = 'lbs';
@@ -213,14 +219,14 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       for (const log of playerLogs) {
         if (isSprint) {
           const time = parseFloat(log.data[`${exerciseId}_time`]);
-          if (!isNaN(time)) {
+          if (isValidNumber(time)) {
             if (bestValue === null || time < bestValue) {
               bestValue = time;
             }
           }
         } else {
           const weight = parseFloat(log.data[`${exerciseId}_weight`]);
-          if (!isNaN(weight)) {
+          if (isValidNumber(weight)) {
             if (bestValue === null || weight > bestValue) {
               bestValue = weight;
             }
@@ -269,7 +275,9 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
           const sets = parseFloat(log.data[`${exercise.id}_sets`] || '0');
           const reps = parseFloat(log.data[`${exercise.id}_reps`] || '0');
 
-          if (weight > 0 && sets > 0 && reps > 0) {
+          // Validate all values are valid numbers before calculating
+          if (isValidNumber(weight) && isValidNumber(sets) && isValidNumber(reps) && 
+              weight > 0 && sets > 0 && reps > 0) {
             totalVolume += weight * sets * reps;
           }
         }
@@ -277,7 +285,8 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
 
       // Calculate sprint score (lower time = higher score)
       const sprintTime = parseFloat(log.data['d4_1_time'] || '0');
-      if (sprintTime > 0) {
+      // Validate sprintTime is a valid number and greater than 0 to avoid division by zero
+      if (isValidNumber(sprintTime) && sprintTime > 0) {
         // Convert time to score: faster times get higher scores
         // Use inverse relationship: score = 100 / time (scaled)
         sprintScore += 100 / sprintTime;
@@ -365,7 +374,9 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
           const sets = parseFloat(log.data[`${exercise.id}_sets`] || '0');
           const reps = parseFloat(log.data[`${exercise.id}_reps`] || '0');
 
-          if (weight > 0 && sets > 0 && reps > 0) {
+          // Validate all values are valid numbers before calculating
+          if (isValidNumber(weight) && isValidNumber(sets) && isValidNumber(reps) && 
+              weight > 0 && sets > 0 && reps > 0) {
             totalVolume += weight * sets * reps;
           }
         }
@@ -373,7 +384,8 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
 
       // Calculate sprint score (lower time = higher score)
       const sprintTime = parseFloat(log.data['d4_1_time'] || '0');
-      if (sprintTime > 0) {
+      // Validate sprintTime is a valid number and greater than 0 to avoid division by zero
+      if (isValidNumber(sprintTime) && sprintTime > 0) {
         sprintScore += 100 / sprintTime;
         sprintCount++;
       }
@@ -613,7 +625,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       for (const log of weekLogs) {
         if (log.data && log.data[`${keyExercise}_weight`]) {
           const weight = parseFloat(log.data[`${keyExercise}_weight`]);
-          if (!isNaN(weight) && weight > bestWeight) {
+          if (isValidNumber(weight) && weight > bestWeight) {
             bestWeight = weight;
           }
         }

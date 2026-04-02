@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Dumbbell, Users, LogOut, Table } from 'lucide-react';
+import { Shield, Dumbbell, Users, LogOut, ClipboardList, BarChart3, UserCog } from 'lucide-react';
 import { AppView, Player } from '../types';
 import { signOut, getCurrentUser } from '../services/auth';
 
@@ -60,53 +60,99 @@ const Landing: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       </div>
 
       <div className="w-full max-w-sm space-y-4 px-4">
-        {/* Show MY WORKOUTS button for Players and Coaches */}
+        {/* MY WORKOUTS with Stat Board sub-item */}
         {(isPlayer || isCoach) && (
-          <button
-            onClick={() => onNavigate('ATHLETE_SELECT')}
-            className="w-full group relative flex items-center justify-between p-5 bg-amber-500 hover:bg-amber-400 rounded-xl transition-all active:scale-95 shadow-[0_10px_20px_rgba(245,158,11,0.2)] border-t border-amber-300"
-          >
-            <div className="flex items-center">
-              <div className="p-2 bg-black/20 rounded-lg mr-4">
-                <Dumbbell size={24} className="text-black" />
+          <div className="space-y-0">
+            <button
+              onClick={() => onNavigate('ATHLETE_SELECT')}
+              className="w-full group relative flex items-center justify-between p-5 bg-amber-500 hover:bg-amber-400 rounded-t-xl transition-all active:scale-95 shadow-[0_10px_20px_rgba(245,158,11,0.2)] border-t border-amber-300"
+            >
+              <div className="flex items-center">
+                <div className="p-2 bg-black/20 rounded-lg mr-4">
+                  <Dumbbell size={24} className="text-black" />
+                </div>
+                <div className="text-left">
+                  <span className="block text-black font-black text-lg">MY WORKOUTS</span>
+                  <span className="text-neutral-900 font-medium text-xs">Log your workout</span>
+                </div>
               </div>
-              <div className="text-left">
-                <span className="block text-black font-black text-lg">MY WORKOUTS</span>
-                <span className="text-neutral-900 font-medium text-xs">Log your workout</span>
-              </div>
-            </div>
-          </button>
+            </button>
+            <button
+              onClick={() => onNavigate('COACH')}
+              className="w-full flex items-center gap-3 px-5 py-3 bg-amber-600/30 hover:bg-amber-600/40 border border-amber-500/20 border-t-0 rounded-b-xl transition-all active:scale-95"
+            >
+              <Users size={16} className="text-amber-400" />
+              <span className="text-amber-300 font-semibold text-sm">Stat Board</span>
+              <span className="text-amber-500/60 text-xs ml-auto">Team stats</span>
+            </button>
+          </div>
         )}
 
-        {/* Show Stat Board button for all users */}
-        <button
-          onClick={() => onNavigate('COACH')}
-          className="w-full group relative flex items-center justify-between p-5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all active:scale-95"
-        >
-          <div className="flex items-center">
-             <div className="p-2 bg-neutral-800 rounded-lg mr-4">
-               <Users size={24} className="text-neutral-300" />
-             </div>
-             <div className="text-left">
-               <span className="block text-neutral-200 font-bold text-lg">STAT BOARD</span>
-               <span className="text-neutral-500 text-xs">View team stats</span>
-             </div>
-          </div>
-        </button>
-
-        {/* Show Tracker button for coaches only */}
-        {isCoach && (
+        {/* Stat Board standalone for non-player/coach users */}
+        {!isPlayer && !isCoach && (
           <button
-            onClick={() => onNavigate('TRACKER')}
+            onClick={() => onNavigate('COACH')}
             className="w-full group relative flex items-center justify-between p-5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all active:scale-95"
           >
             <div className="flex items-center">
                <div className="p-2 bg-neutral-800 rounded-lg mr-4">
-                 <Table size={24} className="text-neutral-300" />
+                 <Users size={24} className="text-neutral-300" />
                </div>
                <div className="text-left">
-                 <span className="block text-neutral-200 font-bold text-lg">TRACKER</span>
-                 <span className="text-neutral-500 text-xs">Spreadsheet view</span>
+                 <span className="block text-neutral-200 font-bold text-lg">STAT BOARD</span>
+                 <span className="text-neutral-500 text-xs">View team stats</span>
+               </div>
+            </div>
+          </button>
+        )}
+
+        {/* Player Roster - visible to all users for 360 ratings */}
+        <button
+          onClick={() => onNavigate('ROSTER')}
+          className="w-full group relative flex items-center justify-between p-5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all active:scale-95"
+        >
+          <div className="flex items-center">
+             <div className="p-2 bg-neutral-800 rounded-lg mr-4">
+               <ClipboardList size={24} className="text-neutral-300" />
+             </div>
+             <div className="text-left">
+               <span className="block text-neutral-200 font-bold text-lg">PLAYERS</span>
+               <span className="text-neutral-500 text-xs">Photos, groups & player feedback</span>
+             </div>
+          </div>
+        </button>
+
+        {/* Coaches Corner - coach-only hub */}
+        {isCoach && (
+          <button
+            onClick={() => onNavigate('COACHES_CORNER')}
+            className="w-full group relative flex items-center justify-between p-5 bg-neutral-900 hover:bg-neutral-800 border border-amber-500/30 rounded-xl transition-all active:scale-95"
+          >
+            <div className="flex items-center">
+               <div className="p-2 bg-amber-500/20 rounded-lg mr-4">
+                 <UserCog size={24} className="text-amber-400" />
+               </div>
+               <div className="text-left">
+                 <span className="block text-neutral-200 font-bold text-lg">COACHES CORNER</span>
+                 <span className="text-neutral-500 text-xs">Depth chart, analytics, injuries & more</span>
+               </div>
+            </div>
+          </button>
+        )}
+
+        {/* Rating Analytics - visible to non-coaches for their own feedback */}
+        {!isCoach && (
+          <button
+            onClick={() => onNavigate('RATING_ANALYTICS')}
+            className="w-full group relative flex items-center justify-between p-5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all active:scale-95"
+          >
+            <div className="flex items-center">
+               <div className="p-2 bg-neutral-800 rounded-lg mr-4">
+                 <BarChart3 size={24} className="text-neutral-300" />
+               </div>
+               <div className="text-left">
+                 <span className="block text-neutral-200 font-bold text-lg">PLAYER PROGRESSION</span>
+                 <span className="text-neutral-500 text-xs">360° feedback & skill insights</span>
                </div>
             </div>
           </button>

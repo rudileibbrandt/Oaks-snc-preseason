@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { signInWithGoogle, signInWithMicrosoft, signInWithEmail, signUpWithEmail } from '../services/auth';
+import { signInWithGoogle, signInWithEmail, signUpWithEmail, sendPasswordReset } from '../services/auth';
 import { Loader2, AlertCircle, Mail } from 'lucide-react';
 
 interface Props {
@@ -10,7 +10,9 @@ interface Props {
 const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -56,6 +58,28 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    setIsLoading('reset');
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await sendPasswordReset(email);
+      setSuccess('Password reset email sent! Check your inbox.');
+      setIsLoading(null);
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      setError(err.message || 'Failed to send password reset email');
+      setIsLoading(null);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[85vh] animate-fade-in">
       <div className="w-full max-w-sm space-y-6">
@@ -70,6 +94,13 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
           <div className="bg-red-900/20 border border-red-900/50 p-4 rounded-xl flex items-start text-red-500 text-sm">
             <AlertCircle size={18} className="mr-2 flex-shrink-0 mt-0.5" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {success && (
+          <div className="bg-green-900/20 border border-green-900/50 p-4 rounded-xl flex items-start text-green-500 text-sm">
+            <span>{success}</span>
           </div>
         )}
 
@@ -95,22 +126,6 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
             )}
           </button>
 
-          <button
-            onClick={() => handleSignIn('microsoft', signInWithMicrosoft)}
-            disabled={isLoading !== null}
-            className="w-full bg-[#0078D4] hover:bg-[#006CBE] text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-          >
-            {isLoading === 'microsoft' ? (
-              <Loader2 size={20} className="animate-spin" />
-            ) : (
-              <>
-                <svg className="w-5 h-5 mr-3" viewBox="0 0 23 23" fill="currentColor">
-                  <path d="M0 0h10.5v10.5H0zM12.5 0H23v10.5H12.5zM0 12.5h10.5V23H0zM12.5 12.5H23V23H12.5z"/>
-                </svg>
-                Continue with Microsoft
-              </>
-            )}
-          </button>
         </div>
 
         {/* Divider */}
@@ -123,61 +138,119 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
           </div>
         </div>
 
-        {/* Email/Password Form */}
-        <form onSubmit={handleEmailAuth} className="space-y-4">
-          <div>
-            <label className="block text-neutral-400 text-sm mb-2 font-medium">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="your.email@example.com"
-              disabled={isLoading !== null}
-              className="w-full bg-black border border-neutral-800 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
-              required
-            />
-          </div>
+        {/* Forgot Password Form */}
+        {isForgotPassword ? (
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <div>
+              <label className="block text-neutral-400 text-sm mb-2 font-medium">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your.email@example.com"
+                disabled={isLoading !== null}
+                className="w-full bg-black border border-neutral-800 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
+                required
+              />
+            </div>
 
-          <div>
-            <label className="block text-neutral-400 text-sm mb-2 font-medium">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+            <button
+              type="submit"
               disabled={isLoading !== null}
-              className="w-full bg-black border border-neutral-800 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
-              required
-            />
-          </div>
+              className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold py-4 px-6 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+            >
+              {isLoading === 'reset' ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                'Send Reset Link'
+              )}
+            </button>
 
-          <button
-            type="submit"
-            disabled={isLoading !== null}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold py-4 px-6 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-          >
-            {isLoading === 'email' ? (
-              <Loader2 size={20} className="animate-spin" />
-            ) : (
-              <>
-                <Mail size={18} className="mr-2" />
-                {isSignUp ? 'Sign Up' : 'Sign In'}
-              </>
+            <button
+              type="button"
+              onClick={() => {
+                setIsForgotPassword(false);
+                setError(null);
+                setSuccess(null);
+              }}
+              disabled={isLoading !== null}
+              className="w-full text-sm text-neutral-400 hover:text-neutral-300 underline disabled:opacity-50"
+            >
+              Back to Sign In
+            </button>
+          </form>
+        ) : (
+          /* Email/Password Form */
+          <form onSubmit={handleEmailAuth} className="space-y-4">
+            <div>
+              <label className="block text-neutral-400 text-sm mb-2 font-medium">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your.email@example.com"
+                disabled={isLoading !== null}
+                className="w-full bg-black border border-neutral-800 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-neutral-400 text-sm mb-2 font-medium">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                disabled={isLoading !== null}
+                className="w-full bg-black border border-neutral-800 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading !== null}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold py-4 px-6 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+            >
+              {isLoading === 'email' ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <>
+                  <Mail size={18} className="mr-2" />
+                  {isSignUp ? 'Sign Up' : 'Sign In'}
+                </>
+              )}
+            </button>
+
+            {!isSignUp && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotPassword(true);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                disabled={isLoading !== null}
+                className="w-full text-sm text-neutral-400 hover:text-neutral-300 underline disabled:opacity-50"
+              >
+                Forgot password?
+              </button>
             )}
-          </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError(null);
-            }}
-            disabled={isLoading !== null}
-            className="w-full text-sm text-neutral-400 hover:text-neutral-300 underline disabled:opacity-50"
-          >
-            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-          </button>
-        </form>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError(null);
+              }}
+              disabled={isLoading !== null}
+              className="w-full text-sm text-neutral-400 hover:text-neutral-300 underline disabled:opacity-50"
+            >
+              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

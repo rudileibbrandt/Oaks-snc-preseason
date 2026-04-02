@@ -35,6 +35,11 @@ export const signOut = async () => {
   return firebase.auth().signOut();
 };
 
+// Send password reset email
+export const sendPasswordReset = async (email: string) => {
+  return firebase.auth().sendPasswordResetEmail(email);
+};
+
 // Get current user
 export const getCurrentUser = () => {
   return firebase.auth().currentUser;

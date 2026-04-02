@@ -8,12 +8,13 @@ import SetupWarning from './components/SetupWarning';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
 import RatingAnalytics from './components/RatingAnalytics';
+import CoachesCorner from './components/CoachesCorner';
+import MergePrompt, { isDismissed } from './components/MergePrompt';
+import DesktopLayout from './components/DesktopLayout';
 import { AppView, Player } from './types';
 import { onAuthStateChanged } from './services/auth';
-import { db, migrateRatingsTo5PointScale } from './services/db';
-
-// Run migration on app startup
-migrateRatingsTo5PointScale().catch(e => console.error('[App] Migration error:', e));
+import { db, migrateRatingsTo5PointScale, findDuplicatesByName } from './services/db';
+import { invalidateRatingsCache } from './services/ratingData';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>('LOGIN');
@@ -22,6 +23,20 @@ const App: React.FC = () => {
   const [needsRoleSelection, setNeedsRoleSelection] = useState(false);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [coachDashboardRefresh, setCoachDashboardRefresh] = useState(0);
+  const [duplicatePlayers, setDuplicatePlayers] = useState<Player[]>([]);
+  const [showMergePrompt, setShowMergePrompt] = useState(false);
+
+  const checkForDuplicates = async (player: Player) => {
+    try {
+      const dupes = await findDuplicatesByName(player);
+      if (dupes.length > 0 && !isDismissed(player.id, dupes)) {
+        setDuplicatePlayers(dupes);
+        setShowMergePrompt(true);
+      }
+    } catch (e) {
+      console.error('[App] Error checking for duplicates:', e);
+    }
+  };
 
   useEffect(() => {
     // Check auth state and check if user has a profile
@@ -29,7 +44,22 @@ const App: React.FC = () => {
       setIsAuthenticated(!!user);
       
       if (user) {
-        // User is logged in - check if they have a profile
+        // User is logged in - run migrations then check profile
+        migrateRatingsTo5PointScale().catch(e => console.error('[App] Migration error:', e));
+        // One-time fix: Carter White Coach→Player
+        if (!localStorage.getItem('fix_carter_white_role')) {
+          db.getPlayers().then(players => {
+            const carter = players.find(p => p.name === 'Carter White' && p.role === 'Coach');
+            if (carter) {
+              db.updatePlayerRole(carter.id, 'Player').then(() => {
+                console.log('[App] Fixed Carter White role to Player');
+                localStorage.setItem('fix_carter_white_role', 'done');
+              });
+            } else {
+              localStorage.setItem('fix_carter_white_role', 'done');
+            }
+          }).catch(e => console.error('[App] Carter White fix error:', e));
+        }
         console.log('[App] User authenticated, checking profile...');
         try {
           // Add timeout to prevent hanging
@@ -42,13 +72,15 @@ const App: React.FC = () => {
           
           setCurrentPlayer(player);
           setIsLoading(false);
-          
+
           // If player has a role, go to landing
           if (player.role) {
             setNeedsRoleSelection(false);
             if (currentView === 'LOGIN') {
               setCurrentView('LANDING');
             }
+            // Check for duplicates in background
+            checkForDuplicates(player);
           } else {
             // No role set - need role selection
             setNeedsRoleSelection(true);
@@ -90,10 +122,12 @@ const App: React.FC = () => {
     try {
       const player = await db.getOrCreatePlayerForUser();
       setCurrentPlayer(player);
-      
+
       if (player.role) {
         setNeedsRoleSelection(false);
         setCurrentView('LANDING');
+        // Check for duplicates in background
+        checkForDuplicates(player);
       } else {
         setNeedsRoleSelection(true);
       }
@@ -140,6 +174,25 @@ const App: React.FC = () => {
     }
   };
 
+  const handleMergeComplete = async () => {
+    setShowMergePrompt(false);
+    setDuplicatePlayers([]);
+    invalidateRatingsCache();
+    // Reload player (may now redirect to canonical account)
+    try {
+      const player = await db.getOrCreatePlayerForUser();
+      setCurrentPlayer(player);
+    } catch (error) {
+      console.error('[App] Error reloading player after merge:', error);
+    }
+    setCurrentView('LANDING');
+  };
+
+  const handleMergeDismiss = () => {
+    setShowMergePrompt(false);
+    setDuplicatePlayers([]);
+  };
+
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -174,6 +227,10 @@ const App: React.FC = () => {
         return <PlayerList onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
       case 'RATING_ANALYTICS':
         return <RatingAnalytics onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
+      case 'COACHES_CORNER':
+      case 'DEPTH_CHART':
+        if (currentPlayer?.role !== 'Coach') return <Landing onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
+        return <CoachesCorner onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
       case 'ATHLETE_SELECT':
       case 'ATHLETE_DASHBOARD':
         return <AthleteView onNavigate={setCurrentView} />;
@@ -182,12 +239,33 @@ const App: React.FC = () => {
     }
   };
 
+  // Views that should NOT get the desktop sidebar (pre-auth flows)
+  const isPreAuthView = !isAuthenticated || needsRoleSelection || currentView === 'LOGIN';
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 font-sans selection:bg-amber-500 selection:text-black">
       <SetupWarning />
-      <main className="container mx-auto px-4 py-4 min-h-screen max-w-lg relative">
-        {renderContent()}
-      </main>
+      {isPreAuthView ? (
+        <main className="container mx-auto px-4 py-4 min-h-screen max-w-lg relative">
+          {renderContent()}
+        </main>
+      ) : (
+        <DesktopLayout
+          currentView={currentView}
+          onNavigate={setCurrentView}
+          currentPlayer={currentPlayer}
+        >
+          {renderContent()}
+          {showMergePrompt && currentPlayer && duplicatePlayers.length > 0 && (
+            <MergePrompt
+              currentPlayer={currentPlayer}
+              duplicates={duplicatePlayers}
+              onMergeComplete={handleMergeComplete}
+              onDismiss={handleMergeDismiss}
+            />
+          )}
+        </DesktopLayout>
+      )}
     </div>
   );
 };

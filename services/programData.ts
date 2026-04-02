@@ -8,6 +8,10 @@ const WARMUP: ExerciseDef[] = [
   { id: 'wu5', name: 'Horizontal Bounds', reps: '2x10', videoUrl: 'https://youtu.be/xAk2tKNPsUw?si=LfC0pCiyJr2m1zCY', isMetric: false },
   { id: 'wu6', name: 'A-Skip', reps: '2x20', videoUrl: 'https://youtu.be/A7r6yCpmSrA?si=rG1ZF8wY7VsJoVBl', isMetric: false },
   { id: 'wu7', name: 'B-Skip', reps: '2x20', videoUrl: 'https://youtu.be/A7r6yCpmSrA?si=rG1ZF8wY7VsJoVBl', isMetric: false },
+  // Optional add-on for the daily protocol
+  { id: 'wu8', name: 'Sprint Start Mechanics (Optional)', reps: '5 min', videoUrl: 'https://youtu.be/3JaQcigqO9I?si=NVjAfaiz57zN6P9z', isMetric: false },
+  { id: 'wu9', name: 'Explosive Burpees (Optional)', reps: '2x10', videoUrl: 'https://youtu.be/4ZoBFsl3VM4?si=hgS4XmSXP0kjY1hk', isMetric: false },
+  { id: 'wu10', name: 'Burpee Cobra to Hip Snap Drill (Optional)', reps: '2x10', videoUrl: 'https://youtu.be/FFm1COa8nqg?si=dc1nA94843mOdiqi', isMetric: false },
 ];
 
 const DAY1: WorkoutDay = {
@@ -52,7 +56,14 @@ const DAY4: WorkoutDay = {
   title: 'Day 4',
   focus: 'Speed',
   exercises: [
-    { id: 'd4_1', name: 'Sprints (30m)', reps: '8x30m (100%)', isMetric: true, isSprint: true }, // No link provided in source for sprints specifically, handled generic description
+    {
+      id: 'd4_1',
+      name: 'Sprints (30m)',
+      reps: '8x30m (100%)',
+      videoUrl: 'https://youtu.be/3JaQcigqO9I?si=NVjAfaiz57zN6P9z',
+      isMetric: true,
+      isSprint: true
+    },
   ]
 };
 

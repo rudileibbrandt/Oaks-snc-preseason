@@ -71,7 +71,7 @@ const RaterView: React.FC<Props> = ({ allRatings }) => {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-neutral-500">
         <Users size={48} className="mb-4" />
-        <p className="text-center">No ratings have been submitted yet</p>
+        <p className="text-center">No feedback has been submitted yet</p>
       </div>
     );
   }
@@ -81,10 +81,10 @@ const RaterView: React.FC<Props> = ({ allRatings }) => {
       {/* Header */}
       <div className="p-4 bg-neutral-900 rounded-lg border border-neutral-800">
         <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-wider mb-2">
-          Ratings by Rater
+          Feedback by Rater
         </h3>
         <p className="text-xs text-neutral-500">
-          {raterSummaries.length} rater{raterSummaries.length !== 1 ? 's' : ''} have submitted {allRatings.length} total rating{allRatings.length !== 1 ? 's' : ''}
+          {raterSummaries.length} rater{raterSummaries.length !== 1 ? 's' : ''} have submitted {allRatings.length} total feedback{allRatings.length !== 1 ? 's' : ''}
         </p>
       </div>
 
@@ -249,7 +249,7 @@ const RaterView: React.FC<Props> = ({ allRatings }) => {
 
       {/* Legend */}
       <div className="p-4 bg-neutral-900 rounded-lg border border-neutral-800">
-        <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Rating Scale</h3>
+        <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Feedback Scale</h3>
         <div className="flex flex-wrap gap-3 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="w-5 h-5 rounded bg-red-500/20 text-red-400 flex items-center justify-center font-bold">1</span>

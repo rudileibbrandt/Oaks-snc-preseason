@@ -220,6 +220,9 @@ Click on any workout day card to open that day's workout.
 - Lists all the warm-up exercises
 - These don't need to be logged - just follow the protocol!
 - Some exercises have video links (YouTube icon) - click to watch
+- Optional add-on: **Sprint Start Mechanics (5 min)** — watch [How to Perform a Push-Up Sprint Start CORRECTLY (IMPROVE SPEED!)](https://youtu.be/3JaQcigqO9I?si=NVjAfaiz57zN6P9z)
+- Optional add-on: **Explosive Burpees** — watch [Explosive Burpees](https://youtu.be/4ZoBFsl3VM4?si=hgS4XmSXP0kjY1hk)
+- Optional add-on: **Burpee Cobra to Hip Snap Drill** — watch [Burpee Cobra to Hip Snap Drill](https://youtu.be/FFm1COa8nqg?si=dc1nA94843mOdiqi)
 
 **Main Session Exercises:**
 
@@ -258,6 +261,8 @@ You'll see two input fields:
    - Enter your sprint time in seconds (e.g., "4.5")
    - You can use decimals (e.g., "4.52")
    - The unit "sec" appears when you type a number
+
+✅ **Sprint help video:** Tap the YouTube icon to watch [How to Perform a Push-Up Sprint Start CORRECTLY (IMPROVE SPEED!)](https://youtu.be/3JaQcigqO9I?si=NVjAfaiz57zN6P9z).
 
 > 📸 **Screenshot 9**: Close-up of exercise input fields
 
