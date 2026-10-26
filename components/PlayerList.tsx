@@ -12,6 +12,7 @@ import RatingModal from './RatingModal';
 import RatingHistorySection from './RatingHistorySection';
 import GraduateSeniorsModal from './GraduateSeniorsModal';
 import MarkSeniorsModal from './MarkSeniorsModal';
+import { rosterAlumniNames } from '../services/classYears';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -67,8 +68,15 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     }
   }, []);
   useEffect(() => {
-    if (isCoach) loadRosterClasses();
-  }, [isCoach, loadRosterClasses]);
+    loadRosterClasses();
+  }, [loadRosterClasses]);
+
+  // Team vs Alumni: graduated players only show on the Alumni tab.
+  const [showAlumni, setShowAlumni] = useState(false);
+  const alumniNames = useMemo(() => rosterAlumniNames(appPlayers, rosterClasses), [appPlayers, rosterClasses]);
+  const teamRoster = useMemo(() => ROSTER_PLAYERS.filter(p => !alumniNames.has(normalizeName(p.name))), [alumniNames]);
+  const alumniRoster = useMemo(() => ROSTER_PLAYERS.filter(p => alumniNames.has(normalizeName(p.name))), [alumniNames]);
+  const shownRoster = showAlumni ? alumniRoster : teamRoster;
 
   // Load app players to cross-reference with roster
   const loadAppPlayers = useCallback(async () => {
@@ -160,8 +168,8 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   // Count of injured players
   const injuredCount = useMemo(() => {
-    return ROSTER_PLAYERS.filter(p => getActiveInjury(p.name)).length;
-  }, [injuryMap]);
+    return teamRoster.filter(p => getActiveInjury(p.name)).length;
+  }, [injuryMap, teamRoster]);
 
   // Refresh injuries after modal save
   const handleInjurySaved = async () => {
@@ -219,7 +227,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   // Filter and search players
   const filteredPlayers = useMemo(() => {
-    return ROSTER_PLAYERS.filter(player => {
+    return shownRoster.filter(player => {
       // Search filter (by name, training group, or squad)
       const matchesSearch = searchQuery === '' ||
         player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -240,7 +248,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
       return matchesSearch && matchesGroup && matchesSquad && matchesInjuryStatus;
     });
-  }, [searchQuery, selectedGroup, selectedSquad, selectedInjuryStatus, injuryMap]);
+  }, [searchQuery, selectedGroup, selectedSquad, selectedInjuryStatus, injuryMap, shownRoster]);
 
   // Group players by training group for display
   const groupedPlayers = useMemo(() => {
@@ -510,11 +518,26 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           <div>
             <h1 className="text-xl font-bold text-white">Player Roster</h1>
             <p className="text-xs text-neutral-500">
-              {ROSTER_PLAYERS.length} players • {appPlayers.length > 0 && (
-                <span className="text-green-400">{ROSTER_PLAYERS.filter(p => getLinkedAppPlayer(p)).length} linked</span>
+              {teamRoster.length} players • {appPlayers.length > 0 && (
+                <span className="text-green-400">{teamRoster.filter(p => getLinkedAppPlayer(p)).length} linked</span>
               )} • 2026 Season
             </p>
           </div>
+        </div>
+
+        {/* Team | Alumni */}
+        <div className="grid grid-cols-2 gap-2 p-1 mb-3 bg-neutral-900 border border-neutral-800 rounded-xl">
+          {[false, true].map(alumni => (
+            <button
+              key={String(alumni)}
+              onClick={() => { setShowAlumni(alumni); setSelectedPlayerIndex(null); }}
+              className={`py-2 rounded-lg text-sm font-bold transition-all ${
+                showAlumni === alumni ? 'bg-amber-500 text-black' : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              {alumni ? `Alumni (${alumniRoster.length})` : `Team (${teamRoster.length})`}
+            </button>
+          ))}
         </div>
 
         {/* Search */}

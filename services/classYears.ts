@@ -50,6 +50,27 @@ export const rosterAlumniNames = (players: Player[], classes: Record<string, Ros
 
 // Move a roster player to alumni (year) or back to the current team (null).
 export const setRosterAlumni = async (name: string, account: Player | undefined, year: number | null) => {
-  if (account) await db.setPlayerAlumni(account.id, year);
-  await db.setRosterClass(classKey(name), name, { alumniClass: year });
+  try {
+    if (account) await db.setPlayerAlumni(account.id, year);
+    await db.setRosterClass(classKey(name), name, { alumniClass: year });
+  } finally {
+    invalidateAlumniNames();
+  }
 };
+
+// ---------- Shared, cached alumni lookup for screens that hide alumni ----------
+
+let alumniNamesCache: Promise<Set<string>> | null = null;
+
+// Loaded once and shared by every screen; a failed load means "no alumni known" rather than an error.
+export const loadAlumniNames = (): Promise<Set<string>> => {
+  if (!alumniNamesCache) {
+    alumniNamesCache = Promise.all([
+      db.getPlayers().catch(() => [] as Player[]),
+      db.getRosterClasses().catch(() => ({} as Record<string, RosterClass>)),
+    ]).then(([players, classes]) => rosterAlumniNames(players, classes));
+  }
+  return alumniNamesCache;
+};
+
+export const invalidateAlumniNames = () => { alumniNamesCache = null; };

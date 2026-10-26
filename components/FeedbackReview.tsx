@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, AlertTriangle, Filter, Trophy } from 'lucide-re
 import { PlayerRating, PlayerRatings } from '../types';
 import { RATING_SKILLS, RATING_COLORS } from '../services/ratingData';
 import { ROSTER_PLAYERS, GROUP_COLORS } from '../services/rosterData';
+import { useAlumniNames } from '../hooks/useAlumniNames';
 import { isSelfRating, calculateVarianceLevel, VARIANCE_COLORS } from '../services/ratingAnalytics';
 
 interface Props {
@@ -69,6 +70,8 @@ interface PlayerDev {
 }
 
 const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
+  const { isAlumniName } = useAlumniNames();
+  const currentRosterSize = ROSTER_PLAYERS.filter(p => !isAlumniName(p.name)).length;
   const [groupFilter, setGroupFilter] = useState<TrainingGroupFilter>('All');
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
 
@@ -501,7 +504,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
                   </span>
                   <span>
                     Coverage: <span className="text-white">{coach.playerCount}</span>
-                    <span className="text-neutral-600"> / {ROSTER_PLAYERS.length}</span>
+                    <span className="text-neutral-600"> / {currentRosterSize}</span>
                   </span>
                 </div>
               </div>

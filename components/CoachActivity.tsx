@@ -5,6 +5,7 @@ import { db, mergeAccounts, MergeResult } from '../services/db';
 import { loadRatings, invalidateRatingsCache } from '../services/ratingData';
 import { loadInjuries } from '../services/injuryData';
 import { getPhotoUrl, ROSTER_PLAYERS, GROUP_COLORS } from '../services/rosterData';
+import { useAlumniNames } from '../hooks/useAlumniNames';
 import RatingModal from './RatingModal';
 
 interface Props {
@@ -34,6 +35,7 @@ function normalizeName(name: string): string {
 }
 
 const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
+  const { alumniNames, isAlumniName } = useAlumniNames(); // graduated players aren't on the to-rate list
   const [coaches, setCoaches] = useState<Player[]>([]);
   const [allRatings, setAllRatings] = useState<PlayerRating[]>([]);
   const [allInjuries, setAllInjuries] = useState<InjuryRecord[]>([]);
@@ -135,7 +137,7 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     if (!currentPlayer) return { groups: new Map<string, typeof ROSTER_PLAYERS>(), total: 0 };
     const myRatings = ratingsByRater.get(currentPlayer.id) || [];
     const ratedNames = new Set(myRatings.map(r => r.playerName));
-    const unrated = ROSTER_PLAYERS.filter(p => !ratedNames.has(p.name));
+    const unrated = ROSTER_PLAYERS.filter(p => !ratedNames.has(p.name) && !isAlumniName(p.name));
     const groups = new Map<string, typeof ROSTER_PLAYERS>();
     for (const p of unrated) {
       const group = p.trainingGroup;
@@ -144,7 +146,7 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       groups.set(group, existing);
     }
     return { groups, total: unrated.length };
-  }, [currentPlayer, ratingsByRater]);
+  }, [currentPlayer, ratingsByRater, alumniNames]);
 
   const isDuplicate = (coachId: string): boolean => {
     for (const group of duplicateGroups.values()) {

@@ -10,6 +10,8 @@ import TeamInsights from './TeamInsights';
 import AdminPanel from './AdminPanel';
 import RaterView from './RaterView';
 import FeedbackReview from './FeedbackReview';
+import { useAlumniNames } from '../hooks/useAlumniNames';
+import { normalizeName } from '../services/alumni';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -26,6 +28,17 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const isCoach = currentPlayer?.role?.toLowerCase() === 'coach';
+
+  // Graduated players are hidden here (the viewer always sees their own ratings).
+  // The Admin tab still gets every rating.
+  const { alumniNames } = useAlumniNames();
+  const currentRatings = useMemo(() => {
+    const me = currentPlayer?.name ? normalizeName(currentPlayer.name) : null;
+    return allRatings.filter(r => {
+      const n = normalizeName(r.playerName);
+      return n === me || !alumniNames.has(n);
+    });
+  }, [allRatings, alumniNames, currentPlayer?.name]);
   console.log('[RatingAnalytics] currentPlayer role:', currentPlayer?.role, 'isCoach:', currentPlayer?.role?.toLowerCase() === 'coach');
 
   // Load all ratings on mount
@@ -47,8 +60,8 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   // Get list of players with ratings
   const playersWithRatings = useMemo(() => {
-    return getPlayersWithRatings(allRatings);
-  }, [allRatings]);
+    return getPlayersWithRatings(currentRatings);
+  }, [currentRatings]);
 
   // Auto-select own name for non-coaches, lock to self
   useEffect(() => {
@@ -71,7 +84,7 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       return [currentPlayer.name];
     }
 
-    const rosterNames = ROSTER_PLAYERS.map(p => p.name);
+    const rosterNames = ROSTER_PLAYERS.map(p => p.name).filter(n => !alumniNames.has(normalizeName(n)));
     const allPlayerNames = Array.from(new Set([...rosterNames, ...playersWithRatings])).sort();
 
     if (!searchQuery.trim()) {
@@ -81,7 +94,7 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     return allPlayerNames.filter(name =>
       name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [searchQuery, playersWithRatings, isCoach, currentPlayer?.name]);
+  }, [searchQuery, playersWithRatings, isCoach, currentPlayer?.name, alumniNames]);
 
   // Handle player selection
   const handleSelectPlayer = (playerName: string) => {
@@ -318,7 +331,7 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       case '360':
         return (
           <ThreeSixtyView
-            allRatings={allRatings}
+            allRatings={currentRatings}
             selectedPlayer={selectedPlayer}
             currentPlayer={currentPlayer}
           />
@@ -326,14 +339,14 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       case 'my-ratings':
         return (
           <MyRatingsComparison
-            allRatings={allRatings}
+            allRatings={currentRatings}
             selectedPlayer={selectedPlayer}
             currentPlayer={currentPlayer}
           />
         );
       case 'by-rater':
         return isCoach ? (
-          <RaterView allRatings={allRatings} />
+          <RaterView allRatings={currentRatings} />
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-neutral-500">
             <AlertCircle size={48} className="mb-4" />
@@ -342,7 +355,7 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         );
       case 'team-insights':
         return isCoach ? (
-          <TeamInsights allRatings={allRatings} />
+          <TeamInsights allRatings={currentRatings} />
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-neutral-500">
             <AlertCircle size={48} className="mb-4" />
@@ -351,7 +364,7 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         );
       case 'review':
         return isCoach ? (
-          <FeedbackReview allRatings={allRatings} />
+          <FeedbackReview allRatings={currentRatings} />
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-neutral-500">
             <AlertCircle size={48} className="mb-4" />
@@ -386,7 +399,7 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           <div>
             <h1 className="text-xl font-bold text-white">Player Progression</h1>
             <p className="text-xs text-neutral-500">
-              {allRatings.length} total feedbacks across {playersWithRatings.length} players
+              {currentRatings.length} total feedbacks across {playersWithRatings.length} players
             </p>
           </div>
         </div>

@@ -1249,14 +1249,14 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       <div className="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
         <h3 className="font-bold text-white mb-4 flex items-center text-xs uppercase tracking-wide">
           <UserPlus size={14} className="mr-2 text-amber-500" /> 
-          Registered Players ({players.length})
+          Registered Players ({currentPlayers.length})
         </h3>
         
         <div className="max-h-32 overflow-y-auto pr-2 custom-scrollbar space-y-2">
-            {players.length === 0 ? (
+            {currentPlayers.length === 0 ? (
               <p className="text-neutral-500 text-xs text-center py-4">No players registered yet. Players will appear here after they sign up.</p>
             ) : (
-              players.map(p => (
+              currentPlayers.map(p => (
                   <div key={p.id} className="flex justify-between items-center p-2 bg-black/40 rounded border border-neutral-800/50">
                       <span className="text-xs text-neutral-400">{p.name} {p.role === 'Player' && p.position ? `(${p.position})` : p.role === 'Coach' ? '(Coach)' : ''}</span>
                   </div>
