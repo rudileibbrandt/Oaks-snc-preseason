@@ -299,7 +299,7 @@ const StandardsTables: React.FC = () => {
         </table>
       </div>
       <p className="text-[11px] text-neutral-500">
-        Bronze = a good U16 player · Silver = a good U18 · Gold = a good U20 · Elite = a men's international.
+        Bronze = a good U16 player · Silver = a good U18 · Gold = a good U20 · Elite = the top band of USA Rugby's men's standards.
         Times: at or under. Jump and lifts: at or over.
       </p>
       <div className="space-y-2">
