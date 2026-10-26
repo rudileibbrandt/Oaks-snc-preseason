@@ -35,6 +35,7 @@ const CalendarView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Partial<TeamEvent> | null>(null);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -68,6 +69,14 @@ const CalendarView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     for (const s of sessions) map.set(s.date, [...(map.get(s.date) ?? []), s]);
     return map;
   }, [sessions]);
+  // Everything from today on, soonest first: testing days and events together.
+  const upcoming = useMemo(() => [
+    ...sessions.map(t => ({ kind: 'test' as const, id: t.id, date: t.date, time: t.time, test: t })),
+    ...events.map(e => ({ kind: 'event' as const, id: e.id, date: e.date, time: e.startTime, event: e })),
+  ].filter(x => x.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? '')),
+  [sessions, events, today]);
+
   const doneOn = useMemo(() => {
     const map = new Map<string, WorkoutLog[]>();
     for (const l of logs) if (l.completed) map.set(logDate(l), [...(map.get(logDate(l)) ?? []), l]);
@@ -244,6 +253,51 @@ const CalendarView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           </>
         )}
       </div>
+
+      {/* Coming up */}
+      {!loading && (
+        <div className="space-y-2 pt-2">
+          <h2 className="text-sm font-bold text-white">Coming up</h2>
+          {upcoming.length === 0 ? (
+            <p className="text-sm text-neutral-500">Nothing scheduled yet.</p>
+          ) : (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
+              {(showAllUpcoming ? upcoming : upcoming.slice(0, 10)).map(x => {
+                const d = parseIso(x.date);
+                return (
+                  <button key={x.kind + x.id}
+                    onClick={() => { setMonth({ y: d.getFullYear(), m: d.getMonth() }); setSelected(x.date); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="w-full flex items-center gap-3 p-3 text-left hover:bg-neutral-800/60 transition-colors">
+                    <div className="w-11 flex-shrink-0 text-center">
+                      <div className="text-[10px] uppercase text-neutral-500">{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                      <div className={`text-lg font-black leading-tight ${x.date === today ? 'text-amber-400' : 'text-white'}`}>{d.getDate()}</div>
+                      <div className="text-[10px] uppercase text-neutral-500">{d.toLocaleDateString('en-US', { month: 'short' })}</div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {x.kind === 'test'
+                          ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">Testing</span>
+                          : <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${EVENT_STYLE[x.event.type].chip}`}>{x.event.type}</span>}
+                        <p className="text-sm text-white font-bold truncate">{x.kind === 'test' ? x.test.name : x.event.title}</p>
+                      </div>
+                      <p className="text-[11px] text-neutral-400 mt-0.5 flex flex-wrap gap-x-3">
+                        {x.time && <span className="flex items-center gap-1"><Clock size={11} />{formatClock(x.time)}{x.kind === 'event' && x.event.endTime ? `–${formatClock(x.event.endTime)}` : ''}</span>}
+                        {x.kind === 'event' && x.event.location && <span className="flex items-center gap-1"><MapPin size={11} />{x.event.location}</span>}
+                      </p>
+                    </div>
+                    <ChevronRight size={16} className="text-neutral-600 flex-shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {upcoming.length > 10 && (
+            <button onClick={() => setShowAllUpcoming(v => !v)} className="text-xs text-amber-400 hover:text-amber-300">
+              {showAllUpcoming ? 'Show fewer' : `Show all ${upcoming.length}`}
+            </button>
+          )}
+        </div>
+      )}
 
       {editing && currentPlayer && (
         <EventModal event={editing} currentPlayer={currentPlayer} onClose={() => setEditing(null)}

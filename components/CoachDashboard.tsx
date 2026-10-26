@@ -1248,26 +1248,9 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       </div>
       )}
 
-      {/* Roster List */}
-      <div className="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
-        <h3 className="font-bold text-white mb-4 flex items-center text-xs uppercase tracking-wide">
-          <UserPlus size={14} className="mr-2 text-amber-500" /> 
-          Registered Players ({currentPlayers.length})
-        </h3>
-        
-        <div className="max-h-32 overflow-y-auto pr-2 custom-scrollbar space-y-2">
-            {currentPlayers.length === 0 ? (
-              <p className="text-neutral-500 text-xs text-center py-4">No players registered yet. Players will appear here after they sign up.</p>
-            ) : (
-              currentPlayers.map(p => (
-                  <div key={p.id} className="flex justify-between items-center p-2 bg-black/40 rounded border border-neutral-800/50">
-                      <span className="text-xs text-neutral-400">{p.name} {p.role === 'Player' && p.position ? `(${p.position})` : p.role === 'Coach' ? '(Coach)' : ''}</span>
-                  </div>
-              ))
-            )}
-        </div>
-      </div>
-      
+      {/* Registered players: everyone with an app account, full size, players and coaches apart */}
+      <RegisteredPlayers players={currentPlayers} />
+
       {/* Player Details Modal - Different views for Completion vs Best */}
       {selectedPlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPlayer(null)}>
@@ -1543,3 +1526,55 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
 };
 
 export default CoachDashboard;
+
+const RegisteredPlayers: React.FC<{ players: Player[] }> = ({ players }) => {
+  const byName = (a: Player, b: Player) => a.name.localeCompare(b.name);
+  const athletes = players.filter(p => p.role === 'Player').sort(byName);
+  const coaches = players.filter(p => p.role === 'Coach').sort(byName);
+  const advanced = athletes.filter(p => p.program === 'Advanced').length;
+
+  return (
+    <div className="bg-neutral-900 rounded-xl p-4 md:p-5 border border-neutral-800 space-y-4">
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <h3 className="font-bold text-white flex items-center gap-2 text-base">
+          <UserPlus size={18} className="text-amber-500" /> Registered Players
+        </h3>
+        <p className="text-sm text-neutral-400">
+          {athletes.length} player{athletes.length === 1 ? '' : 's'}
+          {athletes.length > 0 && <> · {athletes.length - advanced} Intermediate · {advanced} Advanced</>}
+          {' · '}{coaches.length} coach{coaches.length === 1 ? '' : 'es'}
+        </p>
+      </div>
+
+      {players.length === 0 ? (
+        <p className="text-neutral-500 text-sm text-center py-4">No players registered yet. Players appear here after they sign up.</p>
+      ) : (
+        <>
+          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))' }}>
+            {athletes.map(p => (
+              <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2.5 bg-black/40 rounded-lg border border-neutral-800">
+                <div className="min-w-0">
+                  <p className="text-sm text-white font-medium break-words">{p.name}</p>
+                  <p className="text-xs text-neutral-500">{p.position ?? 'No position set'}</p>
+                </div>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                  p.program === 'Advanced' ? 'bg-amber-500/20 text-amber-400' : 'bg-neutral-800 text-neutral-300'
+                }`}>{p.program ?? 'Intermediate'}</span>
+              </div>
+            ))}
+          </div>
+          {coaches.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Coaches</p>
+              <div className="flex flex-wrap gap-2">
+                {coaches.map(c => (
+                  <span key={c.id} className="text-sm text-neutral-200 px-3 py-1.5 bg-black/40 rounded-lg border border-neutral-800">{c.name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
