@@ -186,6 +186,54 @@ export const bestThisSeason = (results: TestResult[], sessions: TestSession[], s
   return best;
 };
 
+export interface TestSummary {
+  list: BestScore[]; // every result this season, oldest first; missed tests are left out
+  best: BestScore;   // sets the tier
+  worst: BestScore;
+  latest: BestScore;
+  first: BestScore;
+}
+
+// One test's results this season: best, worst, latest, first and all of them. Ties go to the earliest.
+export const testSummary = (
+  results: TestResult[], sessions: TestSession[], test: StandardTest, seasonStart = TESTING_SEASON_START,
+): TestSummary | undefined => {
+  const lower = TESTS.find(x => x.key === test)!.lowerIsBetter;
+  const dateOf = new Map(sessions.map(s => [s.id, s.date]));
+  const list: BestScore[] = [];
+  for (const r of results) {
+    const date = dateOf.get(r.sessionId);
+    const value = scoreOf(r, test);
+    if (!date || date < seasonStart || value === undefined) continue;
+    list.push({ value, sessionId: r.sessionId, date });
+  }
+  if (list.length === 0) return undefined;
+  list.sort((a, b) => a.date.localeCompare(b.date));
+  const isBetter = (a: number, b: number) => (lower ? a < b : a > b);
+  let best = list[0], worst = list[0];
+  for (const x of list) {
+    if (isBetter(x.value, best.value)) best = x;
+    if (isBetter(worst.value, x.value)) worst = x;
+  }
+  return { list, best, worst, latest: list[list.length - 1], first: list[0] };
+};
+
+// Latest compared with the first result this season; undefined with only one result.
+export const progressOf = (s: TestSummary, test: StandardTest) => {
+  if (s.list.length < 2) return undefined;
+  const lower = TESTS.find(x => x.key === test)!.lowerIsBetter;
+  const diff = s.latest.value - s.first.value;
+  const amount = Math.round(Math.abs(diff) * 100) / 100;
+  return { improved: amount > 0 && (lower ? diff < 0 : diff > 0), amount, since: s.first.sessionId };
+};
+
+export const formatProgress = (test: StandardTest, p: { improved: boolean; amount: number }) => {
+  if (p.amount === 0) return 'no change';
+  if (test === 'bronco') return `${Math.round(p.amount)}s ${p.improved ? 'faster' : 'slower'}`;
+  if (test === 'sprint10' || test === 'sprint40') return `${p.amount.toFixed(2)}s ${p.improved ? 'faster' : 'slower'}`;
+  return `${Math.round(p.amount)} ${TESTS.find(x => x.key === test)!.unit} ${p.improved ? 'more' : 'less'}`;
+};
+
 // The position group a player is tested in: their latest result's group, else their best position.
 export const playerGroup = (results: TestResult[], sessions: TestSession[], bestPosition?: RugbyPosition) => {
   const dateOf = new Map(sessions.map(s => [s.id, s.date]));

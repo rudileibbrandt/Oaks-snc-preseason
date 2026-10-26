@@ -8,11 +8,12 @@ import { TESTING_SEASON_START } from '../services/season';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 import { useRosterClasses } from '../hooks/useRosterContext';
 import {
-  GROUPS, LEVELS, PositionGroup, STANDARDS, TESTS, bestThisSeason, formatGap, formatStandard, formatValue,
-  groupLabel, levelIndex, nextLevel, playerGroup, scoreOf,
+  GROUPS, LEVELS, PositionGroup, STANDARDS, TESTS, formatStandard, formatValue,
+  groupLabel, levelIndex, playerGroup, testSummary,
 } from '../services/standards';
 import TestingDays from './TestingDays';
-import LevelChip, { CHIP } from './LevelChip';
+import LevelChip from './LevelChip';
+import ResultCards from './ResultCards';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -21,9 +22,21 @@ interface Props {
 
 type Tab = 'mine' | 'team' | 'testing' | 'tables';
 
+// Another screen (the Calendar) can ask Standards to open on a given tab next time it mounts.
+let startTab: Tab | null = null;
+export const openStandardsOn = (tab: Tab) => { startTab = tab; };
+
+const seasonStartLabel = new Date(TESTING_SEASON_START + 'T12:00:00')
+  .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
 const StandardsView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const isCoach = currentPlayer?.role === 'Coach';
-  const [tab, setTab] = useState<Tab>('tables');
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = startTab;
+    startTab = null;
+    const allowed: Tab[] = isCoach ? ['tables', 'team', 'testing'] : ['tables', 'mine'];
+    return t && allowed.includes(t) ? t : 'tables';
+  });
   const [sessions, setSessions] = useState<TestSession[]>([]);
   const [results, setResults] = useState<TestResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,8 +104,6 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
   const mine = useMemo(() => results.filter(r => r.nameKey === key), [results, key]);
   const defaultGroup = playerGroup(mine, sessions, rosterPlayer?.bestPosition);
   const [group, setGroup] = useState<PositionGroup | ''>(defaultGroup ?? '');
-  const best = useMemo(() => bestThisSeason(mine, sessions), [mine, sessions]);
-  const sessionName = (id: string) => sessions.find(s => s.id === id)?.name ?? 'Testing day';
 
   return (
     <div className="space-y-4">
@@ -112,56 +123,13 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
       )}
 
       {group && (
-        <div className="space-y-2">
-          {TESTS.map(t => {
-            const b = best[t.key];
-            const idx = b ? levelIndex(group, t.key, b.value) : null;
-            const next = b ? nextLevel(group, t.key, b.value) : undefined;
-            const row = STANDARDS[group][t.key];
-            return (
-              <div key={t.key} className="p-4 bg-neutral-900 border border-neutral-800 rounded-xl">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-white font-bold text-sm">{t.label}</p>
-                  {idx !== null ? <LevelChip idx={idx} /> : <span className="text-xs text-neutral-500">Not tested</span>}
-                </div>
-                {b && (
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Best this season <span className="text-white font-bold">{formatValue(t.key, b.value)}</span> · {sessionName(b.sessionId)}
-                    {next ? <> · <span className="text-amber-400">{formatGap(t.key, next.gap)} to {next.level}</span></> : <> · <span className="text-amber-400">top level</span></>}
-                  </p>
-                )}
-                <div className="grid grid-cols-4 gap-1 mt-3">
-                  {LEVELS.map((lvl, i) => (
-                    <div key={lvl} className={`text-center rounded-md py-1.5 ${idx !== null && idx >= i ? CHIP[i] : 'bg-black/40 text-neutral-500'}`}>
-                      <div className="text-[10px] uppercase tracking-wide">{lvl}</div>
-                      <div className="text-xs font-bold">{formatStandard(t.key, row[i])}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+        <>
+          <ResultCards group={group} results={mine} sessions={sessions} />
           <p className="text-[11px] text-neutral-500">
-            Times: at or under the line. Jump and lifts: at or over. Chin-up total = bodyweight + weight added.
-            Your level is your best result since {TESTING_SEASON_START}.
+            Your tier is your best result since {seasonStartLabel}. Times count at or under the line; jump and lifts at or over.
+            Chin-up total = bodyweight + weight added.
           </p>
-        </div>
-      )}
-
-      {mine.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-bold text-neutral-300">Your testing days</h3>
-          {[...mine].sort((a, b) => (sessions.find(s => s.id === b.sessionId)?.date ?? '').localeCompare(sessions.find(s => s.id === a.sessionId)?.date ?? '')).map(r => {
-            const s = sessions.find(x => x.id === r.sessionId);
-            const done = TESTS.filter(t => scoreOf(r, t.key) !== undefined);
-            return (
-              <div key={r.id} className="p-3 bg-neutral-900 border border-neutral-800 rounded-lg">
-                <p className="text-xs text-white font-bold">{s?.name ?? 'Testing day'} <span className="text-neutral-500 font-normal">· {s?.date}</span></p>
-                <p className="text-[11px] text-neutral-400 mt-0.5">{done.map(t => `${t.label} ${formatValue(t.key, scoreOf(r, t.key)!)}`).join(' · ') || 'No scores'}</p>
-              </div>
-            );
-          })}
-        </div>
+        </>
       )}
     </div>
   );
@@ -169,11 +137,20 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
 
 // ---------- Coaches: everyone's levels ----------
 
+type Mode = 'best' | 'latest' | 'worst';
+const MODE_NOTE: Record<Mode, string> = {
+  best: `Best result per test since ${seasonStartLabel}. The chip is the player's tier.`,
+  latest: 'Most recent result per test. The chip shows the tier that result reaches.',
+  worst: `Weakest result per test since ${seasonStartLabel}. Missed tests are not counted.`,
+};
+
 const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> = ({ sessions, results }) => {
   const { isAlumniName, ready: alumniReady } = useAlumniNames();
   const { squadInfo, ready: classesReady } = useRosterClasses();
   const [squad, setSquad] = useState<'All' | 'Varsity' | 'JV'>('Varsity');
   const [testedOnly, setTestedOnly] = useState(true);
+  const [mode, setMode] = useState<Mode>('best');
+  const [selected, setSelected] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const byPlayer = new Map<string, TestResult[]>();
@@ -183,22 +160,37 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
       .filter(p => squad === 'All' || squadInfo(p).squad === squad)
       .map(p => {
         const mine = byPlayer.get(normalizeName(p.name)) ?? [];
-        return { p, group: playerGroup(mine, sessions, p.bestPosition), best: bestThisSeason(mine, sessions) };
+        const summaries = Object.fromEntries(TESTS.map(t => [t.key, testSummary(mine, sessions, t.key)]));
+        return { p, mine, group: playerGroup(mine, sessions, p.bestPosition), summaries };
       })
-      .filter(r => !testedOnly || Object.keys(r.best).length > 0)
+      .filter(r => !testedOnly || Object.values(r.summaries).some(Boolean))
       .sort((a, b) => a.p.name.localeCompare(b.p.name));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results, sessions, squad, testedOnly, alumniReady, classesReady]);
 
+  // Players at Silver or better per test, for the chosen result.
+  const silverPlus = TESTS.map(t => rows.filter(({ group, summaries }) => {
+    const s = summaries[t.key];
+    return s && group && levelIndex(group, t.key, s[mode].value) >= 1;
+  }).length);
+
+  const picked = rows.find(r => r.p.name === selected);
+
   if (!alumniReady || !classesReady) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-neutral-500" /></div>;
+
+  const seg = (on: boolean) => `px-3 py-1 text-xs font-medium rounded-md ${on ? 'bg-amber-500 text-black' : 'text-neutral-400'}`;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex gap-1 bg-neutral-900 rounded-lg p-1 border border-neutral-800">
           {(['Varsity', 'JV', 'All'] as const).map(s => (
-            <button key={s} onClick={() => setSquad(s)}
-              className={`px-3 py-1 text-xs font-medium rounded-md ${squad === s ? 'bg-amber-500 text-black' : 'text-neutral-400'}`}>{s}</button>
+            <button key={s} onClick={() => setSquad(s)} className={seg(squad === s)}>{s}</button>
+          ))}
+        </div>
+        <div className="flex gap-1 bg-neutral-900 rounded-lg p-1 border border-neutral-800" role="group" aria-label="Show result">
+          {([['best', 'Best'], ['latest', 'Latest'], ['worst', 'Worst']] as const).map(([m, label]) => (
+            <button key={m} onClick={() => setMode(m)} className={seg(mode === m)}>{label}</button>
           ))}
         </div>
         <label className="flex items-center gap-2 text-xs text-neutral-400">
@@ -211,7 +203,7 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
         </p>
       ) : (
         <div className="overflow-x-auto border border-neutral-800 rounded-xl">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs tabular-nums">
             <thead className="bg-neutral-900 text-neutral-400">
               <tr>
                 <th className="text-left p-2 sticky left-0 bg-neutral-900">Player</th>
@@ -219,32 +211,56 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ p, group, best }) => (
-                <tr key={p.name} className="border-t border-neutral-800">
-                  <td className="p-2 sticky left-0 bg-neutral-950">
-                    <div className="text-white whitespace-nowrap">{p.name}</div>
-                    <div className="text-[10px] text-neutral-500 whitespace-nowrap">{group ? groupLabel(group).split(' · ')[0] : 'No position'}</div>
-                  </td>
-                  {TESTS.map(t => {
-                    const b = best[t.key];
-                    return (
-                      <td key={t.key} className="p-2 text-center">
-                        {b && group ? (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-neutral-200">{formatValue(t.key, b.value)}</span>
-                            <LevelChip idx={levelIndex(group, t.key, b.value)} small />
-                          </div>
-                        ) : <span className="text-neutral-700">—</span>}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+              {rows.map(({ p, group, summaries }) => {
+                const isSel = p.name === selected;
+                return (
+                  <tr key={p.name} tabIndex={0}
+                    onClick={() => setSelected(isSel ? null : p.name)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(isSel ? null : p.name); } }}
+                    className={`border-t border-neutral-800 cursor-pointer ${isSel ? 'bg-amber-500/10' : 'hover:bg-neutral-900'}`}>
+                    <td className={`p-2 sticky left-0 ${isSel ? 'bg-[#1c1608]' : 'bg-neutral-950'}`}>
+                      <div className="text-white whitespace-nowrap">{p.name}</div>
+                      <div className="text-[10px] text-neutral-500 whitespace-nowrap">{group ? groupLabel(group).split(' · ')[0] : 'No position'}</div>
+                    </td>
+                    {TESTS.map(t => {
+                      const s = summaries[t.key];
+                      return (
+                        <td key={t.key} className="p-2 text-center">
+                          {s && group ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-neutral-200">{formatValue(t.key, s[mode].value)}</span>
+                              <LevelChip idx={levelIndex(group, t.key, s[mode].value)} small />
+                            </div>
+                          ) : <span className="text-neutral-700">—</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+              <tr className="border-t border-neutral-700 bg-neutral-900/60 text-[10px] text-neutral-400">
+                <td className="p-2 sticky left-0 bg-neutral-900 whitespace-nowrap">Silver or better</td>
+                {silverPlus.map((n, i) => <td key={TESTS[i].key} className="p-2 text-center">{n} of {rows.length}</td>)}
+              </tr>
             </tbody>
           </table>
         </div>
       )}
-      <p className="text-[11px] text-neutral-500">Best result per test since {TESTING_SEASON_START}.</p>
+      <p className="text-[11px] text-neutral-500">{MODE_NOTE[mode]} Tap a player to see their results.</p>
+
+      {picked && (
+        <div className="space-y-2 pt-2">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <h3 className="text-base font-bold text-white">{picked.p.name}</h3>
+            <span className="text-[11px] text-neutral-500">
+              {picked.group ? groupLabel(picked.group).split(' · ')[0] : 'No position'} · what they see under My levels
+            </span>
+          </div>
+          {picked.group
+            ? <ResultCards key={picked.p.name} group={picked.group} results={picked.mine} sessions={sessions} wide />
+            : <p className="text-sm text-neutral-500">No position set, so there are no tier lines to compare against.</p>}
+        </div>
+      )}
     </div>
   );
 };

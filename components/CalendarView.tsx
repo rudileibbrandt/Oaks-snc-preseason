@@ -5,6 +5,7 @@ import { db } from '../services/db';
 import { PROGRAM, PROGRAM_DATES_LABEL } from '../services/programData';
 import { advancedDayOn, formatClock, isoDate, logDate, monthGrid, parseIso, programWeekOn, weekOfIso } from '../services/calendar';
 import { isAdvancedLog } from '../services/advancedStats';
+import { openStandardsOn } from './StandardsView';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -167,12 +168,17 @@ const CalendarView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         ) : (
           <>
             {sel.tests.map(t => (
-              <button key={t.id} onClick={() => onNavigate('STANDARDS')}
+              <button key={t.id} onClick={() => {
+                // Held (today or earlier): results. Still to come: the standards, or the session for coaches.
+                const held = t.date <= today;
+                openStandardsOn(held ? (isCoach ? 'team' : 'mine') : (isCoach ? 'testing' : 'tables'));
+                onNavigate('STANDARDS');
+              }}
                 className="w-full p-3 bg-neutral-900 border border-amber-500/30 rounded-lg text-left flex items-center gap-3">
                 <Medal size={18} className="text-amber-400 flex-shrink-0" />
                 <div>
                   <p className="text-sm text-white font-bold">{t.name}</p>
-                  <p className="text-[11px] text-neutral-400">Testing day{t.time ? ` · ${formatClock(t.time)}` : ''} · see S&C Standards</p>
+                  <p className="text-[11px] text-neutral-400">Testing day{t.time ? ` · ${formatClock(t.time)}` : ''} · {t.date <= today ? (isCoach ? 'see team results' : 'see your results') : 'see the standards'}</p>
                 </div>
               </button>
             ))}
