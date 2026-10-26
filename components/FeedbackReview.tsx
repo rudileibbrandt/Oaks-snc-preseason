@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, AlertTriangle, Filter, Trophy } from 'lucide-react';
-import { PlayerRating, PlayerRatings } from '../types';
+import { PlayerRating, PlayerRatings, Squad } from '../types';
+import { useRosterClasses } from '../hooks/useRosterContext';
 import { RATING_SKILLS, RATING_COLORS } from '../services/ratingData';
 import { ROSTER_PLAYERS, GROUP_COLORS } from '../services/rosterData';
 import { useAlumniNames } from '../hooks/useAlumniNames';
@@ -71,6 +72,7 @@ interface PlayerDev {
 
 const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
   const { isAlumniName } = useAlumniNames();
+  const { classes, squadInfo } = useRosterClasses();
   const currentRosterSize = ROSTER_PLAYERS.filter(p => !isAlumniName(p.name)).length;
   const [groupFilter, setGroupFilter] = useState<TrainingGroupFilter>('All');
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
@@ -160,7 +162,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
 
   // ===== SECTION 1B: Skill Leaders =====
   // Who is the highest-rated player in each skill category? (peer ratings only)
-  const [leaderSquadFilter, setLeaderSquadFilter] = useState<'all' | '1sts and 2nds' | 'Academy'>('1sts and 2nds');
+  const [leaderSquadFilter, setLeaderSquadFilter] = useState<'all' | Squad>('Varsity');
 
   const skillLeaders = useMemo(() => {
     if (peerRatings.length === 0) return [];
@@ -170,7 +172,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
     peerRatings.forEach(r => {
       const key = r.playerName.toLowerCase().trim();
       const rosterPlayer = ROSTER_PLAYERS.find(p => p.name.toLowerCase().trim() === key);
-      const squad = rosterPlayer?.squad || 'Unknown';
+      const squad = rosterPlayer ? squadInfo(rosterPlayer).squad : 'Unknown';
       if (leaderSquadFilter !== 'all' && squad !== leaderSquadFilter) return;
 
       if (!playerMap.has(key)) playerMap.set(key, []);
@@ -229,7 +231,8 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
         } : null,
       };
     }).filter(s => s.leader !== '');
-  }, [peerRatings, leaderSquadFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peerRatings, leaderSquadFilter, classes]);
 
   // ===== SECTION 2: Team Skill Profile =====
   const buildProfile = (skills: typeof RATING_SKILLS, ratings: PlayerRating[]): SkillProfile[] => {
@@ -523,7 +526,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
           Highest-rated player in each category (peer ratings only, min 2 raters). Do these match your expectations?
         </p>
         <div className="flex gap-1 mb-4 bg-neutral-900 rounded-lg p-1 border border-neutral-800 w-fit">
-          {([['1sts and 2nds', '1sts & 2nds'], ['Academy', 'Academy'], ['all', 'All']] as const).map(([value, label]) => (
+          {([['Varsity', 'Varsity'], ['JV', 'JV'], ['all', 'All']] as const).map(([value, label]) => (
             <button
               key={value}
               onClick={() => setLeaderSquadFilter(value as typeof leaderSquadFilter)}

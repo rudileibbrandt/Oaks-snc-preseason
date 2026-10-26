@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Search, Users, Filter, X, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, AlertTriangle, Plus, Edit3, Star, GraduationCap, Award } from 'lucide-react';
-import { AppView, Player, RosterPlayer, InjuryRecord, PlayerRating, RugbyPosition, RosterClass } from '../types';
+import { AppView, Player, RosterPlayer, InjuryRecord, PlayerRating, RugbyPosition, RosterClass, Squad as SquadName } from '../types';
 import { ROSTER_PLAYERS, getPhotoUrl, GROUP_COLORS, GROUP_DESCRIPTIONS } from '../services/rosterData';
 import { STATUS_COLORS, formatInjuryDate, loadInjuries, migrateHardcodedInjuries } from '../services/injuryData';
 import { getMyRatingForPlayer, loadRatings, RATING_SKILLS, RATING_COLORS, calculateAverageRating } from '../services/ratingData';
@@ -11,8 +11,8 @@ import InjuryHistorySection from './InjuryHistorySection';
 import RatingModal from './RatingModal';
 import RatingHistorySection from './RatingHistorySection';
 import GraduateSeniorsModal from './GraduateSeniorsModal';
-import MarkSeniorsModal from './MarkSeniorsModal';
-import { rosterAlumniNames, gradYearOf, classLabel, classKey, currentClassYears } from '../services/classYears';
+import SetClassesModal from './SetClassesModal';
+import { rosterAlumniNames, gradYearOf, classLabel, classKey, currentClassYears, squadOf, squadLabel, squadFromClass, SQUADS, invalidateRosterContext } from '../services/classYears';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 
 interface Props {
@@ -21,7 +21,7 @@ interface Props {
 }
 
 type TrainingGroup = 'All' | 'Black' | 'Gold' | 'Silver' | 'Bronze';
-type Squad = 'All' | '1sts and 2nds' | 'Academy';
+type SquadFilter = 'All' | 'Varsity' | 'JV';
 type InjuryStatus = 'All' | 'Injured' | 'Healthy';
 
 // Normalize name for matching (lowercase, remove extra spaces)
@@ -33,7 +33,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const isCoach = currentPlayer?.role === 'Coach';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<TrainingGroup>('All');
-  const [selectedSquad, setSelectedSquad] = useState<Squad>('All');
+  const [selectedSquad, setSelectedSquad] = useState<SquadFilter>('All');
   const [showFilters, setShowFilters] = useState(false);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [appPlayers, setAppPlayers] = useState<Player[]>([]);
@@ -58,13 +58,14 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const touchEndX = useRef<number | null>(null);
 
   const [showGraduate, setShowGraduate] = useState(false);
-  const [showMarkSeniors, setShowMarkSeniors] = useState(false);
+  const [showSetClasses, setShowSetClasses] = useState(false);
   const [savingClass, setSavingClass] = useState(false);
   // Graduation and alumni years by roster name (shared across coaches)
   const [rosterClasses, setRosterClasses] = useState<Record<string, RosterClass>>({});
   const loadRosterClasses = useCallback(async () => {
     try {
       setRosterClasses(await db.getRosterClasses());
+      invalidateRosterContext(); // other screens pick up class, squad and alumni changes
     } catch (error) {
       console.error('[PlayerList] Error loading class years:', error);
     }
@@ -243,13 +244,13 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       const matchesSearch = searchQuery === '' ||
         player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         player.trainingGroup.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        player.squad.toLowerCase().includes(searchQuery.toLowerCase());
+        squadOf(player, rosterClasses).squad.toLowerCase().includes(searchQuery.toLowerCase());
 
       // Group filter
       const matchesGroup = selectedGroup === 'All' || player.trainingGroup === selectedGroup;
 
       // Squad filter
-      const matchesSquad = selectedSquad === 'All' || player.squad === selectedSquad;
+      const matchesSquad = selectedSquad === 'All' || squadOf(player, rosterClasses).squad === selectedSquad;
 
       // Injury status filter
       const isInjured = !!getActiveInjury(player.name);
@@ -585,11 +586,11 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         </button>
         {isCoach && (
           <button
-            onClick={() => setShowMarkSeniors(true)}
+            onClick={() => setShowSetClasses(true)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-neutral-900 text-amber-400 hover:text-white transition-colors"
           >
             <Award size={16} />
-            Mark Seniors
+            Set Classes
           </button>
         )}
         {isCoach && (
@@ -632,7 +633,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
             <div className="mb-4">
               <label className="text-xs text-neutral-500 mb-2 block">Squad</label>
               <div className="flex flex-wrap gap-2">
-                {(['All', '1sts and 2nds', 'Academy'] as Squad[]).map(squad => (
+                {(['All', 'Varsity', 'JV'] as SquadFilter[]).map(squad => (
                   <button
                     key={squad}
                     onClick={() => setSelectedSquad(squad)}
@@ -854,7 +855,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                     </div>
 
                     <div className="mt-3 text-sm text-neutral-500">
-                      {selectedPlayer.squad}
+                      {squadLabel(squadOf(selectedPlayer, rosterClasses))}
                     </div>
 
                     {/* Class: everyone sees it, coaches can change it */}
@@ -894,6 +895,42 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                               {options.map(y => <option key={y} value={y}>{classLabel(y)}</option>)}
                             </select>
                           )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Squad: from the class (freshmen and sophomores are JV); coaches can override */}
+                    {isCoach && !showAlumni && (() => {
+                      const info = squadOf(selectedPlayer, rosterClasses);
+                      const override = rosterClasses[classKey(selectedPlayer.name)]?.squad ?? '';
+                      const gradYear = gradYearOf(selectedPlayer, rosterClasses);
+                      const auto = gradYear ? squadFromClass(gradYear) : 'Varsity';
+                      return (
+                        <div className="mt-4 p-4 bg-neutral-900 border border-neutral-800 rounded-lg text-left flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-neutral-300 font-bold text-sm">Squad</p>
+                            <p className="text-xs text-neutral-400 mt-0.5">{squadLabel(info)}</p>
+                          </div>
+                          <select
+                            value={override}
+                            disabled={savingClass}
+                            onChange={async e => {
+                              const value = e.target.value === '' ? null : (e.target.value as SquadName);
+                              setSavingClass(true);
+                              try {
+                                await db.setRosterClass(classKey(selectedPlayer.name), selectedPlayer.name, { squad: value });
+                                await loadRosterClasses();
+                              } catch (err) {
+                                console.error('[PlayerList] Could not save squad:', err);
+                              } finally {
+                                setSavingClass(false);
+                              }
+                            }}
+                            className="px-2 py-1.5 rounded-md bg-black border border-neutral-700 text-xs text-white disabled:opacity-50"
+                          >
+                            <option value="">{gradYear ? `By class (${auto})` : 'By class (not set)'}</option>
+                            {SQUADS.map(sq => <option key={sq} value={sq}>{sq}</option>)}
+                          </select>
                         </div>
                       );
                     })()}
@@ -1170,11 +1207,11 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           onDone={() => { loadAppPlayers(); loadRosterClasses(); }}
         />
       )}
-      {showMarkSeniors && (
-        <MarkSeniorsModal
+      {showSetClasses && (
+        <SetClassesModal
           appPlayers={appPlayers}
           rosterClasses={rosterClasses}
-          onClose={() => setShowMarkSeniors(false)}
+          onClose={() => setShowSetClasses(false)}
           onDone={loadRosterClasses}
         />
       )}

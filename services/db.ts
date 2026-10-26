@@ -486,6 +486,7 @@ export const db = {
         // A missing gradYear means "not set here"; null means a coach cleared it.
         if ('gradYear' in d) entry.gradYear = d.gradYear ?? null;
         if ('alumniClass' in d) entry.alumniClass = d.alumniClass ?? null;
+        if ('squad' in d) entry.squad = d.squad ?? null;
         result[doc.id] = entry;
       });
       return result;

@@ -3,7 +3,8 @@ import { X, Save, Loader2, AlertTriangle } from 'lucide-react';
 import { InjuryRecord, RosterPlayer, Player } from '../types';
 import { db } from '../services/db';
 import { invalidateInjuryCache, STATUS_COLORS } from '../services/injuryData';
-import { assertNotAlumni } from '../services/classYears';
+import { assertNotAlumni, classLabel, gradYearOf } from '../services/classYears';
+import { useRosterClasses } from '../hooks/useRosterContext';
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +22,7 @@ const AREAS = ['Left', 'Right', 'Bilateral', ''];
 const STATUSES: InjuryRecord['currentStatus'][] = ['Day to Day', 'Questionable', 'IR / Out', 'Returned to Play'];
 
 const InjuryModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, existingInjury, currentPlayer }) => {
+  const { classes, squadInfo } = useRosterClasses();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,7 +92,7 @@ const InjuryModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, existin
       const injuryData: Record<string, unknown> = {
         playerName: player.name,
         coachSubmitting: currentPlayer.name,
-        team: player.squad === '1sts and 2nds' ? 'Varsity' : 'Academy',
+        team: squadInfo(player).squad,
         dateOfInjury: dateOfInjury || 'TBD',
         currentStatus,
         updatedAt: Date.now(),
@@ -169,11 +171,11 @@ const InjuryModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, existin
           <div className="grid grid-cols-2 gap-4 p-3 bg-neutral-800/50 rounded-lg">
             <div>
               <label className="text-xs text-neutral-500">Team</label>
-              <p className="text-sm text-white">{player.squad === '1sts and 2nds' ? 'Varsity' : 'Academy'}</p>
+              <p className="text-sm text-white">{squadInfo(player).squad}</p>
             </div>
             <div>
               <label className="text-xs text-neutral-500">Class</label>
-              <p className="text-sm text-white">{player.classYear || 'N/A'} {player.grade ? `(Grade ${player.grade})` : ''}</p>
+              <p className="text-sm text-white">{(() => { const y = gradYearOf(player, classes); return y ? classLabel(y) : 'Not set'; })()}</p>
             </div>
           </div>
 

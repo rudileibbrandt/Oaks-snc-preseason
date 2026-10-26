@@ -21,7 +21,7 @@ interface Props {
 }
 
 // A bottom-sheet list of roster players with photos and tick boxes, plus a search box.
-// Used by Mark Seniors and Graduate Seniors.
+// Used by Set Classes and Graduate Seniors.
 const RosterChecklist: React.FC<Props> = ({ title, intro, rows, selected, onToggle, onClose, footer }) => {
   const [query, setQuery] = useState('');
   const [brokenPhotos, setBrokenPhotos] = useState<Set<string>>(new Set());

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRosterClasses } from '../hooks/useRosterContext';
 import { ArrowLeft, AlertTriangle, ChevronDown, ChevronUp, Star, Activity, Merge, Check, Users, CheckCircle } from 'lucide-react';
 import { AppView, Player, PlayerRating, InjuryRecord, RosterPlayer } from '../types';
 import { db, mergeAccounts, MergeResult } from '../services/db';
@@ -36,6 +37,7 @@ function normalizeName(name: string): string {
 }
 
 const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
+  const { squadInfo } = useRosterClasses();
   const { alumniNames, isAlumniName, ready: alumniReady } = useAlumniNames(); // alumni are out of every list and number here
   const [coaches, setCoaches] = useState<Player[]>([]);
   const [allRatings, setAllRatings] = useState<PlayerRating[]>([]);
@@ -444,7 +446,7 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                         >
                           <span className="text-neutral-200 text-sm truncate">{p.name}</span>
                           <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                            <span className="text-neutral-500 text-xs">{p.squad}</span>
+                            <span className="text-neutral-500 text-xs">{squadInfo(p).squad}</span>
                             <Star size={12} className="text-amber-500/60" />
                           </div>
                         </button>

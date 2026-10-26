@@ -2,7 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, AlertTriangle, Search, X, ChevronDown, ChevronUp, Calendar, Clock, Loader2 } from 'lucide-react';
 import { AppView, Player, InjuryRecord } from '../types';
 import { STATUS_COLORS, formatInjuryDate, daysSinceInjury, loadInjuries, migrateHardcodedInjuries } from '../services/injuryData';
-import { getPhotoUrl } from '../services/rosterData';
+import { getPhotoUrl, ROSTER_PLAYERS } from '../services/rosterData';
+import { useRosterClasses } from '../hooks/useRosterContext';
+import { injurySquad } from '../services/classYears';
+import { normalizeName } from '../services/alumni';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 
 interface Props {
@@ -11,7 +14,7 @@ interface Props {
 }
 
 type StatusFilter = 'All' | 'Day to Day' | 'Questionable' | 'IR / Out' | 'Returned to Play';
-type TeamFilter = 'All' | 'Varsity' | 'Academy';
+type TeamFilter = 'All' | 'Varsity' | 'JV';
 
 const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,6 +25,12 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
   const [allInjuries, setInjuries] = useState<InjuryRecord[]>([]);
   // Graduated players' injuries are left out of the tracker and its counts.
   const { alumniNames, isAlumniName, ready: alumniReady } = useAlumniNames();
+  // Squad is the player's squad now (from their class), not what was recorded at the time.
+  const { classes, squadInfo } = useRosterClasses();
+  const squadOfInjury = (injury: InjuryRecord) => {
+    const rp = ROSTER_PLAYERS.find(p => normalizeName(p.name) === normalizeName(injury.playerName));
+    return rp ? squadInfo(rp).squad : injurySquad(injury.team);
+  };
   const injuries = useMemo(
     () => allInjuries.filter(i => !isAlumniName(i.playerName)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,11 +65,12 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
         (injury.diagnosis || []).some(d => d.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchesStatus = statusFilter === 'All' || injury.currentStatus === statusFilter;
-      const matchesTeam = teamFilter === 'All' || injury.team === teamFilter;
+      const matchesTeam = teamFilter === 'All' || squadOfInjury(injury) === teamFilter;
 
       return matchesSearch && matchesStatus && matchesTeam;
     });
-  }, [searchQuery, statusFilter, teamFilter, injuries]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, statusFilter, teamFilter, injuries, classes]);
 
   // Count by status
   const statusCounts = useMemo(() => {
@@ -128,7 +138,7 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
               <span className={`text-xs px-2 py-0.5 rounded ${statusColor.bg} ${statusColor.text} border ${statusColor.border}`}>
                 {injury.currentStatus}
               </span>
-              <span className="text-xs text-neutral-500">{injury.team}</span>
+              <span className="text-xs text-neutral-500">{squadOfInjury(injury)}</span>
             </div>
           </div>
 
@@ -305,7 +315,7 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
 
         {/* Team filter */}
         <div className="flex gap-2">
-          {(['All', 'Varsity', 'Academy'] as TeamFilter[]).map(team => (
+          {(['All', 'Varsity', 'JV'] as TeamFilter[]).map(team => (
             <button
               key={team}
               onClick={() => setTeamFilter(team)}

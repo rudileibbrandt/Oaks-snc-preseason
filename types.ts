@@ -48,7 +48,11 @@ export interface Player {
 export interface RosterClass {
   gradYear?: number | null; // graduation year; null = coach cleared it; missing = use the roster file
   alumniClass?: number | null; // set = graduated (alumni); null/missing = current player
+  squad?: Squad | null; // coach override; null/missing = worked out from the class
 }
+
+// High school squads. JV is freshmen and sophomores (u16); everyone else is Varsity.
+export type Squad = 'Varsity' | 'JV';
 
 export interface WorkoutLog {
   playerId: string;
@@ -94,7 +98,6 @@ export const POSITION_SHORT: Record<RugbyPosition, string> = {
 // Extended player info for roster display
 export interface RosterPlayer {
   name: string;
-  squad: '1sts and 2nds' | 'Academy';
   trainingGroup: 'Black' | 'Gold' | 'Silver' | 'Bronze';
   height?: string;
   weight?: number;
@@ -114,7 +117,7 @@ export interface InjuryRecord {
   playerName: string;
   coachSubmitting: string;
   grade?: number;
-  team: 'Varsity' | 'Academy';
+  team: 'Varsity' | 'JV' | 'Academy'; // 'Academy' = older records, shown as JV
   classYear?: 'Freshman' | 'Sophomore' | 'Junior' | 'Senior';
   positions?: string;
   dateOfInjury?: string; // ISO date string or 'TBD'

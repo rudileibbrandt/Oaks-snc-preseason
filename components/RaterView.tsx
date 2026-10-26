@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useRosterClasses } from '../hooks/useRosterContext';
 import { ChevronDown, ChevronRight, User, Users } from 'lucide-react';
 import { PlayerRating } from '../types';
 import { RATING_COLORS, calculateAverageRating, RATING_SKILLS } from '../services/ratingData';
@@ -17,6 +18,7 @@ interface RaterSummary {
 }
 
 const RaterView: React.FC<Props> = ({ allRatings }) => {
+  const { squadInfo } = useRosterClasses();
   const [expandedRater, setExpandedRater] = useState<string | null>(null);
   const [selectedRating, setSelectedRating] = useState<PlayerRating | null>(null);
 
@@ -190,7 +192,7 @@ const RaterView: React.FC<Props> = ({ allRatings }) => {
                                 <p className="font-medium text-white truncate">{rating.playerName}</p>
                                 {rosterPlayer && (
                                   <p className="text-xs text-neutral-500 truncate">
-                                    {rosterPlayer.squad} • {rosterPlayer.trainingGroup}
+                                    {squadInfo(rosterPlayer).squad} • {rosterPlayer.trainingGroup}
                                   </p>
                                 )}
                               </div>

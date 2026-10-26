@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useRosterClasses } from '../hooks/useRosterContext';
 import { Users, CheckCircle, AlertTriangle, AlertCircle, User, TrendingUp, TrendingDown, Star, Eye } from 'lucide-react';
 import { Player, PlayerRating } from '../types';
 import { ROSTER_PLAYERS, getPhotoUrl, GROUP_COLORS } from '../services/rosterData';
@@ -21,6 +22,7 @@ const KICKER_NAMES_SET = new Set(
 );
 
 const ThreeSixtyView: React.FC<Props> = ({ allRatings, selectedPlayer, currentPlayer }) => {
+  const { squadInfo } = useRosterClasses();
   const isCoach = currentPlayer?.role?.toLowerCase() === 'coach';
 
   // Get aggregated data for selected player
@@ -201,7 +203,7 @@ const ThreeSixtyView: React.FC<Props> = ({ allRatings, selectedPlayer, currentPl
               <span className={`text-xs px-2 py-0.5 rounded ${GROUP_COLORS[rosterPlayer.trainingGroup]?.bg} ${GROUP_COLORS[rosterPlayer.trainingGroup]?.text}`}>
                 {rosterPlayer.trainingGroup}
               </span>
-              <span className="text-xs text-neutral-500">{rosterPlayer.squad}</span>
+              <span className="text-xs text-neutral-500">{squadInfo(rosterPlayer).squad}</span>
             </div>
           )}
         </div>

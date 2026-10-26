@@ -3,7 +3,7 @@ import { GraduationCap, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Player, RosterClass } from '../types';
 import { ROSTER_PLAYERS } from '../services/rosterData';
 import { defaultAlumniClass, normalizeName } from '../services/alumni';
-import { alumniClassOf, gradYearOf, setRosterAlumni } from '../services/classYears';
+import { alumniClassOf, gradYearOf, setRosterAlumni, squadOf } from '../services/classYears';
 import RosterChecklist from './RosterChecklist';
 
 interface Props {
@@ -103,7 +103,7 @@ const GraduateSeniorsModal: React.FC<Props> = ({ appPlayers, rosterClasses, onCl
         return {
           name: rp.name,
           disabled: isAlum,
-          sublabel: isAlum ? `Alumni · Class of ${alumniClass}` : `${rp.squad}${account ? '' : ' · no app account'}`,
+          sublabel: isAlum ? `Alumni · Class of ${alumniClass}` : `${squadOf(rp, rosterClasses).squad}${account ? '' : ' · no app account'}`,
           badge: isAlum ? undefined : inClass ? 'Senior' : gradYear ? `'${String(gradYear).slice(-2)}` : undefined,
           action: isAlum ? { label: 'Restore', onClick: () => handleRestore(row), busy: restoringName === rp.name } : undefined,
         };

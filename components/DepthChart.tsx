@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRosterClasses } from '../hooks/useRosterContext';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
-import { AppView, Player, RugbyPosition, POSITION_NAMES, POSITION_SHORT, RosterPlayer, PlayerRating } from '../types';
+import { AppView, Player, RugbyPosition, POSITION_NAMES, POSITION_SHORT, RosterPlayer, PlayerRating, Squad } from '../types';
 import { ROSTER_PLAYERS, GROUP_COLORS, getPhotoUrl } from '../services/rosterData';
 import { loadPositionOverrides } from '../services/positionData';
 import { loadRatings } from '../services/ratingData';
@@ -30,11 +31,12 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('formation');
   const [expandedPosition, setExpandedPosition] = useState<RugbyPosition | null>(null);
   const [showBackups, setShowBackups] = useState(true);
-  const [squadFilter, setSquadFilter] = useState<'all' | '1sts and 2nds' | 'Academy'>('1sts and 2nds');
+  const [squadFilter, setSquadFilter] = useState<'all' | Squad>('Varsity');
   const [primaryOnly, setPrimaryOnly] = useState(false);
 
   // Alumni (graduated players) are left off the depth chart, and their ratings of others don't count.
   const { alumniNames, ready: alumniReady } = useAlumniNames();
+  const { classes, squadInfo, ready: classesReady } = useRosterClasses();
   const [rawRatings, setRawRatings] = useState<PlayerRating[]>([]);
 
   useEffect(() => {
@@ -50,8 +52,9 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
 
   // Current squad: the squad filter, minus alumni.
   const squadPlayers = useMemo(() => ROSTER_PLAYERS.filter(p =>
-    (squadFilter === 'all' || p.squad === squadFilter) && !alumniNames.has(normalizeName(p.name))
-  ), [squadFilter, alumniNames]);
+    (squadFilter === 'all' || squadInfo(p).squad === squadFilter) && !alumniNames.has(normalizeName(p.name))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [squadFilter, alumniNames, classes]);
 
   // Build depth chart data
   const depthByPosition = useMemo(() => {
@@ -196,7 +199,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
     });
   }, [allRatings, squadPlayers]);
 
-  if (loading || !alumniReady) {
+  if (loading || !alumniReady || !classesReady) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-neutral-400">Loading depth chart...</div>
@@ -398,7 +401,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
         </div>
       )}
       <div className="flex gap-1 bg-neutral-900 rounded-lg p-1 border border-neutral-800">
-        {([['1sts and 2nds', '1sts & 2nds'], ['Academy', 'Academy'], ['all', 'All']] as const).map(([value, label]) => (
+        {([['Varsity', 'Varsity'], ['JV', 'JV'], ['all', 'All']] as const).map(([value, label]) => (
           <button
             key={value}
             onClick={() => setSquadFilter(value as typeof squadFilter)}

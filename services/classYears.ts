@@ -2,7 +2,7 @@
 //
 // We store the graduation year, never "Senior": the label is derived, so it rolls over each
 // school year without anyone re-marking players.
-import { Player, PlayerRating, RosterClass, RosterPlayer } from '../types';
+import { InjuryRecord, Player, PlayerRating, RosterClass, RosterPlayer, Squad } from '../types';
 import { db } from './db';
 import { isAlumni, normalizeName } from './alumni';
 
@@ -48,6 +48,36 @@ export const gradYearOf = (rp: RosterPlayer, classes: Record<string, RosterClass
   return fileGradYear(rp);
 };
 
+// ---------- Squads ----------
+//
+// JV is freshmen and sophomores (u16); juniors and seniors are Varsity. Worked out from the class,
+// so it rolls over each year. A coach can override any player. No class yet = Varsity, flagged.
+
+export const SQUADS: Squad[] = ['Varsity', 'JV'];
+
+export interface SquadInfo {
+  squad: Squad;
+  source: 'coach' | 'class' | 'unset'; // unset = no class yet, counted as Varsity
+}
+
+export const squadFromClass = (gradYear: number, now = new Date()): Squad =>
+  gradYear >= seniorClassYear(now) + 2 ? 'JV' : 'Varsity';
+
+export const squadOf = (rp: RosterPlayer, classes: Record<string, RosterClass>, now = new Date()): SquadInfo => {
+  const override = classes[classKey(rp.name)]?.squad;
+  if (override) return { squad: override, source: 'coach' };
+  const gradYear = gradYearOf(rp, classes);
+  if (gradYear === undefined) return { squad: 'Varsity', source: 'unset' };
+  return { squad: squadFromClass(gradYear, now), source: 'class' };
+};
+
+// "Varsity", "JV · set by coach", "Varsity · class not set"
+export const squadLabel = (info: SquadInfo) =>
+  info.source === 'coach' ? `${info.squad} · set by coach` : info.source === 'unset' ? `${info.squad} · class not set` : info.squad;
+
+// Older injury records say "Academy", which is now JV.
+export const injurySquad = (team: InjuryRecord['team']): Squad => (team === 'Varsity' ? 'Varsity' : 'JV');
+
 // ---------- Alumni for roster players (with or without an app account) ----------
 //
 // Alumni status is kept in two places: on the app account (the Stat Board and Tracker read that)
@@ -74,22 +104,31 @@ export const setRosterAlumni = async (name: string, account: Player | undefined,
   }
 };
 
-// ---------- Shared, cached alumni lookup for screens that hide alumni ----------
+// ---------- Shared, cached roster lookup (alumni and squads) ----------
 
-let alumniNamesCache: Promise<Set<string>> | null = null;
+export interface RosterContext {
+  classes: Record<string, RosterClass>;
+  alumniNames: Set<string>;
+}
 
-// Loaded once and shared by every screen; a failed load means "no alumni known" rather than an error.
-export const loadAlumniNames = (): Promise<Set<string>> => {
-  if (!alumniNamesCache) {
-    alumniNamesCache = Promise.all([
+let rosterContextCache: Promise<RosterContext> | null = null;
+
+// Loaded once and shared by every screen; a failed load means "nothing known" rather than an error.
+export const loadRosterContext = (): Promise<RosterContext> => {
+  if (!rosterContextCache) {
+    rosterContextCache = Promise.all([
       db.getPlayers().catch(() => [] as Player[]),
       db.getRosterClasses().catch(() => ({} as Record<string, RosterClass>)),
-    ]).then(([players, classes]) => rosterAlumniNames(players, classes));
+    ]).then(([players, classes]) => ({ classes, alumniNames: rosterAlumniNames(players, classes) }));
   }
-  return alumniNamesCache;
+  return rosterContextCache;
 };
 
-export const invalidateAlumniNames = () => { alumniNamesCache = null; };
+export const loadAlumniNames = () => loadRosterContext().then(c => c.alumniNames);
+
+// Call after any change to classes, squads or alumni.
+export const invalidateRosterContext = () => { rosterContextCache = null; };
+export const invalidateAlumniNames = invalidateRosterContext;
 
 // Ratings that still count: neither the player rated nor the rater has graduated.
 // keepName (the viewer) is always kept, so an alumnus can still see their own feedback.
