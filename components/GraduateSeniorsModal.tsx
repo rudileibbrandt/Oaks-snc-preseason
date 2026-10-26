@@ -1,22 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { GraduationCap, CheckCircle, AlertTriangle } from 'lucide-react';
-import { Player } from '../types';
+import { Player, RosterClass } from '../types';
 import { ROSTER_PLAYERS } from '../services/rosterData';
-import { db } from '../services/db';
-import { isAlumni, defaultAlumniClass, normalizeName } from '../services/alumni';
-import { gradYearOf } from '../services/classYears';
+import { defaultAlumniClass, normalizeName } from '../services/alumni';
+import { alumniClassOf, gradYearOf, setRosterAlumni } from '../services/classYears';
 import RosterChecklist from './RosterChecklist';
 
 interface Props {
   appPlayers: Player[];
-  classYears: Record<string, number | null>;
+  rosterClasses: Record<string, RosterClass>;
   onClose: () => void;
-  onDone: () => void; // reload app players after a save
+  onDone: () => void; // reload accounts and roster classes after a save
 }
 
-// Batch "graduate seniors": pick roster players and move their app accounts to Alumni in one go.
-// Alumni status lives on the app account, so roster players without an account can't be moved.
-const GraduateSeniorsModal: React.FC<Props> = ({ appPlayers, classYears, onClose, onDone }) => {
+// Batch "graduate seniors": pick roster players and move them to Alumni in one go.
+// Works with or without an app account; alumni rows can be restored.
+const GraduateSeniorsModal: React.FC<Props> = ({ appPlayers, rosterClasses, onClose, onDone }) => {
   const accountByName = useMemo(() => {
     const map = new Map<string, Player>();
     for (const p of appPlayers) if (p.role === 'Player' && !p.mergedInto) map.set(normalizeName(p.name), p);
@@ -27,21 +26,25 @@ const GraduateSeniorsModal: React.FC<Props> = ({ appPlayers, classYears, onClose
 
   const rows = useMemo(() => ROSTER_PLAYERS.map(rp => {
     const account = accountByName.get(normalizeName(rp.name));
-    const gradYear = gradYearOf(rp, classYears);
-    return { rp, account, gradYear, inClass: gradYear === classYear };
-  }).sort((a, b) => Number(b.inClass) - Number(a.inClass) || a.rp.name.localeCompare(b.rp.name)),
-  [accountByName, classYears, classYear]);
+    const gradYear = gradYearOf(rp, rosterClasses);
+    const alumniClass = alumniClassOf(rp.name, rosterClasses, account);
+    return { rp, account, gradYear, alumniClass, inClass: gradYear === classYear };
+  }).sort((a, b) =>
+    Number(a.alumniClass !== undefined) - Number(b.alumniClass !== undefined)
+    || Number(b.inClass) - Number(a.inClass)
+    || a.rp.name.localeCompare(b.rp.name)),
+  [accountByName, rosterClasses, classYear]);
 
-  const selectable = (r: typeof rows[number]) => !!r.account && !isAlumni(r.account);
-
-  // Tick the chosen class (re-ticked when the year changes).
+  // Tick the chosen class. Re-ticked only when the year changes, so a save or restore
+  // doesn't re-tick someone the coach just moved back.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   useEffect(() => {
-    setSelected(new Set(rows.filter(r => r.inClass && selectable(r)).map(r => r.rp.name)));
+    setSelected(new Set(rows.filter(r => r.inClass && r.alumniClass === undefined).map(r => r.rp.name)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classYear, accountByName, classYears]);
+  }, [classYear]);
 
   const [saving, setSaving] = useState(false);
+  const [restoringName, setRestoringName] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const toggle = (name: string) => setSelected(prev => {
@@ -50,7 +53,7 @@ const GraduateSeniorsModal: React.FC<Props> = ({ appPlayers, classYears, onClose
     return next;
   });
 
-  const targets = rows.filter(r => selected.has(r.rp.name) && selectable(r));
+  const targets = rows.filter(r => selected.has(r.rp.name) && r.alumniClass === undefined);
 
   const handleConfirm = async () => {
     if (targets.length === 0) return;
@@ -59,13 +62,14 @@ const GraduateSeniorsModal: React.FC<Props> = ({ appPlayers, classYears, onClose
     const failed: string[] = [];
     for (const t of targets) {
       try {
-        await db.setPlayerAlumni(t.account!.id, classYear);
+        await setRosterAlumni(t.rp.name, t.account, classYear);
       } catch (err) {
         console.error('[GraduateSeniorsModal] Could not move', t.rp.name, err);
         failed.push(t.rp.name);
       }
     }
     setSaving(false);
+    setSelected(new Set(failed)); // keep only the ones that failed ticked
     const moved = targets.length - failed.length;
     setResult(failed.length === 0
       ? { success: true, message: `Moved ${moved} player${moved === 1 ? '' : 's'} to Alumni (Class of ${classYear})` }
@@ -73,16 +77,37 @@ const GraduateSeniorsModal: React.FC<Props> = ({ appPlayers, classYears, onClose
     onDone();
   };
 
+  const handleRestore = async (row: typeof rows[number]) => {
+    setRestoringName(row.rp.name);
+    setResult(null);
+    try {
+      await setRosterAlumni(row.rp.name, row.account, null);
+      setSelected(prev => { const next = new Set(prev); next.delete(row.rp.name); return next; });
+      setResult({ success: true, message: `Moved ${row.rp.name} back to the current team` });
+    } catch (err) {
+      console.error('[GraduateSeniorsModal] Could not restore', row.rp.name, err);
+      setResult({ success: false, message: `Could not restore ${row.rp.name}` });
+    } finally {
+      setRestoringName(null);
+      onDone();
+    }
+  };
+
   return (
     <RosterChecklist
       title={<><GraduationCap size={20} className="text-purple-300" />Graduate Seniors</>}
-      intro="Tick the players who graduated. They keep their account and records, move to the Alumni board, and leave the depth chart."
-      rows={rows.map(({ rp, account, gradYear, inClass }) => ({
-        name: rp.name,
-        disabled: !selectable({ rp, account, gradYear, inClass }),
-        sublabel: account && isAlumni(account) ? `Alumni · Class of ${account.alumniClass}` : !account ? 'No app account' : rp.squad,
-        badge: account && isAlumni(account) ? undefined : inClass ? 'Senior' : gradYear ? `'${String(gradYear).slice(-2)}` : undefined,
-      }))}
+      intro="Tick the players who graduated. They keep their records, move to the Alumni board, and leave the depth chart. Works for players without an app account too."
+      rows={rows.map(row => {
+        const { rp, account, gradYear, alumniClass, inClass } = row;
+        const isAlum = alumniClass !== undefined;
+        return {
+          name: rp.name,
+          disabled: isAlum,
+          sublabel: isAlum ? `Alumni · Class of ${alumniClass}` : `${rp.squad}${account ? '' : ' · no app account'}`,
+          badge: isAlum ? undefined : inClass ? 'Senior' : gradYear ? `'${String(gradYear).slice(-2)}` : undefined,
+          action: isAlum ? { label: 'Restore', onClick: () => handleRestore(row), busy: restoringName === rp.name } : undefined,
+        };
+      })}
       selected={selected}
       onToggle={toggle}
       onClose={onClose}

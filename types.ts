@@ -44,6 +44,12 @@ export interface Player {
   alumniClass?: number; // Graduation year; set means the player is alumni (kept for the records, off current boards)
 }
 
+// Per roster player (keyed by normalized name), shared by coaches. Works for players with no app account.
+export interface RosterClass {
+  gradYear?: number | null; // graduation year; null = coach cleared it; missing = use the roster file
+  alumniClass?: number | null; // set = graduated (alumni); null/missing = current player
+}
+
 export interface WorkoutLog {
   playerId: string;
   dayId: string;

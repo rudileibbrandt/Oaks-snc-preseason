@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Trash2, AlertTriangle, CheckCircle, Shield, User, RefreshCw, ArrowRightLeft, Search, Undo2, GraduationCap } from 'lucide-react';
 import { isAlumni, defaultAlumniClass } from '../services/alumni';
+import { setRosterAlumni } from '../services/classYears';
 import { Player, PlayerRating } from '../types';
 import { db, manualMigrateTo5PointScale, restoreRatingsFromHistory, clearMergedInto } from '../services/db';
 import { invalidateRatingsCache, deleteRating, deleteRatingsByRater, RATING_COLORS, calculateAverageRating } from '../services/ratingData';
@@ -245,7 +246,7 @@ const AdminPanel: React.FC<Props> = ({ allRatings, onRatingsDeleted }) => {
     setSavingAlumniId(player.id);
     setRoleChangeResult(null);
     try {
-      await db.setPlayerAlumni(player.id, classYear);
+      await setRosterAlumni(player.name, player, classYear);
       setRoleChangeResult({
         success: true,
         message: classYear === null

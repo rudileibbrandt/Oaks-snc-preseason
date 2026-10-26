@@ -1,4 +1,4 @@
-import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel } from '../types';
+import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass } from '../types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -89,15 +89,16 @@ const ls = {
     });
     localStorage.setItem(ROSTER_KEY, JSON.stringify(updated));
   },
-  // Graduation years keyed by normalized roster name; null means "cleared".
-  getClassYears: async (): Promise<Record<string, number | null>> => {
+  // Graduation and alumni years keyed by normalized roster name.
+  getRosterClasses: async (): Promise<Record<string, RosterClass>> => {
     const data = localStorage.getItem(CLASSES_KEY);
     return data ? JSON.parse(data) : {};
   },
-  setClassYear: async (key: string, _name: string, gradYear: number | null) => {
+  // Merge: only the fields passed are changed.
+  setRosterClass: async (key: string, _name: string, fields: RosterClass) => {
     const data = localStorage.getItem(CLASSES_KEY);
     const all = data ? JSON.parse(data) : {};
-    all[key] = gradYear;
+    all[key] = { ...(all[key] ?? {}), ...fields };
     localStorage.setItem(CLASSES_KEY, JSON.stringify(all));
   },
   saveLog: async (log: WorkoutLog) => {
@@ -470,29 +471,38 @@ export const db = {
     }
   },
 
-  // Graduation year per roster player (rosterClasses/{normalized name}), shared by all coaches.
-  getClassYears: async (): Promise<Record<string, number | null>> => {
-    if (!isConfigured || !dbInstance) return ls.getClassYears();
+  // Graduation and alumni years per roster player (rosterClasses/{normalized name}), shared by all
+  // coaches. Works for players with no app account.
+  getRosterClasses: async (): Promise<Record<string, RosterClass>> => {
+    if (!isConfigured || !dbInstance) return ls.getRosterClasses();
 
     try {
       await ensureAuth();
       const snap = await dbInstance.collection('rosterClasses').get();
-      const result: Record<string, number | null> = {};
-      snap.forEach((doc: any) => { result[doc.id] = doc.data().gradYear ?? null; });
+      const result: Record<string, RosterClass> = {};
+      snap.forEach((doc: any) => {
+        const d = doc.data();
+        const entry: RosterClass = {};
+        // A missing gradYear means "not set here"; null means a coach cleared it.
+        if ('gradYear' in d) entry.gradYear = d.gradYear ?? null;
+        if ('alumniClass' in d) entry.alumniClass = d.alumniClass ?? null;
+        result[doc.id] = entry;
+      });
       return result;
     } catch (e) {
-      return handleFirebaseError(e, 'getClassYears');
+      return handleFirebaseError(e, 'getRosterClasses');
     }
   },
 
-  setClassYear: async (key: string, name: string, gradYear: number | null) => {
-    if (!isConfigured || !dbInstance) return ls.setClassYear(key, name, gradYear);
+  // Merge: only the fields passed are changed.
+  setRosterClass: async (key: string, name: string, fields: RosterClass) => {
+    if (!isConfigured || !dbInstance) return ls.setRosterClass(key, name, fields);
 
     try {
       await ensureAuth();
-      await dbInstance.collection('rosterClasses').doc(key).set({ name, gradYear, updatedAt: Date.now() });
+      await dbInstance.collection('rosterClasses').doc(key).set({ name, ...fields, updatedAt: Date.now() }, { merge: true });
     } catch (e) {
-      return handleFirebaseError(e, 'setClassYear');
+      return handleFirebaseError(e, 'setRosterClass');
     }
   },
 

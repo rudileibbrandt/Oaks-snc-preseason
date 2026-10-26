@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Search, Users, Filter, X, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, AlertTriangle, Plus, Edit3, Star, GraduationCap, Award } from 'lucide-react';
-import { AppView, Player, RosterPlayer, InjuryRecord, PlayerRating, RugbyPosition } from '../types';
+import { AppView, Player, RosterPlayer, InjuryRecord, PlayerRating, RugbyPosition, RosterClass } from '../types';
 import { ROSTER_PLAYERS, getPhotoUrl, GROUP_COLORS, GROUP_DESCRIPTIONS } from '../services/rosterData';
 import { STATUS_COLORS, formatInjuryDate, loadInjuries, migrateHardcodedInjuries } from '../services/injuryData';
 import { getMyRatingForPlayer, loadRatings, RATING_SKILLS, RATING_COLORS, calculateAverageRating } from '../services/ratingData';
@@ -57,18 +57,18 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   const [showGraduate, setShowGraduate] = useState(false);
   const [showMarkSeniors, setShowMarkSeniors] = useState(false);
-  // Graduation years by roster name (shared across coaches)
-  const [classYears, setClassYears] = useState<Record<string, number | null>>({});
-  const loadClassYears = useCallback(async () => {
+  // Graduation and alumni years by roster name (shared across coaches)
+  const [rosterClasses, setRosterClasses] = useState<Record<string, RosterClass>>({});
+  const loadRosterClasses = useCallback(async () => {
     try {
-      setClassYears(await db.getClassYears());
+      setRosterClasses(await db.getRosterClasses());
     } catch (error) {
       console.error('[PlayerList] Error loading class years:', error);
     }
   }, []);
   useEffect(() => {
-    if (isCoach) loadClassYears();
-  }, [isCoach, loadClassYears]);
+    if (isCoach) loadRosterClasses();
+  }, [isCoach, loadRosterClasses]);
 
   // Load app players to cross-reference with roster
   const loadAppPlayers = useCallback(async () => {
@@ -1088,17 +1088,17 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       {showGraduate && (
         <GraduateSeniorsModal
           appPlayers={appPlayers}
-          classYears={classYears}
+          rosterClasses={rosterClasses}
           onClose={() => setShowGraduate(false)}
-          onDone={loadAppPlayers}
+          onDone={() => { loadAppPlayers(); loadRosterClasses(); }}
         />
       )}
       {showMarkSeniors && (
         <MarkSeniorsModal
           appPlayers={appPlayers}
-          classYears={classYears}
+          rosterClasses={rosterClasses}
           onClose={() => setShowMarkSeniors(false)}
-          onDone={loadClassYears}
+          onDone={loadRosterClasses}
         />
       )}
     </div>

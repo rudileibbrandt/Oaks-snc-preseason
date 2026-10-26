@@ -2,8 +2,9 @@
 //
 // We store the graduation year, never "Senior": the label is derived, so it rolls over each
 // school year without anyone re-marking players.
-import { RosterPlayer } from '../types';
-import { normalizeName } from './alumni';
+import { Player, RosterClass, RosterPlayer } from '../types';
+import { db } from './db';
+import { isAlumni, normalizeName } from './alumni';
 
 // The class that graduates at the end of the current school year (Aug–Jul).
 // Oct 2026 → 2027; May 2027 → 2027; Aug 2027 → 2028.
@@ -25,8 +26,30 @@ const fileGradYear = (rp: RosterPlayer): number | undefined => {
 export const classKey = (name: string) => normalizeName(name);
 
 // Stored year wins (null = coach cleared it); otherwise fall back to the roster file.
-export const gradYearOf = (rp: RosterPlayer, stored: Record<string, number | null>): number | undefined => {
-  const key = classKey(rp.name);
-  if (key in stored) return stored[key] ?? undefined;
+export const gradYearOf = (rp: RosterPlayer, classes: Record<string, RosterClass>): number | undefined => {
+  const entry = classes[classKey(rp.name)];
+  if (entry && 'gradYear' in entry) return entry.gradYear ?? undefined;
   return fileGradYear(rp);
+};
+
+// ---------- Alumni for roster players (with or without an app account) ----------
+//
+// Alumni status is kept in two places: on the app account (the Stat Board and Tracker read that)
+// and on the roster entry by name (the depth chart and roster panels read that, and it covers
+// players who never made an account). setRosterAlumni writes both.
+
+export const alumniClassOf = (name: string, classes: Record<string, RosterClass>, account?: Player): number | undefined =>
+  (account && isAlumni(account) ? account.alumniClass : undefined) ?? classes[classKey(name)]?.alumniClass ?? undefined;
+
+// Normalized names of everyone who has graduated, from either source.
+export const rosterAlumniNames = (players: Player[], classes: Record<string, RosterClass>) => {
+  const names = new Set(players.filter(isAlumni).map(p => normalizeName(p.name)));
+  for (const [key, entry] of Object.entries(classes)) if (entry.alumniClass) names.add(key);
+  return names;
+};
+
+// Move a roster player to alumni (year) or back to the current team (null).
+export const setRosterAlumni = async (name: string, account: Player | undefined, year: number | null) => {
+  if (account) await db.setPlayerAlumni(account.id, year);
+  await db.setRosterClass(classKey(name), name, { alumniClass: year });
 };

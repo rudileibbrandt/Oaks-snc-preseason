@@ -6,7 +6,8 @@ import { loadPositionOverrides } from '../services/positionData';
 import { loadRatings } from '../services/ratingData';
 import { aggregatePlayerRatings } from '../services/ratingAnalytics';
 import { db } from '../services/db';
-import { alumniNameSet, normalizeName } from '../services/alumni';
+import { normalizeName } from '../services/alumni';
+import { rosterAlumniNames } from '../services/classYears';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -40,8 +41,8 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
       setAllRatings(ratings);
       setLoading(false);
     }).catch(() => setLoading(false));
-    db.getPlayers()
-      .then(players => setAlumniNames(alumniNameSet(players)))
+    Promise.all([db.getPlayers().catch(() => []), db.getRosterClasses().catch(() => ({}))])
+      .then(([players, classes]) => setAlumniNames(rosterAlumniNames(players, classes)))
       .catch(err => console.error('[DepthChart] Could not load alumni:', err));
   }, []);
 

@@ -7,6 +7,7 @@ export interface ChecklistRow {
   sublabel: string;
   badge?: string; // e.g. "Senior" or "'28"
   disabled?: boolean;
+  action?: { label: string; onClick: () => void; busy?: boolean }; // e.g. Restore on an alumni row
 }
 
 interface Props {
@@ -54,14 +55,19 @@ const RosterChecklist: React.FC<Props> = ({ title, intro, rows, selected, onTogg
             const checked = !row.disabled && selected.has(row.name);
             const photo = getPhotoUrl(row.name);
             return (
-              <button
+              <div
                 key={row.name}
+                className={`flex items-center gap-2 pr-2 rounded-lg transition-colors ${
+                  checked ? 'bg-purple-500/15' : 'hover:bg-neutral-900'
+                }`}
+              >
+              <button
                 type="button"
                 disabled={row.disabled}
                 onClick={() => onToggle(row.name)}
-                className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${
-                  checked ? 'bg-purple-500/15' : 'hover:bg-neutral-900'
-                } ${row.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`flex-1 min-w-0 flex items-center gap-3 p-2 text-left ${
+                  row.disabled ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 <div className={`w-5 h-5 flex-shrink-0 rounded border flex items-center justify-center ${
                   checked ? 'bg-purple-500 border-purple-500' : 'border-neutral-600'
@@ -84,10 +90,21 @@ const RosterChecklist: React.FC<Props> = ({ title, intro, rows, selected, onTogg
                   <div className="text-sm text-white truncate">{row.name}</div>
                   <div className="text-[11px] text-neutral-500">{row.sublabel}</div>
                 </div>
+              </button>
                 {row.badge && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 flex-shrink-0">{row.badge}</span>
                 )}
-              </button>
+                {row.action && (
+                  <button
+                    type="button"
+                    onClick={row.action.onClick}
+                    disabled={row.action.busy}
+                    className="text-xs px-2 py-1 rounded-md bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors disabled:opacity-50 flex-shrink-0"
+                  >
+                    {row.action.busy ? 'Saving...' : row.action.label}
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
