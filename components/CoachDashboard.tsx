@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Player, WorkoutLog, AppView } from '../types';
+import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
 import { db } from '../services/db';
+import AdvancedStatBoard from './AdvancedStatBoard';
 import { UserPlus, LogOut, Trophy, ChevronRight, AlertCircle, X, Dumbbell, ChevronLeft, TrendingUp, Users } from 'lucide-react';
 import { PROGRAM } from '../services/programData';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -36,6 +37,16 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
   
   // View States
   const [viewMode, setViewMode] = useState<'completion' | 'metrics' | 'analytics' | 'performers'>('completion');
+  // Which program's board is showing; opens on the viewer's own program.
+  const [boardProgram, setBoardProgram] = useState<ProgramLevel>(currentPlayer?.program ?? 'Intermediate');
+  const showIntermediate = boardProgram === 'Intermediate';
+  const pickedProgramRef = useRef(false);
+  // The app's currentPlayer can predate a program switch, so default from the freshly loaded roster.
+  useEffect(() => {
+    if (pickedProgramRef.current || !currentPlayer) return;
+    const me = players.find(p => p.id === currentPlayer.id);
+    if (me) setBoardProgram(me.program ?? 'Intermediate');
+  }, [players, currentPlayer]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedPlayerForChart, setSelectedPlayerForChart] = useState<Player | null>(null);
 
@@ -778,6 +789,21 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
         </div>
       </div>
 
+      {/* Program Toggle */}
+      <div className="grid grid-cols-2 gap-2 p-1 mb-3 bg-neutral-900 border border-neutral-800 rounded-xl">
+        {(['Intermediate', 'Advanced'] as ProgramLevel[]).map(level => (
+          <button
+            key={level}
+            onClick={() => { pickedProgramRef.current = true; setBoardProgram(level); }}
+            className={`py-2 rounded-lg text-sm font-bold transition-all ${
+              boardProgram === level ? 'bg-amber-500 text-black' : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            {level}
+          </button>
+        ))}
+      </div>
+
       {/* View Toggle */}
       <div className={`flex p-1 bg-neutral-900 rounded-xl mb-6 border border-neutral-800 ${currentPlayer?.role === 'Coach' ? 'flex-wrap gap-1' : ''}`}>
         <button
@@ -825,8 +851,19 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
             </div>
       )}
 
+      {!showIntermediate && (
+        <AdvancedStatBoard
+          players={players}
+          allLogs={allLogs}
+          selectedWeek={selectedWeek}
+          onSelectWeek={setSelectedWeek}
+          currentPlayer={currentPlayer}
+          viewMode={viewMode}
+        />
+      )}
+
       {/* Analytics View */}
-      {viewMode === 'analytics' && (
+      {showIntermediate && viewMode === 'analytics' && (
         <div className="space-y-6 mb-8">
           {/* Team Completion Rate Chart - Only show for coaches */}
           {currentPlayer?.role === 'Coach' && (
@@ -971,7 +1008,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       )}
 
       {/* Performers View - Coach Only */}
-      {viewMode === 'performers' && currentPlayer?.role === 'Coach' && (
+      {showIntermediate && viewMode === 'performers' && currentPlayer?.role === 'Coach' && (
         <div className="space-y-6">
           {/* Top 10 Performers */}
           <div className="bg-neutral-900 rounded-xl overflow-hidden border border-neutral-800 shadow-xl">
@@ -1094,7 +1131,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
 
 
       {/* Main Table Area - Hide in analytics and performers views */}
-      {viewMode !== 'analytics' && viewMode !== 'performers' && (
+      {showIntermediate && viewMode !== 'analytics' && viewMode !== 'performers' && (
       <div className="bg-neutral-900/50 rounded-xl overflow-hidden border border-neutral-800 mb-8 shadow-xl">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-sm text-left text-neutral-400 min-w-max">
