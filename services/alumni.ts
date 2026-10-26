@@ -8,6 +8,11 @@ import { HEADLINE_LIFTS, TIMED_TESTS, computePlayerStats, formatSeconds, isAdvan
 
 export const isAlumni = (p: Player) => p.alumniClass !== undefined && p.alumniClass !== null;
 
+// Names of alumni, normalized, for screens built on the hard-coded roster (matched by name).
+export const normalizeName = (name: string) => name.toLowerCase().trim().replace(/\s+/g, ' ');
+export const alumniNameSet = (players: Player[]) =>
+  new Set(players.filter(isAlumni).map(p => normalizeName(p.name)));
+
 // The most recent graduation: from June on, this year's class; before June, last year's.
 export const defaultAlumniClass = (now = new Date()) =>
   now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;

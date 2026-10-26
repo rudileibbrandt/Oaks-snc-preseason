@@ -5,6 +5,8 @@ import { ROSTER_PLAYERS, GROUP_COLORS, getPhotoUrl } from '../services/rosterDat
 import { loadPositionOverrides } from '../services/positionData';
 import { loadRatings } from '../services/ratingData';
 import { aggregatePlayerRatings } from '../services/ratingAnalytics';
+import { db } from '../services/db';
+import { alumniNameSet, normalizeName } from '../services/alumni';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -30,12 +32,23 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
   const [squadFilter, setSquadFilter] = useState<'all' | '1sts and 2nds' | 'Academy'>('1sts and 2nds');
   const [primaryOnly, setPrimaryOnly] = useState(false);
 
+  // Alumni (graduated players) are left off the depth chart, matched by name.
+  const [alumniNames, setAlumniNames] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     loadRatings().then(ratings => {
       setAllRatings(ratings);
       setLoading(false);
     }).catch(() => setLoading(false));
+    db.getPlayers()
+      .then(players => setAlumniNames(alumniNameSet(players)))
+      .catch(err => console.error('[DepthChart] Could not load alumni:', err));
   }, []);
+
+  // Current squad: the squad filter, minus alumni.
+  const squadPlayers = useMemo(() => ROSTER_PLAYERS.filter(p =>
+    (squadFilter === 'all' || p.squad === squadFilter) && !alumniNames.has(normalizeName(p.name))
+  ), [squadFilter, alumniNames]);
 
   // Build depth chart data
   const depthByPosition = useMemo(() => {
@@ -47,9 +60,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
       positions[i] = [];
     }
 
-    const filteredPlayers = squadFilter === 'all'
-      ? ROSTER_PLAYERS
-      : ROSTER_PLAYERS.filter(p => p.squad === squadFilter);
+    const filteredPlayers = squadPlayers;
 
     filteredPlayers.forEach(player => {
       // Merge overrides with hardcoded data
@@ -87,14 +98,12 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
     });
 
     return positions;
-  }, [allRatings, squadFilter, primaryOnly]);
+  }, [allRatings, squadPlayers, primaryOnly]);
 
   // Best XV: assign best 15 players across all positions, no duplicates
   const bestXV = useMemo(() => {
     const overrides = loadPositionOverrides();
-    const filteredPlayers = squadFilter === 'all'
-      ? ROSTER_PLAYERS
-      : ROSTER_PLAYERS.filter(p => p.squad === squadFilter);
+    const filteredPlayers = squadPlayers;
 
     // Build candidate list: (player, position, rating, positionType, weight)
     // Weight: best=1.0, second=0.95, third=0.9 (slight preference for natural position)
@@ -132,7 +141,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
     }
 
     return assigned;
-  }, [allRatings, squadFilter]);
+  }, [allRatings, squadPlayers]);
 
   // Positional pools: group players by role, deduplicated, ranked by rating
   const POSITION_POOLS: { label: string; positions: RugbyPosition[] }[] = [
@@ -146,9 +155,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
 
   const poolData = useMemo(() => {
     const overrides = loadPositionOverrides();
-    const filteredPlayers = squadFilter === 'all'
-      ? ROSTER_PLAYERS
-      : ROSTER_PLAYERS.filter(p => p.squad === squadFilter);
+    const filteredPlayers = squadPlayers;
 
     return POSITION_POOLS.map(pool => {
       const posSet = new Set(pool.positions);
@@ -184,7 +191,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
 
       return { ...pool, entries };
     });
-  }, [allRatings, squadFilter]);
+  }, [allRatings, squadPlayers]);
 
   if (loading) {
     return (
