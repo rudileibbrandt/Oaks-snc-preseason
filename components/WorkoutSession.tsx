@@ -13,15 +13,23 @@ interface Props {
   onExit: () => void;
 }
 
+// Fields a player can log. Values are stored in WorkoutLog.data as `${exerciseId}_${field}`.
+type LogField = 'weight' | 'sets' | 'reps' | 'time' | 'minutes' | 'distance' | 'rpe' | 'timeMin' | 'timeSec';
+
+// Decimal fields allow one decimal point; the rest are whole numbers.
+const DECIMAL_FIELDS: LogField[] = ['weight', 'distance'];
+// Upper limits for bounded fields.
+const FIELD_MAX: Partial<Record<LogField, number>> = { rpe: 10, timeSec: 59 };
+
 interface NumberInputProps {
   id: string;
-  field: 'weight' | 'sets' | 'reps' | 'time';
+  field: LogField;
   label: string;
   value: string;
   placeholder?: string;
   inputMode?: 'numeric' | 'decimal';
   unit?: string;
-  onChange: (id: string, field: 'weight' | 'sets' | 'reps' | 'time', value: string) => void;
+  onChange: (id: string, field: LogField, value: string) => void;
   onBlur?: () => void;
 }
 
@@ -168,16 +176,18 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
     customWorkoutRef.current = customWorkout;
   }, [customWorkout]);
 
-  const handleInput = useCallback((id: string, field: 'weight' | 'sets' | 'reps' | 'time', value: string) => {
-    // Allow any numeric input (including decimals for weight)
-    // Remove any non-numeric characters except decimal point for weight
+  const handleInput = useCallback((id: string, field: LogField, value: string) => {
     let cleanedValue = value;
-    if (field === 'weight') {
+    if (DECIMAL_FIELDS.includes(field)) {
       // Allow numbers and one decimal point
       cleanedValue = value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
     } else {
-      // For sets, reps, time - only allow whole numbers
+      // Whole numbers only
       cleanedValue = value.replace(/[^\d]/g, '');
+    }
+    const max = FIELD_MAX[field];
+    if (max !== undefined && cleanedValue !== '' && Number(cleanedValue) > max) {
+      cleanedValue = String(max);
     }
     const key = `${id}_${field}`;
     // Use functional update to avoid losing focus
@@ -386,7 +396,32 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
               </div>
 
               {/* Input Fields */}
-              {ex.isMetric ? (
+              {ex.logType ? (
+                <div className="p-4">
+                  {ex.logType === 'timed' ? (
+                    <div>
+                      <div className="text-xs text-neutral-400 mb-2 font-medium">Finish time</div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <NumberInput id={ex.id} field="timeMin" label="Min" value={logData[`${ex.id}_timeMin`] || ''}
+                          placeholder="–" onChange={handleInput} onBlur={handleInputBlur} />
+                        <NumberInput id={ex.id} field="timeSec" label="Sec" value={logData[`${ex.id}_timeSec`] || ''}
+                          placeholder="–" onChange={handleInput} onBlur={handleInputBlur} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={`grid gap-4 ${ex.logType === 'cardio' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      <NumberInput id={ex.id} field="minutes" label="Minutes" value={logData[`${ex.id}_minutes`] || ''}
+                        placeholder="–" onChange={handleInput} onBlur={handleInputBlur} />
+                      {ex.logType === 'cardio' && (
+                        <NumberInput id={ex.id} field="distance" label="Miles" value={logData[`${ex.id}_distance`] || ''}
+                          placeholder="–" inputMode="decimal" onChange={handleInput} onBlur={handleInputBlur} />
+                      )}
+                      <NumberInput id={ex.id} field="rpe" label="Effort 1–10" value={logData[`${ex.id}_rpe`] || ''}
+                        placeholder="–" onChange={handleInput} onBlur={handleInputBlur} />
+                    </div>
+                  )}
+                </div>
+              ) : ex.isMetric ? (
                 ex.isSprint ? (
                   <div className="p-4 space-y-4">
                     <NumberInput

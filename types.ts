@@ -6,6 +6,9 @@ export interface ExerciseDef {
   isMetric: boolean; // true if we need to record weight/reps, false if it's just "done"
   isSprint?: boolean; // true if it's a sprint exercise (record sets and time instead of weight)
   group?: string; // Superset letter (A–E) in the Advanced program
+  // Non-lift items in the Advanced program, and what the player records for them:
+  // cardio = minutes, miles, effort; timed = finish time (min:sec); session = minutes, effort
+  logType?: 'cardio' | 'timed' | 'session';
   note?: string; // Coaching note
 }
 
