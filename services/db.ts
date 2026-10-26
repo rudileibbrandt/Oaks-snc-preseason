@@ -47,6 +47,7 @@ if (isConfigured) {
 // ---------------------------------------------------------
 const ROSTER_KEY = 'oaks_roster_v1';
 const LOGS_KEY = 'oaks_logs_v1';
+const CLASSES_KEY = 'oaks_classes_v1';
 const INJURIES_KEY = 'oaks_injuries_v1';
 const RATINGS_KEY = 'oaks_ratings_v1';
 const RATING_HISTORY_KEY = 'oaks_rating_history_v1';
@@ -87,6 +88,17 @@ const ls = {
       return classYear === null ? rest : { ...rest, alumniClass: classYear };
     });
     localStorage.setItem(ROSTER_KEY, JSON.stringify(updated));
+  },
+  // Graduation years keyed by normalized roster name; null means "cleared".
+  getClassYears: async (): Promise<Record<string, number | null>> => {
+    const data = localStorage.getItem(CLASSES_KEY);
+    return data ? JSON.parse(data) : {};
+  },
+  setClassYear: async (key: string, _name: string, gradYear: number | null) => {
+    const data = localStorage.getItem(CLASSES_KEY);
+    const all = data ? JSON.parse(data) : {};
+    all[key] = gradYear;
+    localStorage.setItem(CLASSES_KEY, JSON.stringify(all));
   },
   saveLog: async (log: WorkoutLog) => {
     const data = localStorage.getItem(LOGS_KEY);
@@ -455,6 +467,32 @@ export const db = {
       });
     } catch (e) {
       return handleFirebaseError(e, 'setPlayerAlumni');
+    }
+  },
+
+  // Graduation year per roster player (rosterClasses/{normalized name}), shared by all coaches.
+  getClassYears: async (): Promise<Record<string, number | null>> => {
+    if (!isConfigured || !dbInstance) return ls.getClassYears();
+
+    try {
+      await ensureAuth();
+      const snap = await dbInstance.collection('rosterClasses').get();
+      const result: Record<string, number | null> = {};
+      snap.forEach((doc: any) => { result[doc.id] = doc.data().gradYear ?? null; });
+      return result;
+    } catch (e) {
+      return handleFirebaseError(e, 'getClassYears');
+    }
+  },
+
+  setClassYear: async (key: string, name: string, gradYear: number | null) => {
+    if (!isConfigured || !dbInstance) return ls.setClassYear(key, name, gradYear);
+
+    try {
+      await ensureAuth();
+      await dbInstance.collection('rosterClasses').doc(key).set({ name, gradYear, updatedAt: Date.now() });
+    } catch (e) {
+      return handleFirebaseError(e, 'setClassYear');
     }
   },
 

@@ -13,9 +13,9 @@ export const normalizeName = (name: string) => name.toLowerCase().trim().replace
 export const alumniNameSet = (players: Player[]) =>
   new Set(players.filter(isAlumni).map(p => normalizeName(p.name)));
 
-// The most recent graduation: from June on, this year's class; before June, last year's.
+// The most recent graduation: from May on (season over), this year's class; before May, last year's.
 export const defaultAlumniClass = (now = new Date()) =>
-  now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
+  now.getMonth() >= 4 ? now.getFullYear() : now.getFullYear() - 1;
 
 export interface AlumniEntry {
   player: Player;

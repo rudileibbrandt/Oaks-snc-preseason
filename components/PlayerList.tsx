@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Search, Users, Filter, X, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, AlertTriangle, Plus, Edit3, Star, GraduationCap } from 'lucide-react';
+import { ArrowLeft, Search, Users, Filter, X, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, AlertTriangle, Plus, Edit3, Star, GraduationCap, Award } from 'lucide-react';
 import { AppView, Player, RosterPlayer, InjuryRecord, PlayerRating, RugbyPosition } from '../types';
 import { ROSTER_PLAYERS, getPhotoUrl, GROUP_COLORS, GROUP_DESCRIPTIONS } from '../services/rosterData';
 import { STATUS_COLORS, formatInjuryDate, loadInjuries, migrateHardcodedInjuries } from '../services/injuryData';
@@ -11,6 +11,7 @@ import InjuryHistorySection from './InjuryHistorySection';
 import RatingModal from './RatingModal';
 import RatingHistorySection from './RatingHistorySection';
 import GraduateSeniorsModal from './GraduateSeniorsModal';
+import MarkSeniorsModal from './MarkSeniorsModal';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -55,6 +56,19 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const touchEndX = useRef<number | null>(null);
 
   const [showGraduate, setShowGraduate] = useState(false);
+  const [showMarkSeniors, setShowMarkSeniors] = useState(false);
+  // Graduation years by roster name (shared across coaches)
+  const [classYears, setClassYears] = useState<Record<string, number | null>>({});
+  const loadClassYears = useCallback(async () => {
+    try {
+      setClassYears(await db.getClassYears());
+    } catch (error) {
+      console.error('[PlayerList] Error loading class years:', error);
+    }
+  }, []);
+  useEffect(() => {
+    if (isCoach) loadClassYears();
+  }, [isCoach, loadClassYears]);
 
   // Load app players to cross-reference with roster
   const loadAppPlayers = useCallback(async () => {
@@ -524,7 +538,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         </div>
 
         {/* Filter toggle */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${showFilters ? 'bg-amber-500 text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}
@@ -535,6 +549,15 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
             <span className="w-2 h-2 rounded-full bg-amber-500"></span>
           )}
         </button>
+        {isCoach && (
+          <button
+            onClick={() => setShowMarkSeniors(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-neutral-900 text-amber-400 hover:text-white transition-colors"
+          >
+            <Award size={16} />
+            Mark Seniors
+          </button>
+        )}
         {isCoach && (
           <button
             onClick={() => setShowGraduate(true)}
@@ -1065,8 +1088,17 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       {showGraduate && (
         <GraduateSeniorsModal
           appPlayers={appPlayers}
+          classYears={classYears}
           onClose={() => setShowGraduate(false)}
           onDone={loadAppPlayers}
+        />
+      )}
+      {showMarkSeniors && (
+        <MarkSeniorsModal
+          appPlayers={appPlayers}
+          classYears={classYears}
+          onClose={() => setShowMarkSeniors(false)}
+          onDone={loadClassYears}
         />
       )}
     </div>
