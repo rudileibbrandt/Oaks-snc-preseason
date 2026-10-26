@@ -12,7 +12,7 @@ import RatingModal from './RatingModal';
 import RatingHistorySection from './RatingHistorySection';
 import GraduateSeniorsModal from './GraduateSeniorsModal';
 import MarkSeniorsModal from './MarkSeniorsModal';
-import { rosterAlumniNames } from '../services/classYears';
+import { rosterAlumniNames, gradYearOf, classLabel, classKey, currentClassYears } from '../services/classYears';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 
 interface Props {
@@ -59,6 +59,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   const [showGraduate, setShowGraduate] = useState(false);
   const [showMarkSeniors, setShowMarkSeniors] = useState(false);
+  const [savingClass, setSavingClass] = useState(false);
   // Graduation and alumni years by roster name (shared across coaches)
   const [rosterClasses, setRosterClasses] = useState<Record<string, RosterClass>>({});
   const loadRosterClasses = useCallback(async () => {
@@ -855,6 +856,47 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                     <div className="mt-3 text-sm text-neutral-500">
                       {selectedPlayer.squad}
                     </div>
+
+                    {/* Class: everyone sees it, coaches can change it */}
+                    {(() => {
+                      const gradYear = gradYearOf(selectedPlayer, rosterClasses);
+                      const alumniClass = rosterClasses[classKey(selectedPlayer.name)]?.alumniClass;
+                      const years = currentClassYears();
+                      // Keep an out-of-range saved year selectable (e.g. a fifth-year player).
+                      const options = gradYear && !years.includes(gradYear) ? [...years, gradYear].sort() : years;
+                      return (
+                        <div className="mt-4 p-4 bg-neutral-900 border border-neutral-800 rounded-lg text-left flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-neutral-300 font-bold text-sm">Class</p>
+                            <p className="text-xs text-neutral-400 mt-0.5">
+                              {alumniClass ? `Alumni · Class of ${alumniClass}` : gradYear ? classLabel(gradYear) : 'Not set'}
+                            </p>
+                          </div>
+                          {isCoach && !showAlumni && (
+                            <select
+                              value={gradYear ?? ''}
+                              disabled={savingClass}
+                              onChange={async e => {
+                                const value = e.target.value === '' ? null : parseInt(e.target.value);
+                                setSavingClass(true);
+                                try {
+                                  await db.setRosterClass(classKey(selectedPlayer.name), selectedPlayer.name, { gradYear: value });
+                                  await loadRosterClasses();
+                                } catch (err) {
+                                  console.error('[PlayerList] Could not save class:', err);
+                                } finally {
+                                  setSavingClass(false);
+                                }
+                              }}
+                              className="px-2 py-1.5 rounded-md bg-black border border-neutral-700 text-xs text-white disabled:opacity-50"
+                            >
+                              <option value="">Not set</option>
+                              {options.map(y => <option key={y} value={y}>{classLabel(y)}</option>)}
+                            </select>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Positions Section */}
                     {(() => {

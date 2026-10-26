@@ -11,6 +11,22 @@ import { isAlumni, normalizeName } from './alumni';
 export const seniorClassYear = (now = new Date()) =>
   now.getMonth() >= 7 ? now.getFullYear() + 1 : now.getFullYear();
 
+// The four classes in school right now, seniors first: Oct 2026 → [2027, 2028, 2029, 2030].
+export const currentClassYears = (now = new Date()) => {
+  const senior = seniorClassYear(now);
+  return [senior, senior + 1, senior + 2, senior + 3];
+};
+
+// "Senior", "Junior", ... for a graduation year this school year; undefined if outside high school.
+export const classStanding = (gradYear: number, now = new Date()) =>
+  (['Senior', 'Junior', 'Sophomore', 'Freshman'] as const)[gradYear - seniorClassYear(now)];
+
+// "Class of 2027 · Senior"
+export const classLabel = (gradYear: number, now = new Date()) => {
+  const standing = classStanding(gradYear, now);
+  return `Class of ${gradYear}${standing ? ` · ${standing}` : ''}`;
+};
+
 // The roster file was written for the 2026 season (the 2025–26 school year), so a "Senior" there
 // is Class of 2026, a grade 11 is Class of 2027, and so on.
 const FILE_SEASON_CLASS = 2026;

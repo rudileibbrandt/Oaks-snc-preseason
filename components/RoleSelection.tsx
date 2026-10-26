@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, AlertCircle, User, Users } from 'lucide-react';
 import { db } from '../services/db';
 import { getCurrentUser } from '../services/auth';
+import { classKey, classLabel, currentClassYears } from '../services/classYears';
 
 interface Props {
   onComplete: () => void;
@@ -15,6 +16,7 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [needsNameInput, setNeedsNameInput] = useState(false);
+  const [gradYear, setGradYear] = useState<number | null>(null); // players pick their class
 
   useEffect(() => {
     // Check if we can get name from user profile
@@ -66,6 +68,11 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
       return;
     }
 
+    if (selectedRole === 'Player' && !gradYear) {
+      setError('Please select your class');
+      return;
+    }
+
     if (needsNameInput) {
       if (!firstName.trim()) {
         setError('Please enter your first name');
@@ -86,11 +93,20 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
         ? `${firstName.trim()} ${lastName.trim()}`.trim()
         : undefined;
       
-      await db.getOrCreatePlayerForUser(
+      const player = await db.getOrCreatePlayerForUser(
         selectedRole,
         selectedRole === 'Player' ? selectedPosition : undefined,
         fullName
       );
+      // Save the player's class by name (coaches can change it on the Player Roster).
+      // A failure here shouldn't block sign-up.
+      if (selectedRole === 'Player' && gradYear) {
+        try {
+          await db.setRosterClass(classKey(player.name), player.name, { gradYear });
+        } catch (classErr) {
+          console.error('[RoleSelection] Could not save class:', classErr);
+        }
+      }
       onComplete();
     } catch (err: any) {
       console.error('Role selection failed:', err);
@@ -228,13 +244,39 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
           </div>
         )}
 
+        {/* Class (only for Players) */}
+        {selectedRole === 'Player' && (
+          <div>
+            <label className="block text-neutral-400 text-sm mb-3 font-medium">Class (graduation year)</label>
+            <div className="grid grid-cols-2 gap-3">
+              {currentClassYears().map(year => (
+                <button
+                  key={year}
+                  onClick={() => {
+                    setGradYear(year);
+                    setError(null);
+                  }}
+                  disabled={isSubmitting}
+                  className={`p-3 rounded-xl border font-bold text-sm transition-all ${
+                    gradYear === year
+                      ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                      : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-amber-500/50'
+                  } disabled:opacity-50`}
+                >
+                  {classLabel(year)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Submit Button */}
         <button
           onClick={handleSubmit}
           disabled={
             isSubmitting || 
             !selectedRole || 
-            (selectedRole === 'Player' && !selectedPosition) ||
+            (selectedRole === 'Player' && (!selectedPosition || !gradYear)) ||
             (needsNameInput && (!firstName.trim() || !lastName.trim()))
           }
           className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold py-4 px-6 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"

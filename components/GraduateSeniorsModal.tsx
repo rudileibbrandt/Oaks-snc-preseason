@@ -135,7 +135,7 @@ const GraduateSeniorsModal: React.FC<Props> = ({ appPlayers, rosterClasses, onCl
             disabled={saving || targets.length === 0}
             className="flex-1 py-2.5 rounded-lg bg-purple-500 hover:bg-purple-400 text-white font-bold text-sm transition-colors disabled:opacity-40"
           >
-            {saving ? 'Saving...' : `Move ${targets.length} to Alumni`}
+            {saving ? 'Saving...' : `Move ${targets.length} to Alumni · Class of ${classYear}`}
           </button>
         </div>
       </>}
