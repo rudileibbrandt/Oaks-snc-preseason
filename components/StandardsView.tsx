@@ -23,7 +23,7 @@ type Tab = 'mine' | 'team' | 'testing' | 'tables';
 
 const StandardsView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const isCoach = currentPlayer?.role === 'Coach';
-  const [tab, setTab] = useState<Tab>(isCoach ? 'team' : 'mine');
+  const [tab, setTab] = useState<Tab>('tables');
   const [sessions, setSessions] = useState<TestSession[]>([]);
   const [results, setResults] = useState<TestResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,8 +45,8 @@ const StandardsView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   useEffect(() => { load(); }, [load]);
 
   const tabs: [Tab, string][] = isCoach
-    ? [['team', 'Team'], ['testing', 'Testing days'], ['tables', 'Standards']]
-    : [['mine', 'My levels'], ['tables', 'Standards']];
+    ? [['tables', 'Standards'], ['team', 'Team'], ['testing', 'Testing days']]
+    : [['tables', 'Standards'], ['mine', 'My levels']];
 
   return (
     <div className="space-y-4 pb-8">
