@@ -96,6 +96,21 @@ export const getAdvancedWeek = (weekId: WeekIdentifier): AdvancedWeek | undefine
 export const ADVANCED_FIRST_WEEK = isoWeekOfDate(ADVANCED_WEEKS[0].startDate);
 export const ADVANCED_LAST_WEEK = isoWeekOfDate(ADVANCED_WEEKS[ADVANCED_WEEKS.length - 1].startDate);
 
+// Both programs run on the same dates: the Advanced block's weeks (Mon 2 Nov – Sun 20 Dec 2026).
+// Intermediate has no set weekdays, just Days 1–4 each week inside these dates.
+export const PROGRAM_FIRST_WEEK = ADVANCED_FIRST_WEEK;
+export const PROGRAM_LAST_WEEK = ADVANCED_LAST_WEEK;
+export const PROGRAM_DATES_LABEL = 'Mon 2 Nov – Sun 20 Dec 2026';
+
+// Week number in the block (1–7) for a calendar week, or undefined outside the program's dates.
+export const programWeekNumber = (weekId: WeekIdentifier): number | undefined => {
+  const i = ADVANCED_WEEKS.findIndex(w => {
+    const start = isoWeekOfDate(w.startDate);
+    return start.year === weekId.year && start.week === weekId.week;
+  });
+  return i < 0 ? undefined : i + 1;
+};
+
 // Look up a workout day from either program by its id.
 export const findWorkoutDay = (dayId: string): WorkoutDay | undefined =>
   PROGRAM.DAYS.find(d => d.id === dayId) ??

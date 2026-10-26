@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
 import { db } from '../services/db';
-import { PROGRAM, getAdvancedWeek, findWorkoutDay, ADVANCED_FIRST_WEEK, ADVANCED_LAST_WEEK } from '../services/programData';
+import { PROGRAM, getAdvancedWeek, findWorkoutDay, ADVANCED_FIRST_WEEK, ADVANCED_LAST_WEEK, PROGRAM_DATES_LABEL, programWeekNumber } from '../services/programData';
 import { ChevronLeft, CheckCircle2, User, ChevronRight, Settings, Users, Moon } from 'lucide-react';
 import WorkoutSession from './WorkoutSession';
 import { isAlumni } from '../services/alumni';
@@ -251,6 +251,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   const program: ProgramLevel = selectedPlayer.program ?? 'Intermediate';
   const advancedWeek = program === 'Advanced' ? getAdvancedWeek(selectedWeek) : undefined;
   const isBeforeAdvanced = compareWeekIdentifiers(selectedWeek, ADVANCED_FIRST_WEEK) < 0;
+  const intermediateWeek = programWeekNumber(selectedWeek); // Intermediate runs on the same dates
   const todayIso = (() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -537,7 +538,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
           <div className="p-6 rounded-2xl border border-neutral-800 bg-neutral-900 text-center">
             <h3 className="text-lg font-bold text-white mb-2">No Advanced sessions this week</h3>
             <p className="text-sm text-neutral-400 mb-4">
-              The Advanced program runs Mon 2 Nov – Sun 20 Dec 2026.
+              The Advanced program runs {PROGRAM_DATES_LABEL}.
             </p>
             <button
               onClick={() => setSelectedWeek(isBeforeAdvanced ? ADVANCED_FIRST_WEEK : ADVANCED_LAST_WEEK)}
@@ -547,8 +548,22 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
             </button>
           </div>
         )
+      ) : intermediateWeek === undefined ? (
+        <div className="p-6 rounded-2xl border border-neutral-800 bg-neutral-900 text-center">
+          <h3 className="text-lg font-bold text-white mb-2">No Intermediate sessions this week</h3>
+          <p className="text-sm text-neutral-400 mb-4">
+            The Intermediate program runs {PROGRAM_DATES_LABEL}.
+          </p>
+          <button
+            onClick={() => setSelectedWeek(isBeforeAdvanced ? ADVANCED_FIRST_WEEK : ADVANCED_LAST_WEEK)}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold rounded-lg transition-colors"
+          >
+            {isBeforeAdvanced ? 'Preview Week 1' : 'Go to Week 7'}
+          </button>
+        </div>
       ) : (
       <div className="grid grid-cols-1 gap-4">
+        <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Week {intermediateWeek} of 7 · any 4 days this week</div>
         {PROGRAM.DAYS.map((day, index) => {
           const complete = isDayComplete(day.id);
           return (
