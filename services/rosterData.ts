@@ -4,7 +4,7 @@ import { RosterPlayer } from '../types';
 // Photos should be placed in public/photos/ directory
 export const ROSTER_PLAYERS: RosterPlayer[] = [
   // BLACK GROUP - 1sts and 2nds
-  { name: "Andrew Campbell", squad: "1sts and 2nds", trainingGroup: "Black", height: "5'9\"", weight: 186, grade: 12, classYear: "Senior", bestPosition: 6, secondPosition: 7, thirdPosition: 12 },
+  { name: "Andrew Campbell", squad: "1sts and 2nds", trainingGroup: "Black", height: "5'9\"", weight: 186, bestPosition: 6, secondPosition: 7, thirdPosition: 12 },
   { name: "Armando Hall", squad: "1sts and 2nds", trainingGroup: "Black", height: "6'1\"", weight: 211, bestPosition: 8, secondPosition: 6, thirdPosition: 7 },
   { name: "Asher Ball", squad: "1sts and 2nds", trainingGroup: "Black", height: "6'0\"", weight: 211, bestPosition: 14, secondPosition: 13, thirdPosition: 6 },
   { name: "Brandon Levyash", squad: "1sts and 2nds", trainingGroup: "Black", height: "6'1\"", weight: 241, bestPosition: 2, secondPosition: 1, thirdPosition: 6 },
