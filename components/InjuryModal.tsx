@@ -3,6 +3,7 @@ import { X, Save, Loader2, AlertTriangle } from 'lucide-react';
 import { InjuryRecord, RosterPlayer, Player } from '../types';
 import { db } from '../services/db';
 import { invalidateInjuryCache, STATUS_COLORS } from '../services/injuryData';
+import { assertNotAlumni } from '../services/classYears';
 
 interface Props {
   isOpen: boolean;
@@ -121,6 +122,7 @@ const InjuryModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, existin
         }
         console.log('[InjuryModal] Updated injury:', existingInjury.id);
       } else {
+        await assertNotAlumni(player.name); // no new injuries for graduated players
         await db.addInjury(injuryData as Omit<InjuryRecord, 'id'>);
         console.log('[InjuryModal] Added new injury for:', player.name);
       }

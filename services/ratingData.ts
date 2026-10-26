@@ -1,5 +1,6 @@
 import { PlayerRating, RatingHistoryEntry, PlayerRatings } from '../types';
 import { db } from './db';
+import { assertNotAlumni } from './classYears';
 
 // Rating skill definitions
 export interface RatingSkill {
@@ -146,6 +147,7 @@ export async function getRatingHistory(
 
 // Save a rating (creates history entry automatically)
 export async function saveRating(rating: Omit<PlayerRating, 'id' | 'createdAt' | 'updatedAt'>): Promise<PlayerRating> {
+  await assertNotAlumni(rating.playerName); // alumni are never scored
   const result = await db.saveRating(rating);
   invalidateRatingsCache();
   return result;

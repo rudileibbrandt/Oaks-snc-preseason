@@ -74,3 +74,19 @@ export const loadAlumniNames = (): Promise<Set<string>> => {
 };
 
 export const invalidateAlumniNames = () => { alumniNamesCache = null; };
+
+// Thrown when someone tries to score a graduated player.
+export class AlumniError extends Error {
+  constructor(name: string) {
+    super(`${name} has graduated (Alumni), so they can't be scored. Restore them in Graduate Seniors first.`);
+    this.name = 'AlumniError';
+  }
+}
+
+// Guard for every write that scores a player. Reads fresh data, so a graduation made on
+// another device counts too.
+export const assertNotAlumni = async (playerName: string) => {
+  invalidateAlumniNames();
+  const names = await loadAlumniNames();
+  if (names.has(normalizeName(playerName))) throw new AlumniError(playerName);
+};

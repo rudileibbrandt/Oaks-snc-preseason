@@ -3,6 +3,7 @@ import { ArrowLeft, AlertTriangle, Search, X, ChevronDown, ChevronUp, Calendar, 
 import { AppView, Player, InjuryRecord } from '../types';
 import { STATUS_COLORS, formatInjuryDate, daysSinceInjury, loadInjuries, migrateHardcodedInjuries } from '../services/injuryData';
 import { getPhotoUrl } from '../services/rosterData';
+import { useAlumniNames } from '../hooks/useAlumniNames';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -18,7 +19,14 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
   const [teamFilter, setTeamFilter] = useState<TeamFilter>('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
-  const [injuries, setInjuries] = useState<InjuryRecord[]>([]);
+  const [allInjuries, setInjuries] = useState<InjuryRecord[]>([]);
+  // Graduated players' injuries are left out of the tracker and its counts.
+  const { alumniNames, isAlumniName } = useAlumniNames();
+  const injuries = useMemo(
+    () => allInjuries.filter(i => !isAlumniName(i.playerName)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allInjuries, alumniNames],
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   // Load injuries from database

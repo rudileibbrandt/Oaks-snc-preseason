@@ -75,7 +75,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
       onClose();
     } catch (err) {
       console.error('[RatingModal] Error saving rating:', err);
-      setError('Failed to save feedback. Please try again.');
+      setError(err instanceof Error && err.name === 'AlumniError' ? err.message : 'Failed to save feedback. Please try again.');
     } finally {
       setIsSaving(false);
     }

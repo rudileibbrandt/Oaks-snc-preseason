@@ -74,15 +74,22 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   }, [loadData]);
 
   // Group ratings by raterId
+  // Only ratings of current players count; alumni are out of every number here.
+  const currentRatings = useMemo(
+    () => allRatings.filter(r => !isAlumniName(r.playerName)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allRatings, alumniNames],
+  );
+
   const ratingsByRater = useMemo(() => {
     const map = new Map<string, PlayerRating[]>();
-    for (const r of allRatings) {
+    for (const r of currentRatings) {
       const existing = map.get(r.raterId) || [];
       existing.push(r);
       map.set(r.raterId, existing);
     }
     return map;
-  }, [allRatings]);
+  }, [currentRatings]);
 
   // Group injuries by coachSubmitting (case-insensitive)
   const injuriesByCoach = useMemo(() => {
@@ -474,7 +481,7 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         <div>
           <h1 className="text-xl font-bold text-white">Coaches Corner</h1>
           <p className="text-neutral-500 text-xs">
-            {coaches.length} coaches &middot; {allRatings.length} ratings &middot; {allInjuries.length} injuries
+            {coaches.length} coaches &middot; {currentRatings.length} ratings &middot; {allInjuries.length} injuries
           </p>
         </div>
       </div>
@@ -520,7 +527,7 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           <div className="text-neutral-500 text-xs">Coaches</div>
         </div>
         <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-amber-400">{allRatings.length}</div>
+          <div className="text-2xl font-bold text-amber-400">{currentRatings.length}</div>
           <div className="text-neutral-500 text-xs">Ratings</div>
         </div>
         <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 text-center">
@@ -534,7 +541,7 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
       {/* Avg score across all coach ratings */}
       <div className="text-neutral-500 text-xs mb-3 px-1">
-        Avg rating given: <span className="text-amber-400 font-semibold">{renderAvgScore(allRatings)}</span>
+        Avg rating given: <span className="text-amber-400 font-semibold">{renderAvgScore(currentRatings)}</span>
       </div>
 
       {/* Coach cards */}

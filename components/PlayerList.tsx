@@ -184,6 +184,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   // Open injury modal for a player
   const openInjuryModal = (player: RosterPlayer, existing?: InjuryRecord) => {
+    if (!existing && alumniNames.has(normalizeName(player.name))) return; // alumni aren't scored
     setInjuryModalPlayer(player);
     setInjuryModalExisting(existing);
     setShowInjuryModal(true);
@@ -191,6 +192,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   // Open rating modal for a player
   const openRatingModal = (player: RosterPlayer) => {
+    if (alumniNames.has(normalizeName(player.name))) return; // alumni aren't scored
     setRatingModalPlayer(player);
     setShowRatingModal(true);
   };
@@ -422,8 +424,8 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
               </span>
             </div>
           )}
-          {/* Quick rate star button */}
-          {currentPlayer && (
+          {/* Quick rate star button (not on alumni) */}
+          {currentPlayer && !showAlumni && (
             <button
               className="absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center bg-black/60 rounded-full transition-colors hover:bg-black/80"
               onClick={(e) => {
@@ -855,7 +857,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                         <div className="mt-4 p-4 bg-neutral-900 border border-neutral-800 rounded-lg text-left">
                           <div className="flex items-center justify-between mb-3">
                             <p className="text-neutral-300 font-bold text-sm">Positions</p>
-                            {isCoach && !editingPositions && (
+                            {isCoach && !editingPositions && !showAlumni && (
                               <button
                                 onClick={() => {
                                   setEditingPositions(true);
@@ -977,6 +979,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                             </div>
                             <div className="mt-3 pt-3 border-t border-amber-500/20 flex items-center justify-between">
                               <span className="text-xs text-neutral-400">Average: {calculateAverageRating(currentPlayerRating.ratings).toFixed(1)}</span>
+                              {!showAlumni && (
                               <button
                                 onClick={() => openRatingModal(selectedPlayer)}
                                 className="flex items-center gap-1 px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-xs text-neutral-300 transition-colors"
@@ -984,12 +987,13 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                                 <Edit3 size={12} />
                                 Update
                               </button>
+                              )}
                             </div>
                           </div>
                         )}
 
                         {/* Rate Player Button (when no rating exists) */}
-                        {!currentPlayerRating && !isLoadingRating && (
+                        {!currentPlayerRating && !isLoadingRating && !showAlumni && (
                           <button
                             onClick={() => openRatingModal(selectedPlayer)}
                             className="flex items-center justify-center gap-2 w-full p-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400 font-medium rounded-lg transition-colors"
@@ -1047,7 +1051,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                     )}
 
                     {/* Coach: Add injury button (when not currently injured) */}
-                    {isCoach && !isSelectedInjured && (
+                    {isCoach && !isSelectedInjured && !showAlumni && (
                       <button
                         onClick={() => openInjuryModal(selectedPlayer)}
                         className="mt-4 flex items-center justify-center gap-2 w-full p-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-medium rounded-lg transition-colors"
