@@ -7,6 +7,7 @@ import PlayerList from './components/PlayerList';
 import SetupWarning from './components/SetupWarning';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
+import StandardsView from './components/StandardsView';
 import RatingAnalytics from './components/RatingAnalytics';
 import CoachesCorner from './components/CoachesCorner';
 import MergePrompt, { isDismissed } from './components/MergePrompt';
@@ -227,6 +228,8 @@ const App: React.FC = () => {
         return <PlayerList onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
       case 'RATING_ANALYTICS':
         return <RatingAnalytics onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
+      case 'STANDARDS':
+        return <StandardsView onNavigate={setCurrentView} currentPlayer={currentPlayer} />;
       case 'COACHES_CORNER':
       case 'DEPTH_CHART':
         if (currentPlayer?.role !== 'Coach') return <Landing onNavigate={setCurrentView} currentPlayer={currentPlayer} />;

@@ -66,7 +66,7 @@ export interface WorkoutLog {
   customWorkout?: string; // Optional text description when player did their own workout
 }
 
-export type AppView = 'LOGIN' | 'LANDING' | 'COACH' | 'ATHLETE_SELECT' | 'ATHLETE_DASHBOARD' | 'WORKOUT_SESSION' | 'TRACKER' | 'ROSTER' | 'INJURIES' | 'RATING_ANALYTICS' | 'COACHES_CORNER' | 'DEPTH_CHART';
+export type AppView = 'LOGIN' | 'LANDING' | 'COACH' | 'ATHLETE_SELECT' | 'ATHLETE_DASHBOARD' | 'WORKOUT_SESSION' | 'TRACKER' | 'ROSTER' | 'INJURIES' | 'RATING_ANALYTICS' | 'COACHES_CORNER' | 'DEPTH_CHART' | 'STANDARDS';
 
 // Rugby position numbers (1-15)
 export type RugbyPosition = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
@@ -170,4 +170,33 @@ export interface RatingHistoryEntry {
   raterName: string;
   ratings: PlayerRatings;
   timestamp: number;
+}
+
+// S&C standards testing. A testing day is a named session; every result belongs to one.
+// A player's level is worked out from their results, never stored.
+export interface TestSession {
+  id: string;
+  name: string; // e.g. "Pre-season testing"
+  date: string; // YYYY-MM-DD
+  createdBy: string;
+  createdAt: number;
+}
+
+// One player's scores on one testing day, keyed `${sessionId}__${nameKey}`. Stored by roster name,
+// so players without an app account can be tested. A missing or null field = not tested.
+export interface TestResult {
+  id: string;
+  sessionId: string;
+  nameKey: string; // normalized roster name
+  playerName: string;
+  group: 'props' | 'hookers' | 'locks' | 'backrow' | 'scrumhalves' | 'flyhalves' | 'centers' | 'backthree';
+  bodyweight?: number | null; // lb, on the day (chin-up total = bodyweight + added)
+  bronco?: number | null; // seconds
+  sprint10?: number | null; // seconds
+  sprint40?: number | null; // seconds
+  broadJump?: number | null; // inches
+  chinupAdded?: number | null; // lb added
+  squat3rm?: number | null; // lb
+  enteredBy: string;
+  updatedAt: number;
 }

@@ -1,4 +1,4 @@
-import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass } from '../types';
+import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult } from '../types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -126,6 +126,18 @@ const ls = {
   },
 
   // Injury operations
+  getTestSessions: async (): Promise<TestSession[]> => JSON.parse(localStorage.getItem('oaks_test_sessions_v1') || '[]'),
+  addTestSession: async (session: Omit<TestSession, 'id'>): Promise<TestSession> => {
+    const all: TestSession[] = JSON.parse(localStorage.getItem('oaks_test_sessions_v1') || '[]');
+    const created = { ...session, id: `ts-${Date.now()}` };
+    localStorage.setItem('oaks_test_sessions_v1', JSON.stringify([...all, created]));
+    return created;
+  },
+  getTestResults: async (): Promise<TestResult[]> => JSON.parse(localStorage.getItem('oaks_test_results_v1') || '[]'),
+  saveTestResult: async (result: TestResult) => {
+    const all: TestResult[] = JSON.parse(localStorage.getItem('oaks_test_results_v1') || '[]');
+    localStorage.setItem('oaks_test_results_v1', JSON.stringify([...all.filter(r => r.id !== result.id), result]));
+  },
   getInjuries: async (): Promise<InjuryRecord[]> => {
     const data = localStorage.getItem(INJURIES_KEY);
     return data ? JSON.parse(data) : [];
@@ -596,6 +608,54 @@ export const db = {
   // ---------------------------------------------------------
   // INJURY OPERATIONS
   // ---------------------------------------------------------
+
+  // ---------- S&C standards testing ----------
+  getTestSessions: async (): Promise<TestSession[]> => {
+    if (!isConfigured || !dbInstance) return ls.getTestSessions();
+    try {
+      await ensureAuth();
+      const snap = await dbInstance.collection('testSessions').get();
+      return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as TestSession));
+    } catch (e) {
+      return handleFirebaseError(e, 'getTestSessions');
+    }
+  },
+
+  addTestSession: async (session: Omit<TestSession, 'id'>): Promise<TestSession> => {
+    if (!isConfigured || !dbInstance) return ls.addTestSession(session);
+    try {
+      await ensureAuth();
+      const ref = await dbInstance.collection('testSessions').add(session);
+      return { id: ref.id, ...session };
+    } catch (e) {
+      return handleFirebaseError(e, 'addTestSession');
+    }
+  },
+
+  getTestResults: async (): Promise<TestResult[]> => {
+    if (!isConfigured || !dbInstance) return ls.getTestResults();
+    try {
+      await ensureAuth();
+      const snap = await dbInstance.collection('testResults').get();
+      return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as TestResult));
+    } catch (e) {
+      return handleFirebaseError(e, 'getTestResults');
+    }
+  },
+
+  // Replaces the player's whole result for that session (one document per player per session).
+  saveTestResult: async (result: TestResult) => {
+    if (!isConfigured || !dbInstance) return ls.saveTestResult(result);
+    try {
+      await ensureAuth();
+      const { id, ...data } = result;
+      // Firestore rejects undefined; an untested field is simply left out.
+      const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+      await dbInstance.collection('testResults').doc(id).set(clean);
+    } catch (e) {
+      return handleFirebaseError(e, 'saveTestResult');
+    }
+  },
 
   getInjuries: async (): Promise<InjuryRecord[]> => {
     if (!isConfigured || !dbInstance) {

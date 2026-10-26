@@ -37,6 +37,17 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // S&C standards testing: testing days and each player's results on them.
+    // Coach-only entry is enforced in the app (roster roles are editable, so rules can't check them).
+    match /testSessions/{sessionId} {
+      allow read, create, update: if request.auth != null;
+      allow delete: if false;
+    }
+    match /testResults/{resultId} {
+      allow read, create, update: if request.auth != null;
+      allow delete: if false;
+    }
+
     // Injuries: Anyone authenticated can read, coaches can create/update
     match /injuries/{injuryId} {
       allow read: if request.auth != null;
