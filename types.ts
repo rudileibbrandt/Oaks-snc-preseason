@@ -178,6 +178,7 @@ export interface TestSession {
   id: string;
   name: string; // e.g. "Pre-season testing"
   date: string; // YYYY-MM-DD
+  time?: string; // start, HH:MM
   createdBy: string;
   createdAt: number;
 }

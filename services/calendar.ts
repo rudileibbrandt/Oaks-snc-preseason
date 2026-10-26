@@ -41,6 +41,12 @@ export const programWeekOn = (iso: string): number | undefined => {
   return w?.week;
 };
 
+// "15:30" → "3:30 PM"
+export const formatClock = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+};
+
 // The date a workout was logged (when it was done), local time.
 export const logDate = (log: WorkoutLog) => isoDate(new Date(log.timestamp));
 

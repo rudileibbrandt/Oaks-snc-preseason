@@ -676,8 +676,10 @@ export const db = {
     if (!isConfigured || !dbInstance) return ls.addTestSession(session);
     try {
       await ensureAuth();
-      const ref = await dbInstance.collection('testSessions').add(session);
-      return { id: ref.id, ...session };
+      // Firestore rejects undefined fields (e.g. no time set).
+      const clean = Object.fromEntries(Object.entries(session).filter(([, v]) => v !== undefined)) as Omit<TestSession, 'id'>;
+      const ref = await dbInstance.collection('testSessions').add(clean);
+      return { id: ref.id, ...clean };
     } catch (e) {
       return handleFirebaseError(e, 'addTestSession');
     }

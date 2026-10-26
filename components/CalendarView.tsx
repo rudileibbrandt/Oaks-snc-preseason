@@ -3,7 +3,7 @@ import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Plus, X, MapPin, Cl
 import { AppView, Player, TeamEvent, TeamEventType, TestSession, WorkoutLog } from '../types';
 import { db } from '../services/db';
 import { PROGRAM, PROGRAM_DATES_LABEL } from '../services/programData';
-import { advancedDayOn, isoDate, logDate, monthGrid, parseIso, programWeekOn, weekOfIso } from '../services/calendar';
+import { advancedDayOn, formatClock, isoDate, logDate, monthGrid, parseIso, programWeekOn, weekOfIso } from '../services/calendar';
 import { isAdvancedLog } from '../services/advancedStats';
 
 interface Props {
@@ -17,12 +17,6 @@ const EVENT_STYLE: Record<TeamEventType, { dot: string; chip: string }> = {
   Other: { dot: 'bg-neutral-400', chip: 'bg-neutral-700 text-neutral-200' },
 };
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-// "15:30" → "3:30 PM"
-const clock = (hhmm: string) => {
-  const [h, m] = hhmm.split(':').map(Number);
-  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
-};
 
 const longDate = (iso: string) =>
   parseIso(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -178,7 +172,7 @@ const CalendarView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                 <Medal size={18} className="text-amber-400 flex-shrink-0" />
                 <div>
                   <p className="text-sm text-white font-bold">{t.name}</p>
-                  <p className="text-[11px] text-neutral-400">Testing day · see S&C Standards</p>
+                  <p className="text-[11px] text-neutral-400">Testing day{t.time ? ` · ${formatClock(t.time)}` : ''} · see S&C Standards</p>
                 </div>
               </button>
             ))}
@@ -193,7 +187,7 @@ const CalendarView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                     </div>
                     {(e.startTime || e.location) && (
                       <p className="text-[11px] text-neutral-400 mt-1 flex flex-wrap gap-x-3">
-                        {e.startTime && <span className="flex items-center gap-1"><Clock size={11} />{clock(e.startTime)}{e.endTime ? `–${clock(e.endTime)}` : ''}</span>}
+                        {e.startTime && <span className="flex items-center gap-1"><Clock size={11} />{formatClock(e.startTime)}{e.endTime ? `–${formatClock(e.endTime)}` : ''}</span>}
                         {e.location && <span className="flex items-center gap-1"><MapPin size={11} />{e.location}</span>}
                       </p>
                     )}
@@ -279,6 +273,7 @@ const EventModal: React.FC<EventProps> = ({ event, currentPlayer, onClose, onSav
   const pickKind = (k: TeamEventType | 'Testing') => {
     const defaults = ['Practice', 'Match', 'Event', 'Testing day', ''];
     if (defaults.includes(title)) setTitle(k === 'Match' ? 'Match' : k === 'Other' ? 'Event' : k === 'Testing' ? 'Testing day' : 'Practice');
+    if (k === 'Testing' && !startTime) setStartTime('09:00'); // testing days are Sundays at 9
     setKind(k);
   };
 
@@ -288,7 +283,7 @@ const EventModal: React.FC<EventProps> = ({ event, currentPlayer, onClose, onSav
     setError(null);
     try {
       if (kind === 'Testing') {
-        await db.addTestSession({ name: title.trim(), date, createdBy: currentPlayer.name, createdAt: Date.now() });
+        await db.addTestSession({ name: title.trim(), date, time: startTime || undefined, createdBy: currentPlayer.name, createdAt: Date.now() });
       } else {
         await db.saveEvent({
           ...(event.id ? { id: event.id } : {}),
@@ -359,6 +354,11 @@ const EventModal: React.FC<EventProps> = ({ event, currentPlayer, onClose, onSav
                 <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={input} />
               </label>
             </>
+          )}
+          {kind === 'Testing' && (
+            <label className="block"><span className="text-xs text-neutral-400">Start</span>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={input} />
+            </label>
           )}
           {kind === 'Testing' && <p className="text-[11px] text-neutral-500">Creates a testing day in S&C Standards, where you enter results.</p>}
           {error && <p className="text-xs text-red-400">{error}</p>}

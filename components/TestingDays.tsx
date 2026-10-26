@@ -12,6 +12,7 @@ import {
   levelIndex, parseBronco, parsePositive, scoreOf,
 } from '../services/standards';
 import LevelChip from './LevelChip';
+import { formatClock } from '../services/calendar';
 
 interface Props {
   currentPlayer: Player;
@@ -53,6 +54,7 @@ const TestingDays: React.FC<Props> = ({ currentPlayer, sessions, results, onChan
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('Testing day');
   const [date, setDate] = useState(today());
+  const [time, setTime] = useState('09:00');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +66,7 @@ const TestingDays: React.FC<Props> = ({ currentPlayer, sessions, results, onChan
     setSaving(true);
     setError(null);
     try {
-      const created = await db.addTestSession({ name: name.trim(), date, createdBy: currentPlayer.name, createdAt: Date.now() });
+      const created = await db.addTestSession({ name: name.trim(), date, time: time || undefined, createdBy: currentPlayer.name, createdAt: Date.now() });
       await onChanged();
       setCreating(false);
       setOpenId(created.id);
@@ -94,7 +96,11 @@ const TestingDays: React.FC<Props> = ({ currentPlayer, sessions, results, onChan
           <div className="flex gap-2">
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Name, e.g. Pre-season testing"
               className="flex-1 min-w-0 px-3 py-2 bg-black border border-neutral-700 rounded-lg text-sm text-white" />
+          </div>
+          <div className="flex gap-2">
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="flex-1 px-3 py-2 bg-black border border-neutral-700 rounded-lg text-sm text-white" />
+            <input type="time" value={time} onChange={e => setTime(e.target.value)}
               className="px-3 py-2 bg-black border border-neutral-700 rounded-lg text-sm text-white" />
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -118,7 +124,7 @@ const TestingDays: React.FC<Props> = ({ currentPlayer, sessions, results, onChan
             className="w-full flex items-center justify-between p-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl text-left">
             <div>
               <p className="text-white font-bold text-sm">{s.name}</p>
-              <p className="text-xs text-neutral-500">{s.date} · by {s.createdBy}</p>
+              <p className="text-xs text-neutral-500">{s.date}{s.time ? ` · ${formatClock(s.time)}` : ''} · by {s.createdBy}</p>
             </div>
             <span className="text-xs text-neutral-400">{count} player{count === 1 ? '' : 's'}</span>
           </button>
@@ -166,7 +172,7 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer,
       </button>
       <div>
         <h2 className="text-xl font-bold text-white">{session.name}</h2>
-        <p className="text-xs text-neutral-500">{session.date} · {results.length} player{results.length === 1 ? '' : 's'} entered</p>
+        <p className="text-xs text-neutral-500">{session.date}{session.time ? ` · ${formatClock(session.time)}` : ''} · {results.length} player{results.length === 1 ? '' : 's'} entered</p>
       </div>
       <button onClick={() => setImporting(true)}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-neutral-900 border border-neutral-800 text-sm text-amber-400 hover:text-white">
@@ -294,7 +300,7 @@ const EntryModal: React.FC<EntryProps> = ({ session, playerName, existing, defau
         <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-white">{playerName}</h3>
-            <p className="text-xs text-neutral-500">{session.name} · {session.date}</p>
+            <p className="text-xs text-neutral-500">{session.name} · {session.date}{session.time ? ` · ${formatClock(session.time)}` : ''}</p>
           </div>
           <button onClick={onClose} className="p-1 text-neutral-400 hover:text-white"><X size={20} /></button>
         </div>
