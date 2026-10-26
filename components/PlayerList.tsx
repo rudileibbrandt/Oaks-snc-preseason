@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Search, Users, Filter, X, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, AlertTriangle, Plus, Edit3, Star } from 'lucide-react';
+import { ArrowLeft, Search, Users, Filter, X, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, AlertTriangle, Plus, Edit3, Star, GraduationCap } from 'lucide-react';
 import { AppView, Player, RosterPlayer, InjuryRecord, PlayerRating, RugbyPosition } from '../types';
 import { ROSTER_PLAYERS, getPhotoUrl, GROUP_COLORS, GROUP_DESCRIPTIONS } from '../services/rosterData';
 import { STATUS_COLORS, formatInjuryDate, loadInjuries, migrateHardcodedInjuries } from '../services/injuryData';
@@ -10,6 +10,7 @@ import InjuryModal from './InjuryModal';
 import InjuryHistorySection from './InjuryHistorySection';
 import RatingModal from './RatingModal';
 import RatingHistorySection from './RatingHistorySection';
+import GraduateSeniorsModal from './GraduateSeniorsModal';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -53,19 +54,21 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
 
+  const [showGraduate, setShowGraduate] = useState(false);
+
   // Load app players to cross-reference with roster
-  useEffect(() => {
-    const loadAppPlayers = async () => {
-      try {
-        const players = await db.getPlayers();
-        setAppPlayers(players);
-        console.log('[PlayerList] Loaded app players:', players.length);
-      } catch (error) {
-        console.error('[PlayerList] Error loading app players:', error);
-      }
-    };
-    loadAppPlayers();
+  const loadAppPlayers = useCallback(async () => {
+    try {
+      const players = await db.getPlayers();
+      setAppPlayers(players);
+      console.log('[PlayerList] Loaded app players:', players.length);
+    } catch (error) {
+      console.error('[PlayerList] Error loading app players:', error);
+    }
   }, []);
+  useEffect(() => {
+    loadAppPlayers();
+  }, [loadAppPlayers]);
 
   // Load position overrides
   useEffect(() => {
@@ -521,6 +524,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         </div>
 
         {/* Filter toggle */}
+        <div className="flex items-center gap-2">
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${showFilters ? 'bg-amber-500 text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}
@@ -531,6 +535,16 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
             <span className="w-2 h-2 rounded-full bg-amber-500"></span>
           )}
         </button>
+        {isCoach && (
+          <button
+            onClick={() => setShowGraduate(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-neutral-900 text-purple-300 hover:text-white transition-colors"
+          >
+            <GraduationCap size={16} />
+            Graduate Seniors
+          </button>
+        )}
+        </div>
 
         {/* Filters */}
         {showFilters && (
@@ -1046,6 +1060,13 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           onSave={handleRatingSaved}
           player={ratingModalPlayer}
           currentPlayer={currentPlayer}
+        />
+      )}
+      {showGraduate && (
+        <GraduateSeniorsModal
+          appPlayers={appPlayers}
+          onClose={() => setShowGraduate(false)}
+          onDone={loadAppPlayers}
         />
       )}
     </div>
