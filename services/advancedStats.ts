@@ -218,4 +218,23 @@ export const describeEntry = (ex: ExerciseDef, data: Record<string, string>): st
   return undefined;
 };
 
-export const latestLogForDay = (playerLogs: WorkoutLog[], dayId: string) => logsByDay(playerLogs).get(dayId);
+// Short text for one day in the Tracker: the first logged lift's weight, or the first
+// run/test/session entry; "✓" if completed with nothing entered; "Partial" if started.
+export const trackerCell = (day: WorkoutDay, log: WorkoutLog | undefined): string => {
+  const status = dayStatus(day, log);
+  if (status === 'empty' || status === 'rest' || !log) return '';
+  if (log.data) {
+    for (const ex of day.exercises) {
+      if (ex.isMetric) {
+        const weight = num(log.data[`${ex.id}_weight`]);
+        if (weight !== undefined) return `${weight}lbs`;
+        continue;
+      }
+      const entry = describeEntry(ex, log.data);
+      if (entry) return entry;
+    }
+  }
+  return status === 'complete' ? '✓' : 'Partial';
+};
+
+export const latestLogForDay =(playerLogs: WorkoutLog[], dayId: string) => logsByDay(playerLogs).get(dayId);
