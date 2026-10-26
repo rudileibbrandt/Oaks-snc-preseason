@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Trash2, AlertTriangle, CheckCircle, Shield, User, RefreshCw, ArrowRightLeft, Search, Undo2 } from 'lucide-react';
+import { Trash2, AlertTriangle, CheckCircle, Shield, User, RefreshCw, ArrowRightLeft, Search, Undo2, GraduationCap } from 'lucide-react';
+import { isAlumni, defaultAlumniClass } from '../services/alumni';
 import { Player, PlayerRating } from '../types';
 import { db, manualMigrateTo5PointScale, restoreRatingsFromHistory, clearMergedInto } from '../services/db';
 import { invalidateRatingsCache, deleteRating, deleteRatingsByRater, RATING_COLORS, calculateAverageRating } from '../services/ratingData';
@@ -29,6 +30,11 @@ const AdminPanel: React.FC<Props> = ({ allRatings, onRatingsDeleted }) => {
   const [userSearch, setUserSearch] = useState('');
   const [roleChangeResult, setRoleChangeResult] = useState<{ success: boolean; message: string } | null>(null);
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
+
+  // Alumni state: which player's class-year picker is open, and the year chosen
+  const [alumniPickId, setAlumniPickId] = useState<string | null>(null);
+  const [alumniYear, setAlumniYear] = useState<number>(defaultAlumniClass());
+  const [savingAlumniId, setSavingAlumniId] = useState<string | null>(null);
 
   // Restore state
   const [isRestoring, setIsRestoring] = useState(false);
@@ -231,6 +237,31 @@ const AdminPanel: React.FC<Props> = ({ allRatings, onRatingsDeleted }) => {
       });
     } finally {
       setChangingRoleId(null);
+    }
+  };
+
+  // Move a player to alumni (classYear) or back to the current team (null).
+  const handleSetAlumni = async (player: Player, classYear: number | null) => {
+    setSavingAlumniId(player.id);
+    setRoleChangeResult(null);
+    try {
+      await db.setPlayerAlumni(player.id, classYear);
+      setRoleChangeResult({
+        success: true,
+        message: classYear === null
+          ? `Moved ${player.name} back to the current team`
+          : `Moved ${player.name} to Alumni (Class of ${classYear})`,
+      });
+      setAlumniPickId(null);
+      await loadRoster();
+    } catch (error) {
+      console.error('[AdminPanel] Alumni change error:', error);
+      setRoleChangeResult({
+        success: false,
+        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    } finally {
+      setSavingAlumniId(null);
     }
   };
 
@@ -496,7 +527,57 @@ const AdminPanel: React.FC<Props> = ({ allRatings, onRatingsDeleted }) => {
                         {player.email || 'No email'}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-2 flex-wrap justify-end">
+                      {player.role === 'Player' && (
+                        isAlumni(player) ? (
+                          <>
+                            <span className="text-xs px-2 py-0.5 rounded-full border bg-purple-500/20 text-purple-300 border-purple-500/30 flex items-center gap-1">
+                              <GraduationCap size={10} />
+                              Class of {player.alumniClass}
+                            </span>
+                            <button
+                              onClick={() => handleSetAlumni(player, null)}
+                              disabled={savingAlumniId === player.id}
+                              className="text-xs px-2 py-1 rounded-md bg-neutral-700 text-neutral-300 hover:bg-neutral-600 hover:text-white transition-colors disabled:opacity-50"
+                            >
+                              {savingAlumniId === player.id ? 'Saving...' : 'Restore'}
+                            </button>
+                          </>
+                        ) : alumniPickId === player.id ? (
+                          <>
+                            <select
+                              value={alumniYear}
+                              onChange={e => setAlumniYear(parseInt(e.target.value))}
+                              className="text-xs px-1 py-1 rounded-md bg-black border border-neutral-700 text-white"
+                            >
+                              {Array.from({ length: 8 }, (_, i) => defaultAlumniClass() + 1 - i).map(y => (
+                                <option key={y} value={y}>Class of {y}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => handleSetAlumni(player, alumniYear)}
+                              disabled={savingAlumniId === player.id}
+                              className="text-xs px-2 py-1 rounded-md bg-purple-500/30 text-purple-200 border border-purple-500/40 hover:bg-purple-500/40 transition-colors disabled:opacity-50"
+                            >
+                              {savingAlumniId === player.id ? 'Saving...' : 'Confirm'}
+                            </button>
+                            <button
+                              onClick={() => setAlumniPickId(null)}
+                              className="text-xs px-2 py-1 rounded-md text-neutral-400 hover:text-white"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => { setAlumniYear(defaultAlumniClass()); setAlumniPickId(player.id); }}
+                            className="text-xs px-2 py-1 rounded-md bg-neutral-700 text-neutral-300 hover:bg-neutral-600 hover:text-white transition-colors flex items-center gap-1"
+                          >
+                            <GraduationCap size={10} />
+                            → Alumni
+                          </button>
+                        )
+                      )}
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${
                         player.role === 'Coach'
                           ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
@@ -526,7 +607,7 @@ const AdminPanel: React.FC<Props> = ({ allRatings, onRatingsDeleted }) => {
           )}
 
           <div className="mt-3 text-xs text-neutral-500">
-            {rosterPlayers.filter(p => p.role === 'Coach').length} coaches, {rosterPlayers.filter(p => p.role === 'Player').length} players
+            {rosterPlayers.filter(p => p.role === 'Coach').length} coaches, {rosterPlayers.filter(p => p.role === 'Player' && !isAlumni(p)).length} players, {rosterPlayers.filter(isAlumni).length} alumni
           </div>
         </div>
       )}

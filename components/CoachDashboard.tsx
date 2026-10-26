@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
 import { db } from '../services/db';
 import AdvancedStatBoard from './AdvancedStatBoard';
+import AlumniBoard from './AlumniBoard';
+import { isAlumni } from '../services/alumni';
 import { UserPlus, LogOut, Trophy, ChevronRight, AlertCircle, X, Dumbbell, ChevronLeft, TrendingUp, Users } from 'lucide-react';
 import { PROGRAM } from '../services/programData';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -38,16 +40,20 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
   // View States
   const [viewMode, setViewMode] = useState<'completion' | 'metrics' | 'analytics' | 'performers'>('completion');
   // Which program's board is showing; opens on the viewer's own program.
-  const [boardProgram, setBoardProgram] = useState<ProgramLevel>(currentPlayer?.program ?? 'Intermediate');
+  // Alumni have their own board; alumni open on it.
+  const boardFor = (p: Player): ProgramLevel | 'Alumni' => (isAlumni(p) ? 'Alumni' : p.program ?? 'Intermediate');
+  const [boardProgram, setBoardProgram] = useState<ProgramLevel | 'Alumni'>(currentPlayer ? boardFor(currentPlayer) : 'Intermediate');
   const showIntermediate = boardProgram === 'Intermediate';
+  // Current team only: alumni are kept off the program boards.
+  const currentPlayers = useMemo(() => players.filter(p => !isAlumni(p)), [players]);
   // Each program has its own board: Advanced players only appear on the Advanced one.
-  const intermediatePlayers = useMemo(() => players.filter(p => p.program !== 'Advanced'), [players]);
+  const intermediatePlayers = useMemo(() => currentPlayers.filter(p => p.program !== 'Advanced'), [currentPlayers]);
   const pickedProgramRef = useRef(false);
   // The app's currentPlayer can predate a program switch, so default from the freshly loaded roster.
   useEffect(() => {
     if (pickedProgramRef.current || !currentPlayer) return;
     const me = players.find(p => p.id === currentPlayer.id);
-    if (me) setBoardProgram(me.program ?? 'Intermediate');
+    if (me) setBoardProgram(boardFor(me));
   }, [players, currentPlayer]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedPlayerForChart, setSelectedPlayerForChart] = useState<Player | null>(null);
@@ -792,8 +798,8 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       </div>
 
       {/* Program Toggle */}
-      <div className="grid grid-cols-2 gap-2 p-1 mb-3 bg-neutral-900 border border-neutral-800 rounded-xl">
-        {(['Intermediate', 'Advanced'] as ProgramLevel[]).map(level => (
+      <div className="grid grid-cols-3 gap-2 p-1 mb-3 bg-neutral-900 border border-neutral-800 rounded-xl">
+        {(['Intermediate', 'Advanced', 'Alumni'] as Array<ProgramLevel | 'Alumni'>).map(level => (
           <button
             key={level}
             onClick={() => { pickedProgramRef.current = true; setBoardProgram(level); }}
@@ -807,6 +813,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       </div>
 
       {/* View Toggle */}
+      {boardProgram !== 'Alumni' && (
       <div className={`flex p-1 bg-neutral-900 rounded-xl mb-6 border border-neutral-800 ${currentPlayer?.role === 'Coach' ? 'flex-wrap gap-1' : ''}`}>
         <button
           onClick={() => setViewMode('completion')}
@@ -845,6 +852,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
           </>
         )}
       </div>
+      )}
 
       {error && (
             <div className="mb-6 bg-red-900/20 border border-red-900/50 p-4 rounded-xl flex items-start text-red-500 text-sm">
@@ -853,9 +861,13 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
             </div>
       )}
 
-      {!showIntermediate && (
+      {boardProgram === 'Alumni' && (
+        <AlumniBoard players={players} allLogs={allLogs} currentPlayer={currentPlayer} />
+      )}
+
+      {boardProgram === 'Advanced' && (
         <AdvancedStatBoard
-          players={players}
+          players={currentPlayers}
           allLogs={allLogs}
           selectedWeek={selectedWeek}
           onSelectWeek={setSelectedWeek}

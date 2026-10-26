@@ -3,6 +3,7 @@ import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
 import { db } from '../services/db';
 import { ChevronLeft, Download, Table } from 'lucide-react';
 import { PROGRAM, ADVANCED_WEEKS } from '../services/programData';
+import { isAlumni } from '../services/alumni';
 import { advancedPlayers, isAdvancedLog, isSessionDay, latestLogForDay, trackerCell, dayStatus } from '../services/advancedStats';
 import {
   getISOWeekFromTimestamp,
@@ -70,7 +71,10 @@ const TrackerView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   // ---------- Intermediate: weeks that have logs × the 4 days ----------
   const intermediate = useMemo(() => {
-    const logs = allLogs.filter(l => !isAdvancedLog(l));
+    const rows = players.filter(p => p.role === 'Player' && !isAlumni(p) && p.program !== 'Advanced');
+    // Only these players' logs make columns, so alumni history doesn't add empty weeks.
+    const rowIds = new Set(rows.map(p => p.id));
+    const logs = allLogs.filter(l => !isAdvancedLog(l) && rowIds.has(l.playerId));
     const weekOf = (log: WorkoutLog): WeekIdentifier =>
       log.weekYear !== undefined && log.week !== undefined
         ? { year: log.weekYear, week: log.week }
@@ -109,7 +113,6 @@ const TrackerView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       },
     })));
 
-    const rows = players.filter(p => p.role === 'Player' && p.program !== 'Advanced');
     return { columns, rows };
   }, [allLogs, players]);
 
@@ -138,7 +141,7 @@ const TrackerView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       },
     })));
 
-    const rows = advancedPlayers(players, allLogs).filter(p => p.role === 'Player');
+    const rows = advancedPlayers(players, allLogs).filter(p => p.role === 'Player' && !isAlumni(p));
     return { columns, rows };
   }, [allLogs, players]);
 

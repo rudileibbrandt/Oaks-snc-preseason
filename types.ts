@@ -41,6 +41,7 @@ export interface Player {
   email?: string; // User email from OAuth
   mergedInto?: string; // If set, this account was merged into the referenced Player ID
   program?: ProgramLevel; // S&C program the player chose; missing means Intermediate
+  alumniClass?: number; // Graduation year; set means the player is alumni (kept for the records, off current boards)
 }
 
 export interface WorkoutLog {

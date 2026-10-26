@@ -78,6 +78,16 @@ const ls = {
     const updated = players.map(p => p.id === id ? { ...p, program } : p);
     localStorage.setItem(ROSTER_KEY, JSON.stringify(updated));
   },
+  // Move a player to alumni (classYear) or back to the current team (null).
+  setPlayerAlumni: async (id: string, classYear: number | null) => {
+    const players = await ls.getPlayers();
+    const updated = players.map(p => {
+      if (p.id !== id) return p;
+      const { alumniClass, ...rest } = p;
+      return classYear === null ? rest : { ...rest, alumniClass: classYear };
+    });
+    localStorage.setItem(ROSTER_KEY, JSON.stringify(updated));
+  },
   saveLog: async (log: WorkoutLog) => {
     const data = localStorage.getItem(LOGS_KEY);
     const logs: WorkoutLog[] = data ? JSON.parse(data) : [];
@@ -432,6 +442,19 @@ export const db = {
       await dbInstance.collection('roster').doc(id).update({ program });
     } catch (e) {
       return handleFirebaseError(e, 'updatePlayerProgram');
+    }
+  },
+
+  setPlayerAlumni: async (id: string, classYear: number | null) => {
+    if (!isConfigured || !dbInstance) return ls.setPlayerAlumni(id, classYear);
+
+    try {
+      await ensureAuth();
+      await dbInstance.collection('roster').doc(id).update({
+        alumniClass: classYear === null ? firebase.firestore.FieldValue.delete() : classYear,
+      });
+    } catch (e) {
+      return handleFirebaseError(e, 'setPlayerAlumni');
     }
   },
 
