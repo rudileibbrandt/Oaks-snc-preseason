@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { thisSeasonOnly } from '../services/season';
 import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
 import { db } from '../services/db';
 import { ChevronLeft, Download, Table } from 'lucide-react';
@@ -51,7 +52,7 @@ const TrackerView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         }
 
         setPlayers(playersData);
-        setAllLogs(logsData);
+        setAllLogs(thisSeasonOnly(logsData)); // this season only
         setError(null);
       } catch (err: any) {
         console.error('[TrackerView] Error loading tracker data:', err);

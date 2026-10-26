@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { thisSeasonOnly } from '../services/season';
 import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
 import { db } from '../services/db';
 import AdvancedStatBoard from './AdvancedStatBoard';
@@ -32,7 +33,9 @@ const isValidNumber = (value: number): boolean => {
 
 const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTrigger }) => {
   const [players, setPlayers] = useState<Player[]>([]);
-  const [allLogs, setAllLogs] = useState<WorkoutLog[]>([]);
+  // Every log ever (the Alumni board uses these); everything else counts this season only.
+  const [everyLog, setAllLogs] = useState<WorkoutLog[]>([]);
+  const allLogs = useMemo(() => thisSeasonOnly(everyLog), [everyLog]);
   const [currentWeek, setCurrentWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
   const [selectedWeek, setSelectedWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
   const isNavigatingRef = useRef<string | null>(null);
@@ -862,7 +865,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       )}
 
       {boardProgram === 'Alumni' && (
-        <AlumniBoard players={players} allLogs={allLogs} currentPlayer={currentPlayer} />
+        <AlumniBoard players={players} allLogs={everyLog} currentPlayer={currentPlayer} />
       )}
 
       {boardProgram === 'Advanced' && (
