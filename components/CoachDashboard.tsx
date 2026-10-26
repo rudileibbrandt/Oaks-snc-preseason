@@ -40,6 +40,8 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
   // Which program's board is showing; opens on the viewer's own program.
   const [boardProgram, setBoardProgram] = useState<ProgramLevel>(currentPlayer?.program ?? 'Intermediate');
   const showIntermediate = boardProgram === 'Intermediate';
+  // Each program has its own board: Advanced players only appear on the Advanced one.
+  const intermediatePlayers = useMemo(() => players.filter(p => p.program !== 'Advanced'), [players]);
   const pickedProgramRef = useRef(false);
   // The app's currentPlayer can predate a program switch, so default from the freshly loaded roster.
   useEffect(() => {
@@ -220,8 +222,8 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
     
     // Filter: Players only see other players, Coaches see everyone
     const visiblePlayers = currentPlayer?.role === 'Player' 
-      ? players.filter(p => p.role === 'Player')  // Players only see other players
-      : players;  // Coaches see everyone (players and coaches)
+      ? intermediatePlayers.filter(p => p.role === 'Player')  // Players only see other players
+      : intermediatePlayers;  // Coaches see everyone (players and coaches)
     
     for (const player of visiblePlayers) {
       const playerLogs = allLogs.filter(l => l.playerId === player.id && l.data);
@@ -432,7 +434,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
     if (weeks.length === 0) return { top: [], bottom: [] };
 
     // Filter to only players (not coaches) for this view
-    const playerPlayers = players.filter(p => p.role === 'Player');
+    const playerPlayers = intermediatePlayers.filter(p => p.role === 'Player');
 
     // Track rankings for each player
     const playerRankings: Record<string, { top10Count: number; bottom10Count: number; totalWeeks: number; avgRank: number; ranks: number[] }> = {};
@@ -519,15 +521,15 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       .slice(0, 10);
 
     return { top: topPerformers, bottom: bottomPerformers };
-  }, [allLogs, players, viewMode]);
+  }, [allLogs, intermediatePlayers, viewMode]);
 
   // Sort players based on view mode
   // Filter: Players only see other players, Coaches see everyone
   const sortedPlayers = useMemo(() => {
     // Filter players based on current user's role
     const visiblePlayers = currentPlayer?.role === 'Player' 
-      ? players.filter(p => p.role === 'Player')  // Players only see other players
-      : players;  // Coaches see everyone (players and coaches)
+      ? intermediatePlayers.filter(p => p.role === 'Player')  // Players only see other players
+      : intermediatePlayers;  // Coaches see everyone (players and coaches)
     
     const playersWithScores = visiblePlayers.map(player => ({
       ...player,
@@ -552,7 +554,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
         return b.completionRate - a.completionRate;
       });
     }
-  }, [players, allLogs, viewMode, currentPlayer]);
+  }, [intermediatePlayers, allLogs, viewMode, currentPlayer]);
 
   // Calculate completion rates for analytics
   const completionData = useMemo(() => {
@@ -564,7 +566,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       weeks.push(getISOWeek(weekStart));
     }
 
-    const playerPlayers = players.filter(p => p.role === 'Player');
+    const playerPlayers = intermediatePlayers.filter(p => p.role === 'Player');
     
     return weeks.map(week => {
       const weekLogs = allLogs.filter(log => {
@@ -599,7 +601,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
         total: totalPossible
       };
     });
-  }, [allLogs, players]);
+  }, [allLogs, intermediatePlayers]);
 
   // Calculate individual player improvement
   const playerImprovementData = useMemo(() => {
@@ -912,13 +914,13 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
                 <select
                   value={selectedPlayerForChart?.id || ''}
                   onChange={(e) => {
-                    const player = players.find(p => p.id === e.target.value);
+                    const player = intermediatePlayers.find(p => p.id === e.target.value);
                     setSelectedPlayerForChart(player || null);
                   }}
                   className="bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500"
                 >
                   <option value="">Select a player...</option>
-                  {players.filter(p => p.role === 'Player').map(player => (
+                  {intermediatePlayers.filter(p => p.role === 'Player').map(player => (
                     <option key={player.id} value={player.id}>{player.name}</option>
                   ))}
                 </select>
