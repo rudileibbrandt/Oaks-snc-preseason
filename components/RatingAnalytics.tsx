@@ -11,6 +11,7 @@ import AdminPanel from './AdminPanel';
 import RaterView from './RaterView';
 import FeedbackReview from './FeedbackReview';
 import { useAlumniNames } from '../hooks/useAlumniNames';
+import { currentRatingsOnly } from '../services/classYears';
 import { normalizeName } from '../services/alumni';
 
 interface Props {
@@ -31,14 +32,11 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   // Graduated players are hidden here (the viewer always sees their own ratings).
   // The Admin tab still gets every rating.
-  const { alumniNames } = useAlumniNames();
-  const currentRatings = useMemo(() => {
-    const me = currentPlayer?.name ? normalizeName(currentPlayer.name) : null;
-    return allRatings.filter(r => {
-      const n = normalizeName(r.playerName);
-      return n === me || !alumniNames.has(n);
-    });
-  }, [allRatings, alumniNames, currentPlayer?.name]);
+  const { alumniNames, ready: alumniReady } = useAlumniNames();
+  const currentRatings = useMemo(
+    () => currentRatingsOnly(allRatings, alumniNames, currentPlayer?.name),
+    [allRatings, alumniNames, currentPlayer?.name],
+  );
   console.log('[RatingAnalytics] currentPlayer role:', currentPlayer?.role, 'isCoach:', currentPlayer?.role?.toLowerCase() === 'coach');
 
   // Load all ratings on mount
@@ -84,6 +82,7 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       return [currentPlayer.name];
     }
 
+    if (!alumniReady) return []; // wait for the alumni list so graduates never flash up
     const rosterNames = ROSTER_PLAYERS.map(p => p.name).filter(n => !alumniNames.has(normalizeName(n)));
     const allPlayerNames = Array.from(new Set([...rosterNames, ...playersWithRatings])).sort();
 
@@ -94,7 +93,7 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     return allPlayerNames.filter(name =>
       name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [searchQuery, playersWithRatings, isCoach, currentPlayer?.name, alumniNames]);
+  }, [searchQuery, playersWithRatings, isCoach, currentPlayer?.name, alumniNames, alumniReady]);
 
   // Handle player selection
   const handleSelectPlayer = (playerName: string) => {
@@ -316,7 +315,7 @@ const RatingAnalytics: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
 
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading || !alumniReady) {
       return (
         <div className="flex items-center justify-center py-16 text-neutral-500">
           <div className="text-center">

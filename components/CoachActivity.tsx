@@ -6,6 +6,7 @@ import { loadRatings, invalidateRatingsCache } from '../services/ratingData';
 import { loadInjuries } from '../services/injuryData';
 import { getPhotoUrl, ROSTER_PLAYERS, GROUP_COLORS } from '../services/rosterData';
 import { useAlumniNames } from '../hooks/useAlumniNames';
+import { currentRatingsOnly } from '../services/classYears';
 import RatingModal from './RatingModal';
 
 interface Props {
@@ -35,7 +36,7 @@ function normalizeName(name: string): string {
 }
 
 const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
-  const { alumniNames, isAlumniName } = useAlumniNames(); // graduated players aren't on the to-rate list
+  const { alumniNames, isAlumniName, ready: alumniReady } = useAlumniNames(); // alumni are out of every list and number here
   const [coaches, setCoaches] = useState<Player[]>([]);
   const [allRatings, setAllRatings] = useState<PlayerRating[]>([]);
   const [allInjuries, setAllInjuries] = useState<InjuryRecord[]>([]);
@@ -76,8 +77,7 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   // Group ratings by raterId
   // Only ratings of current players count; alumni are out of every number here.
   const currentRatings = useMemo(
-    () => allRatings.filter(r => !isAlumniName(r.playerName)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => currentRatingsOnly(allRatings, alumniNames),
     [allRatings, alumniNames],
   );
 
@@ -141,7 +141,7 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   // Players the current coach hasn't rated yet
   const unratedPlayers = useMemo(() => {
-    if (!currentPlayer) return { groups: new Map<string, typeof ROSTER_PLAYERS>(), total: 0 };
+    if (!currentPlayer || !alumniReady) return { groups: new Map<string, typeof ROSTER_PLAYERS>(), total: 0 };
     const myRatings = ratingsByRater.get(currentPlayer.id) || [];
     const ratedNames = new Set(myRatings.map(r => r.playerName));
     const unrated = ROSTER_PLAYERS.filter(p => !ratedNames.has(p.name) && !isAlumniName(p.name));
@@ -153,7 +153,7 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       groups.set(group, existing);
     }
     return { groups, total: unrated.length };
-  }, [currentPlayer, ratingsByRater, alumniNames]);
+  }, [currentPlayer, ratingsByRater, alumniNames, alumniReady]);
 
   const isDuplicate = (coachId: string): boolean => {
     for (const group of duplicateGroups.values()) {

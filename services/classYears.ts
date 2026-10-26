@@ -2,7 +2,7 @@
 //
 // We store the graduation year, never "Senior": the label is derived, so it rolls over each
 // school year without anyone re-marking players.
-import { Player, RosterClass, RosterPlayer } from '../types';
+import { Player, PlayerRating, RosterClass, RosterPlayer } from '../types';
 import { db } from './db';
 import { isAlumni, normalizeName } from './alumni';
 
@@ -74,6 +74,17 @@ export const loadAlumniNames = (): Promise<Set<string>> => {
 };
 
 export const invalidateAlumniNames = () => { alumniNamesCache = null; };
+
+// Ratings that still count: neither the player rated nor the rater has graduated.
+// keepName (the viewer) is always kept, so an alumnus can still see their own feedback.
+export const currentRatingsOnly = (ratings: PlayerRating[], alumniNames: Set<string>, keepName?: string) => {
+  const keep = keepName ? normalizeName(keepName) : null;
+  return ratings.filter(r => {
+    const player = normalizeName(r.playerName);
+    if (player === keep) return true;
+    return !alumniNames.has(player) && !alumniNames.has(normalizeName(r.raterName || ''));
+  });
+};
 
 // Thrown when someone tries to score a graduated player.
 export class AlumniError extends Error {

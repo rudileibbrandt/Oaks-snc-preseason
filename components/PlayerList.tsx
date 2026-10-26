@@ -13,6 +13,7 @@ import RatingHistorySection from './RatingHistorySection';
 import GraduateSeniorsModal from './GraduateSeniorsModal';
 import MarkSeniorsModal from './MarkSeniorsModal';
 import { rosterAlumniNames } from '../services/classYears';
+import { useAlumniNames } from '../hooks/useAlumniNames';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -73,10 +74,17 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   // Team vs Alumni: graduated players only show on the Alumni tab.
   const [showAlumni, setShowAlumni] = useState(false);
-  const alumniNames = useMemo(() => rosterAlumniNames(appPlayers, rosterClasses), [appPlayers, rosterClasses]);
+  // Shared list (ready = loaded) plus this screen's own data, which updates right after a graduation.
+  const { alumniNames: sharedAlumni, ready: alumniReady } = useAlumniNames();
+  const alumniNames = useMemo(() => {
+    const names = rosterAlumniNames(appPlayers, rosterClasses);
+    sharedAlumni.forEach(n => names.add(n));
+    return names;
+  }, [appPlayers, rosterClasses, sharedAlumni]);
   const teamRoster = useMemo(() => ROSTER_PLAYERS.filter(p => !alumniNames.has(normalizeName(p.name))), [alumniNames]);
   const alumniRoster = useMemo(() => ROSTER_PLAYERS.filter(p => alumniNames.has(normalizeName(p.name))), [alumniNames]);
-  const shownRoster = showAlumni ? alumniRoster : teamRoster;
+  // Nothing shows until the alumni list has loaded, so graduates never flash up on Team.
+  const shownRoster = !alumniReady ? [] : showAlumni ? alumniRoster : teamRoster;
 
   // Load app players to cross-reference with roster
   const loadAppPlayers = useCallback(async () => {

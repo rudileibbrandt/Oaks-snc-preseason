@@ -4,6 +4,7 @@ import { db } from '../services/db';
 import { PROGRAM, getAdvancedWeek, findWorkoutDay, ADVANCED_FIRST_WEEK, ADVANCED_LAST_WEEK } from '../services/programData';
 import { ChevronLeft, CheckCircle2, User, ChevronRight, Settings, Users, Moon } from 'lucide-react';
 import WorkoutSession from './WorkoutSession';
+import { isAlumni } from '../services/alumni';
 import { 
   getCurrentISOWeek, 
   getISOWeekFromTimestamp, 
@@ -171,7 +172,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   };
 
   const filteredPlayers = players.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+    !isAlumni(p) && p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // If no player selected yet, show loading while we auto-link

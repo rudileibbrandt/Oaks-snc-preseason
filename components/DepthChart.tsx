@@ -5,9 +5,9 @@ import { ROSTER_PLAYERS, GROUP_COLORS, getPhotoUrl } from '../services/rosterDat
 import { loadPositionOverrides } from '../services/positionData';
 import { loadRatings } from '../services/ratingData';
 import { aggregatePlayerRatings } from '../services/ratingAnalytics';
-import { db } from '../services/db';
 import { normalizeName } from '../services/alumni';
-import { rosterAlumniNames } from '../services/classYears';
+import { currentRatingsOnly } from '../services/classYears';
+import { useAlumniNames } from '../hooks/useAlumniNames';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -33,18 +33,20 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
   const [squadFilter, setSquadFilter] = useState<'all' | '1sts and 2nds' | 'Academy'>('1sts and 2nds');
   const [primaryOnly, setPrimaryOnly] = useState(false);
 
-  // Alumni (graduated players) are left off the depth chart, matched by name.
-  const [alumniNames, setAlumniNames] = useState<Set<string>>(new Set());
+  // Alumni (graduated players) are left off the depth chart, and their ratings of others don't count.
+  const { alumniNames, ready: alumniReady } = useAlumniNames();
+  const [rawRatings, setRawRatings] = useState<PlayerRating[]>([]);
 
   useEffect(() => {
     loadRatings().then(ratings => {
-      setAllRatings(ratings);
+      setRawRatings(ratings);
       setLoading(false);
     }).catch(() => setLoading(false));
-    Promise.all([db.getPlayers().catch(() => []), db.getRosterClasses().catch(() => ({}))])
-      .then(([players, classes]) => setAlumniNames(rosterAlumniNames(players, classes)))
-      .catch(err => console.error('[DepthChart] Could not load alumni:', err));
   }, []);
+
+  useEffect(() => {
+    setAllRatings(currentRatingsOnly(rawRatings, alumniNames));
+  }, [rawRatings, alumniNames]);
 
   // Current squad: the squad filter, minus alumni.
   const squadPlayers = useMemo(() => ROSTER_PLAYERS.filter(p =>
@@ -194,7 +196,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
     });
   }, [allRatings, squadPlayers]);
 
-  if (loading) {
+  if (loading || !alumniReady) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-neutral-400">Loading depth chart...</div>

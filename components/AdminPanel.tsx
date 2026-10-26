@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Trash2, AlertTriangle, CheckCircle, Shield, User, RefreshCw, ArrowRightLeft, Search, Undo2, GraduationCap } from 'lucide-react';
 import { isAlumni, defaultAlumniClass } from '../services/alumni';
 import { setRosterAlumni } from '../services/classYears';
+import { ROSTER_PLAYERS } from '../services/rosterData';
+import { normalizeName } from '../services/alumni';
 import { Player, PlayerRating } from '../types';
 import { db, manualMigrateTo5PointScale, restoreRatingsFromHistory, clearMergedInto } from '../services/db';
 import { invalidateRatingsCache, deleteRating, deleteRatingsByRater, RATING_COLORS, calculateAverageRating } from '../services/ratingData';
@@ -251,7 +253,10 @@ const AdminPanel: React.FC<Props> = ({ allRatings, onRatingsDeleted }) => {
         success: true,
         message: classYear === null
           ? `Moved ${player.name} back to the current team`
-          : `Moved ${player.name} to Alumni (Class of ${classYear})`,
+          : `Moved ${player.name} to Alumni (Class of ${classYear})` + (
+            ROSTER_PLAYERS.some(rp => normalizeName(rp.name) === normalizeName(player.name)) ? '' :
+            `. Note: no roster player is named "${player.name}", so ratings or the depth chart may list them under another name. Graduate them in Player Roster > Graduate Seniors too.`
+          ),
       });
       setAlumniPickId(null);
       await loadRoster();

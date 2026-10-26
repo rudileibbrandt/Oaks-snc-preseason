@@ -21,7 +21,7 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [allInjuries, setInjuries] = useState<InjuryRecord[]>([]);
   // Graduated players' injuries are left out of the tracker and its counts.
-  const { alumniNames, isAlumniName } = useAlumniNames();
+  const { alumniNames, isAlumniName, ready: alumniReady } = useAlumniNames();
   const injuries = useMemo(
     () => allInjuries.filter(i => !isAlumniName(i.playerName)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -323,7 +323,7 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
 
       {/* Injury List */}
       <div className="space-y-3">
-        {isLoading ? (
+        {isLoading || !alumniReady ? (
           <div className="flex items-center justify-center py-12 text-neutral-500">
             <Loader2 size={32} className="animate-spin mr-3" />
             <span>Loading injuries...</span>
