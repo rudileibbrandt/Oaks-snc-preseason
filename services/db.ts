@@ -1,4 +1,4 @@
-import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry } from '../types';
+import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel } from '../types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -71,6 +71,11 @@ const ls = {
   updatePlayerPosition: async (id: string, position: 'Forward' | 'Back') => {
     const players = await ls.getPlayers();
     const updated = players.map(p => p.id === id ? { ...p, position } : p);
+    localStorage.setItem(ROSTER_KEY, JSON.stringify(updated));
+  },
+  updatePlayerProgram: async (id: string, program: ProgramLevel) => {
+    const players = await ls.getPlayers();
+    const updated = players.map(p => p.id === id ? { ...p, program } : p);
     localStorage.setItem(ROSTER_KEY, JSON.stringify(updated));
   },
   saveLog: async (log: WorkoutLog) => {
@@ -416,6 +421,17 @@ export const db = {
       await dbInstance.collection('roster').doc(id).update({ position });
     } catch (e) {
       return handleFirebaseError(e, 'updatePlayerPosition');
+    }
+  },
+
+  updatePlayerProgram: async (id: string, program: ProgramLevel) => {
+    if (!isConfigured || !dbInstance) return ls.updatePlayerProgram(id, program);
+
+    try {
+      await ensureAuth();
+      await dbInstance.collection('roster').doc(id).update({ program });
+    } catch (e) {
+      return handleFirebaseError(e, 'updatePlayerProgram');
     }
   },
 

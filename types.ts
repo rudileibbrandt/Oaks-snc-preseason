@@ -5,6 +5,8 @@ export interface ExerciseDef {
   videoUrl?: string; // Some exercises like A-Skip have no link
   isMetric: boolean; // true if we need to record weight/reps, false if it's just "done"
   isSprint?: boolean; // true if it's a sprint exercise (record sets and time instead of weight)
+  group?: string; // Superset letter (A–E) in the Advanced program
+  note?: string; // Coaching note
 }
 
 export interface WorkoutDay {
@@ -12,6 +14,19 @@ export interface WorkoutDay {
   title: string;
   focus: string;
   exercises: ExerciseDef[];
+  date?: string; // ISO date (YYYY-MM-DD), Advanced program only
+  note?: string; // Day-level instruction, e.g. "Complete this run if Team Training was not fitness based."
+  restNote?: string; // Set on rest days, which have no session to log
+}
+
+export type ProgramLevel = 'Intermediate' | 'Advanced';
+
+// One week of the dated Advanced program
+export interface AdvancedWeek {
+  week: number; // 1–7
+  phase: string; // e.g. "Block A", "Deload + test"
+  startDate: string; // Monday, ISO date
+  days: WorkoutDay[]; // Mon–Sun
 }
 
 export interface Player {
@@ -22,6 +37,7 @@ export interface Player {
   userId?: string; // Firebase auth user ID
   email?: string; // User email from OAuth
   mergedInto?: string; // If set, this account was merged into the referenced Player ID
+  program?: ProgramLevel; // S&C program the player chose; missing means Intermediate
 }
 
 export interface WorkoutLog {

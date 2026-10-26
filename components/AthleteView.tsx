@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Player, WorkoutLog, AppView } from '../types';
+import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
 import { db } from '../services/db';
-import { PROGRAM } from '../services/programData';
-import { ChevronLeft, CheckCircle2, User, ChevronRight, Settings, Users } from 'lucide-react';
+import { PROGRAM, getAdvancedWeek, findWorkoutDay, ADVANCED_FIRST_WEEK, ADVANCED_LAST_WEEK } from '../services/programData';
+import { ChevronLeft, CheckCircle2, User, ChevronRight, Settings, Users, Moon } from 'lucide-react';
 import WorkoutSession from './WorkoutSession';
 import { 
   getCurrentISOWeek, 
@@ -12,6 +12,7 @@ import {
   getISOWeek,
   formatWeekIdentifier,
   parseWeekIdentifier,
+  compareWeekIdentifiers,
   WeekIdentifier
 } from '../utils/weekUtils';
 
@@ -150,7 +151,26 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
     }
   };
 
-  const filteredPlayers = players.filter(p => 
+  const handleChangeProgram = async (program: ProgramLevel) => {
+    if (!selectedPlayer || program === (selectedPlayer.program ?? 'Intermediate')) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await db.updatePlayerProgram(selectedPlayer.id, program);
+      const updatedPlayer = { ...selectedPlayer, program };
+      setSelectedPlayer(updatedPlayer);
+      setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? updatedPlayer : p));
+    } catch (err: any) {
+      console.error("[AthleteView] Update program failed:", err);
+      setError(err.message || "Failed to change program");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredPlayers = players.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -211,7 +231,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
 
   // VIEW 3: WORKOUT SESSION
   if (activeDayId) {
-    const day = PROGRAM.DAYS.find(d => d.id === activeDayId);
+    const day = findWorkoutDay(activeDayId);
     if (!day) return null;
     // Find log for this day in the selected week
     const weekLog = playerLogs.find(l => l.dayId === activeDayId);
@@ -227,6 +247,14 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   }
 
   // VIEW 4: ATHLETE DASHBOARD (Select Day)
+  const program: ProgramLevel = selectedPlayer.program ?? 'Intermediate';
+  const advancedWeek = program === 'Advanced' ? getAdvancedWeek(selectedWeek) : undefined;
+  const isBeforeAdvanced = compareWeekIdentifiers(selectedWeek, ADVANCED_FIRST_WEEK) < 0;
+  const todayIso = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  })();
+
   return (
     <div className="pb-20 animate-fade-in">
       <header className="flex items-center justify-between mb-6">
@@ -258,6 +286,32 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
           )}
         </div>
       </header>
+
+      {/* Program Switcher */}
+      <div className="mb-6">
+        <div className="text-xs text-neutral-400 font-medium mb-2">S&amp;C Program</div>
+        <div className="grid grid-cols-2 gap-2 p-1 bg-neutral-900 border border-neutral-800 rounded-xl">
+          {(['Intermediate', 'Advanced'] as ProgramLevel[]).map(level => (
+            <button
+              key={level}
+              onClick={() => handleChangeProgram(level)}
+              disabled={isSubmitting}
+              className={`py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-50 ${
+                program === level
+                  ? 'bg-amber-500 text-black'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              {level}
+            </button>
+          ))}
+        </div>
+        {error && !isUpdatingPosition && (
+          <div className="mt-2 bg-red-900/20 border border-red-900/50 p-3 rounded-lg text-red-500 text-sm">
+            {error}
+          </div>
+        )}
+      </div>
 
       {/* Week Navigation */}
       <div className="flex items-center justify-between mb-6">
@@ -416,6 +470,83 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
         </div>
       )}
 
+      {program === 'Advanced' ? (
+        advancedWeek ? (
+          <div>
+            <div className="mb-4">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-500">
+                Week {advancedWeek.week} · {advancedWeek.phase}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {advancedWeek.days.map(day => {
+                const isToday = day.date === todayIso;
+                if (day.restNote !== undefined && day.exercises.length === 0) {
+                  return (
+                    <div
+                      key={day.id}
+                      className={`p-5 rounded-2xl border bg-neutral-900/50 ${isToday ? 'border-amber-500/60' : 'border-neutral-800'}`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Moon size={14} className="text-neutral-500" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                          {day.title}{isToday && ' · Today'}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-bold text-neutral-400">Rest Day</h3>
+                      <p className="text-sm text-neutral-500 mt-1">{day.restNote}</p>
+                    </div>
+                  );
+                }
+                const complete = isDayComplete(day.id);
+                const lifts = day.exercises.filter(ex => ex.isMetric).length;
+                const other = day.exercises.length - lifts;
+                const summary = [
+                  lifts > 0 && `${lifts} lift${lifts === 1 ? '' : 's'}`,
+                  other > 0 && day.exercises.filter(ex => !ex.isMetric).map(ex => ex.name).join(' · '),
+                ].filter(Boolean).join(' + ');
+                return (
+                  <button
+                    key={day.id}
+                    onClick={() => setActiveDayId(day.id)}
+                    className={`
+                      relative p-5 rounded-2xl border text-left transition-all
+                      ${complete
+                        ? 'bg-neutral-900 border-neutral-800'
+                        : `bg-neutral-800 hover:border-amber-500/50 ${isToday ? 'border-amber-500' : 'border-neutral-700'}`
+                      }
+                    `}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <span className={`text-xs font-bold uppercase tracking-wider ${complete ? 'text-green-500' : 'text-amber-500'}`}>
+                        {day.title}{isToday && ' · Today'}
+                      </span>
+                      {complete && <CheckCircle2 className="text-green-500" size={20} />}
+                    </div>
+                    <h3 className={`text-xl font-bold mb-1 ${complete ? 'text-neutral-500' : 'text-white'}`}>
+                      {day.focus}
+                    </h3>
+                    <div className="text-sm text-neutral-400">{summary}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 rounded-2xl border border-neutral-800 bg-neutral-900 text-center">
+            <h3 className="text-lg font-bold text-white mb-2">No Advanced sessions this week</h3>
+            <p className="text-sm text-neutral-400 mb-4">
+              The Advanced program runs Mon 2 Nov – Sun 20 Dec 2026.
+            </p>
+            <button
+              onClick={() => setSelectedWeek(isBeforeAdvanced ? ADVANCED_FIRST_WEEK : ADVANCED_LAST_WEEK)}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold rounded-lg transition-colors"
+            >
+              {isBeforeAdvanced ? 'Preview Week 1' : 'Go to Week 7'}
+            </button>
+          </div>
+        )
+      ) : (
       <div className="grid grid-cols-1 gap-4">
         {PROGRAM.DAYS.map((day, index) => {
           const complete = isDayComplete(day.id);
@@ -454,15 +585,25 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
           );
         })}
       </div>
-      
+      )}
+
       <div className="mt-8 p-4 bg-neutral-900/50 rounded-lg border border-neutral-800">
-        <h4 className="text-white font-semibold mb-2 text-sm">Program Notes</h4>
-        <ul className="text-xs text-neutral-400 space-y-1 list-disc list-inside">
-          <li>Warm up is mandatory every session.</li>
-          <li>Weeks 1-2: Establish baseline.</li>
-          <li>Weeks 3-5: Add weight (Overload).</li>
-          <li>Weeks 6-7: Maximize speed.</li>
-        </ul>
+        <h4 className="text-white font-semibold mb-2 text-sm">{program} Program Notes</h4>
+        {program === 'Advanced' ? (
+          <ul className="text-xs text-neutral-400 space-y-1 list-disc list-inside">
+            <li>Warm up is mandatory before every lifting session.</li>
+            <li>Letters A–E are supersets: alternate the exercises that share a letter.</li>
+            <li>Weeks 1–3: Block A. Weeks 4–6: Block B.</li>
+            <li>Week 7: Deload and test (3-rep maxes, Bronco).</li>
+          </ul>
+        ) : (
+          <ul className="text-xs text-neutral-400 space-y-1 list-disc list-inside">
+            <li>Warm up is mandatory every session.</li>
+            <li>Weeks 1-2: Establish baseline.</li>
+            <li>Weeks 3-5: Add weight (Overload).</li>
+            <li>Weeks 6-7: Maximize speed.</li>
+          </ul>
+        )}
       </div>
     </div>
   );

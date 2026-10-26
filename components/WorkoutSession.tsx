@@ -114,7 +114,8 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
   const isSavingRef = useRef(false); // Ref to prevent double-clicks
   const [warmupOpen, setWarmupOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const hasLifts = day.exercises.some(ex => ex.isMetric);
+
   // Check if selected week is in the future
   const currentWeek = getCurrentISOWeek();
   const isFutureWeek = selectedWeek ? compareWeekIdentifiers(selectedWeek, currentWeek) > 0 : false;
@@ -308,8 +309,15 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
       </div>
 
       <div className="space-y-6">
-        
-        {/* Warmup Section */}
+
+        {day.note && (
+          <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-sm text-amber-200">
+            {day.note}
+          </div>
+        )}
+
+        {/* Warmup Section (lifting days only) */}
+        {hasLifts && (
         <div className="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800">
           <button 
             onClick={() => setWarmupOpen(!warmupOpen)}
@@ -345,6 +353,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
             </div>
           )}
         </div>
+        )}
 
         {/* Main Workout */}
         <div className="space-y-6">
@@ -352,9 +361,17 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
             <div key={ex.id} className="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden">
               {/* Exercise Header */}
               <div className="p-4 bg-neutral-950/50 border-b border-neutral-800 flex items-center justify-between">
-                <div className="flex-1">
-                  <h4 className="text-xl font-bold text-white mb-1">{ex.name}</h4>
-                  <p className="text-sm text-neutral-400">{formatRepsString(ex.reps)}</p>
+                <div className="flex-1 flex items-start gap-3">
+                  {ex.group && (
+                    <span className="shrink-0 w-8 h-8 rounded-lg bg-amber-500 text-black font-black flex items-center justify-center">
+                      {ex.group}
+                    </span>
+                  )}
+                  <div className="flex-1">
+                    <h4 className="text-xl font-bold text-white mb-1">{ex.name}</h4>
+                    {ex.reps && <p className="text-sm text-neutral-400">{formatRepsString(ex.reps)}</p>}
+                    {ex.note && <p className="text-xs text-neutral-500 mt-2 whitespace-pre-line">{ex.note}</p>}
+                  </div>
                 </div>
                 {ex.videoUrl && (
                   <a 

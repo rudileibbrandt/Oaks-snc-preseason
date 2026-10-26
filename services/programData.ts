@@ -1,4 +1,6 @@
-import { WorkoutDay, ExerciseDef } from '../types';
+import { WorkoutDay, ExerciseDef, AdvancedWeek } from '../types';
+import { ADVANCED_WEEKS } from './advancedProgram';
+import { getISOWeek, WeekIdentifier } from '../utils/weekUtils';
 
 const WARMUP: ExerciseDef[] = [
   { id: 'wu1', name: 'Skaters', reps: '2x20', videoUrl: 'https://youtu.be/9_jLW6VkU8A?si=XJA-qQVnFg9n4xmj', isMetric: false },
@@ -71,3 +73,30 @@ export const PROGRAM = {
   WARMUP,
   DAYS: [DAY1, DAY2, DAY3, DAY4]
 };
+
+// The original 4-day program is the Intermediate level.
+export const INTERMEDIATE_PROGRAM = PROGRAM;
+
+export { ADVANCED_WEEKS };
+
+// Which ISO week a program date ("YYYY-MM-DD") falls in, read as a local date.
+const isoWeekOfDate = (isoDate: string): WeekIdentifier => {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return getISOWeek(new Date(y, m - 1, d));
+};
+
+// The Advanced week scheduled for a calendar week, or undefined outside the program's dates.
+export const getAdvancedWeek = (weekId: WeekIdentifier): AdvancedWeek | undefined =>
+  ADVANCED_WEEKS.find(w => {
+    const start = isoWeekOfDate(w.startDate);
+    return start.year === weekId.year && start.week === weekId.week;
+  });
+
+// First and last calendar weeks of the Advanced program.
+export const ADVANCED_FIRST_WEEK = isoWeekOfDate(ADVANCED_WEEKS[0].startDate);
+export const ADVANCED_LAST_WEEK = isoWeekOfDate(ADVANCED_WEEKS[ADVANCED_WEEKS.length - 1].startDate);
+
+// Look up a workout day from either program by its id.
+export const findWorkoutDay = (dayId: string): WorkoutDay | undefined =>
+  PROGRAM.DAYS.find(d => d.id === dayId) ??
+  ADVANCED_WEEKS.flatMap(w => w.days).find(d => d.id === dayId);
