@@ -6,7 +6,7 @@
 // top speed were filled in where it had none). Bronze, Silver and Gold are our own step-downs.
 // Hookers and locks share numbers except the squat, as in the deck (to be confirmed).
 import { RugbyPosition, TestResult, TestSession } from '../types';
-import { SEASON_START } from './season';
+import { TESTING_SEASON_START } from './season';
 
 export const LEVELS = ['Bronze', 'Silver', 'Gold', 'Elite'] as const;
 export type Level = typeof LEVELS[number];
@@ -169,8 +169,8 @@ export interface BestScore {
   date: string;
 }
 
-// A player's best score per test, this season only (sessions dated on or after SEASON_START).
-export const bestThisSeason = (results: TestResult[], sessions: TestSession[], seasonStart = SEASON_START) => {
+// A player's best score per test, this season only (sessions dated on or after TESTING_SEASON_START).
+export const bestThisSeason = (results: TestResult[], sessions: TestSession[], seasonStart = TESTING_SEASON_START) => {
   const dateOf = new Map(sessions.map(s => [s.id, s.date]));
   const best: Partial<Record<StandardTest, BestScore>> = {};
   for (const r of results) {

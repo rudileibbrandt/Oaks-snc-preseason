@@ -4,7 +4,7 @@ import { AppView, Player, TestResult, TestSession } from '../types';
 import { db } from '../services/db';
 import { ROSTER_PLAYERS } from '../services/rosterData';
 import { normalizeName } from '../services/alumni';
-import { SEASON_START } from '../services/season';
+import { TESTING_SEASON_START } from '../services/season';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 import { useRosterClasses } from '../hooks/useRosterContext';
 import {
@@ -143,7 +143,7 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
           })}
           <p className="text-[11px] text-neutral-500">
             Times: at or under the line. Jump and lifts: at or over. Chin-up total = bodyweight + weight added.
-            Your level is your best result since {SEASON_START}.
+            Your level is your best result since {TESTING_SEASON_START}.
           </p>
         </div>
       )}
@@ -244,7 +244,7 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
           </table>
         </div>
       )}
-      <p className="text-[11px] text-neutral-500">Best result per test since {SEASON_START}.</p>
+      <p className="text-[11px] text-neutral-500">Best result per test since {TESTING_SEASON_START}.</p>
     </div>
   );
 };

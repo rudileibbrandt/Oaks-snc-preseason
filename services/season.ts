@@ -4,6 +4,8 @@ import { WorkoutLog } from '../types';
 import { WeekIdentifier, compareWeekIdentifiers, getISOWeek, getISOWeekFromTimestamp } from '../utils/weekUtils';
 
 export const SEASON_START = '2026-11-02'; // Mon 2 Nov 2026, the start of the Advanced program
+// Testing counts from the Sunday before, so the baseline test (Sun 1 Nov) is part of this season.
+export const TESTING_SEASON_START = '2026-11-01';
 
 // Noon, so the date can't slip a day across time zones.
 const seasonStartWeek: WeekIdentifier = getISOWeek(new Date(`${SEASON_START}T12:00:00`));
