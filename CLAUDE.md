@@ -94,3 +94,10 @@ All workout logs use ISO 8601 weeks:
 - `types.ts` - Core data structures (changes propagate throughout)
 - `components/CoachDashboard.tsx` - Coach analytics (1490 lines, most complex)
 - `components/WorkoutSession.tsx` - Workout logging form
+
+## Agent skills
+
+Matt Pocock's skills are installed (`.claude/skills/`; `code-review` renamed `two-axis-review`, matching sixdegree-app). No formal loop here — use ad hoc: `grilling` before non-trivial changes, `tdd` for logic (weekUtils, db), `/code-review` before calling work done, `/two-axis-review` for anything touching auth or live user data, `/handoff` at session breaks. Docs created by skills save to `docs/`.
+
+### Issue tracker
+`docs/agents/issue-tracker.md` — **TODO.md is the tracker.** Label vocabulary: `docs/agents/triage-labels.md`.
