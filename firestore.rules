@@ -37,6 +37,12 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Team calendar events (practices, matches). Coach-only editing is enforced in the app.
+    // Deletes allowed so a cancelled event can be removed.
+    match /events/{eventId} {
+      allow read, create, update, delete: if request.auth != null;
+    }
+
     // S&C standards testing: testing days and each player's results on them.
     // Coach-only entry is enforced in the app (roster roles are editable, so rules can't check them).
     match /testSessions/{sessionId} {

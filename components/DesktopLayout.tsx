@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Dumbbell, Users, ClipboardList, BarChart3, UserCog, LogOut, Medal } from 'lucide-react';
+import { Shield, Dumbbell, Users, ClipboardList, BarChart3, UserCog, LogOut, Medal, CalendarDays } from 'lucide-react';
 import { AppView, Player } from '../types';
 import { signOut, getCurrentUser } from '../services/auth';
 
@@ -35,6 +35,7 @@ const DesktopLayout: React.FC<Props> = ({ currentView, onNavigate, currentPlayer
     { view: 'ATHLETE_SELECT', label: 'My Workouts', icon: <Dumbbell size={20} /> },
     { view: 'COACH', label: 'Stat Board', icon: <Users size={20} /> },
     { view: 'ROSTER', label: 'Players', icon: <ClipboardList size={20} /> },
+    { view: 'CALENDAR', label: 'Calendar', icon: <CalendarDays size={20} /> },
     { view: 'STANDARDS', label: 'S&C Standards', icon: <Medal size={20} /> },
     { view: 'COACHES_CORNER', label: 'Coaches Corner', icon: <UserCog size={20} />, coachOnly: true },
     { view: 'RATING_ANALYTICS', label: 'Progression', icon: <BarChart3 size={20} />, playerOnly: true },

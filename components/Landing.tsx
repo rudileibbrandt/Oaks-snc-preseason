@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Dumbbell, Users, LogOut, ClipboardList, BarChart3, UserCog, Medal } from 'lucide-react';
+import { Shield, Dumbbell, Users, LogOut, ClipboardList, BarChart3, UserCog, Medal, CalendarDays } from 'lucide-react';
 import { AppView, Player } from '../types';
 import { signOut, getCurrentUser } from '../services/auth';
 
@@ -118,6 +118,22 @@ const Landing: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
              <div className="text-left">
                <span className="block text-neutral-200 font-bold text-lg">PLAYERS</span>
                <span className="text-neutral-500 text-xs">Photos, groups & player feedback</span>
+             </div>
+          </div>
+        </button>
+
+        {/* Calendar - everyone */}
+        <button
+          onClick={() => onNavigate('CALENDAR')}
+          className="w-full group relative flex items-center justify-between p-5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all active:scale-95"
+        >
+          <div className="flex items-center">
+             <div className="p-2 bg-neutral-800 rounded-lg mr-4">
+               <CalendarDays size={24} className="text-neutral-300" />
+             </div>
+             <div className="text-left">
+               <span className="block text-neutral-200 font-bold text-lg">CALENDAR</span>
+               <span className="text-neutral-500 text-xs">Practices, matches, testing &amp; S&amp;C sessions</span>
              </div>
           </div>
         </button>

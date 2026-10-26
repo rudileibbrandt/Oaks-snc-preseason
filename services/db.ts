@@ -1,4 +1,4 @@
-import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult } from '../types';
+import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamEvent } from '../types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -126,6 +126,17 @@ const ls = {
   },
 
   // Injury operations
+  getEvents: async (): Promise<TeamEvent[]> => JSON.parse(localStorage.getItem('oaks_events_v1') || '[]'),
+  saveEvent: async (event: Omit<TeamEvent, 'id'> & { id?: string }): Promise<TeamEvent> => {
+    const all: TeamEvent[] = JSON.parse(localStorage.getItem('oaks_events_v1') || '[]');
+    const saved = { ...event, id: event.id ?? `ev-${Date.now()}` } as TeamEvent;
+    localStorage.setItem('oaks_events_v1', JSON.stringify([...all.filter(e => e.id !== saved.id), saved]));
+    return saved;
+  },
+  deleteEvent: async (id: string) => {
+    const all: TeamEvent[] = JSON.parse(localStorage.getItem('oaks_events_v1') || '[]');
+    localStorage.setItem('oaks_events_v1', JSON.stringify(all.filter(e => e.id !== id)));
+  },
   getTestSessions: async (): Promise<TestSession[]> => JSON.parse(localStorage.getItem('oaks_test_sessions_v1') || '[]'),
   addTestSession: async (session: Omit<TestSession, 'id'>): Promise<TestSession> => {
     const all: TestSession[] = JSON.parse(localStorage.getItem('oaks_test_sessions_v1') || '[]');
@@ -608,6 +619,46 @@ export const db = {
   // ---------------------------------------------------------
   // INJURY OPERATIONS
   // ---------------------------------------------------------
+
+  // ---------- Team calendar events ----------
+  getEvents: async (): Promise<TeamEvent[]> => {
+    if (!isConfigured || !dbInstance) return ls.getEvents();
+    try {
+      await ensureAuth();
+      const snap = await dbInstance.collection('events').get();
+      return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as TeamEvent));
+    } catch (e) {
+      return handleFirebaseError(e, 'getEvents');
+    }
+  },
+
+  // New event when id is missing, otherwise replaces it.
+  saveEvent: async (event: Omit<TeamEvent, 'id'> & { id?: string }): Promise<TeamEvent> => {
+    if (!isConfigured || !dbInstance) return ls.saveEvent(event);
+    try {
+      await ensureAuth();
+      const { id, ...data } = event;
+      const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined && v !== ''));
+      if (id) {
+        await dbInstance.collection('events').doc(id).set(clean);
+        return { id, ...clean } as TeamEvent;
+      }
+      const ref = await dbInstance.collection('events').add(clean);
+      return { id: ref.id, ...clean } as TeamEvent;
+    } catch (e) {
+      return handleFirebaseError(e, 'saveEvent');
+    }
+  },
+
+  deleteEvent: async (id: string) => {
+    if (!isConfigured || !dbInstance) return ls.deleteEvent(id);
+    try {
+      await ensureAuth();
+      await dbInstance.collection('events').doc(id).delete();
+    } catch (e) {
+      return handleFirebaseError(e, 'deleteEvent');
+    }
+  },
 
   // ---------- S&C standards testing ----------
   getTestSessions: async (): Promise<TestSession[]> => {

@@ -66,7 +66,7 @@ export interface WorkoutLog {
   customWorkout?: string; // Optional text description when player did their own workout
 }
 
-export type AppView = 'LOGIN' | 'LANDING' | 'COACH' | 'ATHLETE_SELECT' | 'ATHLETE_DASHBOARD' | 'WORKOUT_SESSION' | 'TRACKER' | 'ROSTER' | 'INJURIES' | 'RATING_ANALYTICS' | 'COACHES_CORNER' | 'DEPTH_CHART' | 'STANDARDS';
+export type AppView = 'LOGIN' | 'LANDING' | 'COACH' | 'ATHLETE_SELECT' | 'ATHLETE_DASHBOARD' | 'WORKOUT_SESSION' | 'TRACKER' | 'ROSTER' | 'INJURIES' | 'RATING_ANALYTICS' | 'COACHES_CORNER' | 'DEPTH_CHART' | 'STANDARDS' | 'CALENDAR';
 
 // Rugby position numbers (1-15)
 export type RugbyPosition = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
@@ -198,5 +198,20 @@ export interface TestResult {
   chinupAdded?: number | null; // lb added
   squat3rm?: number | null; // lb
   enteredBy: string;
+  updatedAt: number;
+}
+
+// Team calendar: practices, matches and other events coaches schedule.
+export type TeamEventType = 'Practice' | 'Match' | 'Other';
+export interface TeamEvent {
+  id: string;
+  type: TeamEventType;
+  title: string; // e.g. "Practice", "vs Monte Vista"
+  date: string; // YYYY-MM-DD
+  startTime?: string; // HH:MM
+  endTime?: string; // HH:MM
+  location?: string;
+  notes?: string;
+  createdBy: string;
   updatedAt: number;
 }
