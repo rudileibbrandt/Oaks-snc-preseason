@@ -3,7 +3,9 @@
 // Four levels per test and position group. Each number is the line to reach:
 // times at or under, jump and lifts at or over. Below Bronze = not reached Bronze yet.
 // Elite is the top band ("Good") of USA Rugby's men's physical standards, per position
-// (Drive: "USA Rugby Physical Standards – Men (imperial)"; broad jump rounded down to the inch).
+// (Drive: "USA Rugby Physical Standards – Men (imperial)"; broad jump rounded down to the inch),
+// except the Bronco: 15 s faster than that sheet, near the usual "elite" lines (backs under 4:30).
+// For scale, Super Rugby's average is 4:57 for backs and 5:21 for forwards.
 // Prop 40 m has no source value; 5.60 is our estimate. Until 2026-10-26 Elite was the sheet's
 // Minimum line. Bronze, Silver and Gold are our own step-downs and did not change with it.
 // Hookers and locks share every line except the squat, as the source does.
@@ -62,35 +64,35 @@ const bronco = (a: string, b: string, c: string, d: string): Row => [t(a), t(b),
 
 export const STANDARDS: Record<PositionGroup, Record<StandardTest, Row>> = {
   props: {
-    bronco: bronco('6:14', '5:57', '5:47', '5:20'), sprint10: [1.96, 1.91, 1.87, 1.75], sprint40: [6.32, 6.08, 5.97, 5.60],
+    bronco: bronco('6:14', '5:57', '5:47', '5:05'), sprint10: [1.96, 1.91, 1.87, 1.75], sprint40: [6.32, 6.08, 5.97, 5.60],
     broadJump: [83, 88, 91, 100], chinup: [215, 255, 280, 330], squat3rm: [220, 285, 335, 420],
   },
   hookers: {
-    bronco: bronco('6:03', '5:46', '5:37', '5:10'), sprint10: [1.91, 1.85, 1.82, 1.70], sprint40: [5.83, 5.62, 5.51, 5.20],
+    bronco: bronco('6:03', '5:46', '5:37', '4:55'), sprint10: [1.91, 1.85, 1.82, 1.70], sprint40: [5.83, 5.62, 5.51, 5.20],
     broadJump: [88, 94, 97, 104], chinup: [200, 240, 260, 310], squat3rm: [210, 270, 315, 400],
   },
   locks: {
-    bronco: bronco('6:03', '5:46', '5:37', '5:10'), sprint10: [1.91, 1.85, 1.82, 1.70], sprint40: [5.83, 5.62, 5.51, 5.20],
+    bronco: bronco('6:03', '5:46', '5:37', '4:55'), sprint10: [1.91, 1.85, 1.82, 1.70], sprint40: [5.83, 5.62, 5.51, 5.20],
     broadJump: [88, 94, 97, 104], chinup: [200, 240, 260, 310], squat3rm: [185, 240, 280, 360],
   },
   backrow: {
-    bronco: bronco('5:41', '5:26', '5:16', '4:50'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.72, 5.51, 5.41, 5.10],
+    bronco: bronco('5:41', '5:26', '5:16', '4:35'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.72, 5.51, 5.41, 5.10],
     broadJump: [92, 98, 101, 110], chinup: [200, 240, 260, 310], squat3rm: [195, 255, 300, 380],
   },
   scrumhalves: {
-    bronco: bronco('5:24', '5:10', '5:01', '4:45'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.56, 5.36, 5.25, 4.95],
+    bronco: bronco('5:24', '5:10', '5:01', '4:30'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.56, 5.36, 5.25, 4.95],
     broadJump: [92, 98, 101, 110], chinup: [180, 210, 230, 280], squat3rm: [170, 220, 255, 330],
   },
   flyhalves: {
-    bronco: bronco('5:24', '5:10', '5:01', '4:45'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.56, 5.36, 5.25, 4.95],
+    bronco: bronco('5:24', '5:10', '5:01', '4:30'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.56, 5.36, 5.25, 4.95],
     broadJump: [92, 98, 101, 110], chinup: [185, 220, 240, 290], squat3rm: [175, 225, 265, 340],
   },
   centers: {
-    bronco: bronco('5:30', '5:15', '5:06', '4:50'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.51, 5.30, 5.20, 4.90],
+    bronco: bronco('5:30', '5:15', '5:06', '4:35'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.51, 5.30, 5.20, 4.90],
     broadJump: [92, 98, 101, 110], chinup: [195, 230, 250, 300], squat3rm: [185, 240, 280, 360],
   },
   backthree: {
-    bronco: bronco('5:24', '5:10', '5:01', '4:45'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.51, 5.30, 5.20, 4.90],
+    bronco: bronco('5:24', '5:10', '5:01', '4:30'), sprint10: [1.80, 1.75, 1.72, 1.60], sprint40: [5.51, 5.30, 5.20, 4.90],
     broadJump: [92, 98, 101, 110], chinup: [185, 220, 240, 290], squat3rm: [175, 225, 265, 340],
   },
 };
