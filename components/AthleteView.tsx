@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
 import { db } from '../services/db';
-import { PROGRAM, getAdvancedWeek, findWorkoutDay, ADVANCED_FIRST_WEEK, ADVANCED_LAST_WEEK, PROGRAM_DATES_LABEL, programWeekNumber } from '../services/programData';
+import { PROGRAM, ADVANCED_WEEKS, getAdvancedWeek, findWorkoutDay, ADVANCED_FIRST_WEEK, ADVANCED_LAST_WEEK, PROGRAM_DATES_LABEL, programWeekNumber, isTryoutWeek } from '../services/programData';
 import { ChevronLeft, CheckCircle2, User, ChevronRight, Settings, Users, Moon } from 'lucide-react';
 import WorkoutSession from './WorkoutSession';
 import { isAlumni } from '../services/alumni';
@@ -239,7 +239,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
     return (
       <WorkoutSession
         player={selectedPlayer}
-        day={day}
+        day={isTryoutWeek(selectedWeek) && day.date ? { ...day, title: `${day.title.split(' ')[0]} · Try-out` } : day}
         existingLog={weekLog}
         selectedWeek={selectedWeek}
         onExit={() => setActiveDayId(null)}
@@ -249,9 +249,14 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
 
   // VIEW 4: ATHLETE DASHBOARD (Select Day)
   const program: ProgramLevel = selectedPlayer.program ?? 'Intermediate';
-  const advancedWeek = program === 'Advanced' ? getAdvancedWeek(selectedWeek) : undefined;
+  const isTryout = isTryoutWeek(selectedWeek); // the week before the program: practise with Week 1's sessions
+  const advancedWeek = program === 'Advanced'
+    ? getAdvancedWeek(selectedWeek) ?? (isTryout ? ADVANCED_WEEKS[0] : undefined)
+    : undefined;
   const isBeforeAdvanced = compareWeekIdentifiers(selectedWeek, ADVANCED_FIRST_WEEK) < 0;
-  const intermediateWeek = programWeekNumber(selectedWeek); // Intermediate runs on the same dates
+  const intermediateWeek = programWeekNumber(selectedWeek) ?? (isTryout ? 1 : undefined); // same dates as Advanced
+  // In the try-out week, Advanced days show just the weekday ("Mon"), not the real program date.
+  const dayLabel = (title: string) => (isTryout ? title.split(' ')[0] : title);
   const todayIso = (() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -472,17 +477,27 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
         </div>
       )}
 
+      {isTryout && (
+        <div className="mb-6 p-4 rounded-2xl border border-amber-500/60 bg-amber-500/5">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-amber-500 mb-1">Try-out week</h3>
+          <p className="text-sm text-neutral-300">
+            Practise logging with Week 1's sessions. Nothing you log this week counts on the Stat Board.
+            The program starts Mon 2 Nov.
+          </p>
+        </div>
+      )}
+
       {program === 'Advanced' ? (
         advancedWeek ? (
           <div>
             <div className="mb-4">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-500">
-                Week {advancedWeek.week} · {advancedWeek.phase}
+                {isTryout ? 'Try-out · Week 1 sessions' : `Week ${advancedWeek.week} · ${advancedWeek.phase}`}
               </span>
             </div>
             <div className="grid grid-cols-1 gap-3">
               {advancedWeek.days.map(day => {
-                const isToday = day.date === todayIso;
+                const isToday = !isTryout && day.date === todayIso;
                 if (day.restNote !== undefined && day.exercises.length === 0) {
                   return (
                     <div
@@ -492,7 +507,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
                       <div className="flex items-center gap-2 mb-1">
                         <Moon size={14} className="text-neutral-500" />
                         <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                          {day.title}{isToday && ' · Today'}
+                          {dayLabel(day.title)}{isToday && ' · Today'}
                         </span>
                       </div>
                       <h3 className="text-lg font-bold text-neutral-400">Rest Day</h3>
@@ -521,7 +536,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
                   >
                     <div className="flex justify-between items-start mb-1">
                       <span className={`text-xs font-bold uppercase tracking-wider ${complete ? 'text-green-500' : 'text-amber-500'}`}>
-                        {day.title}{isToday && ' · Today'}
+                        {dayLabel(day.title)}{isToday && ' · Today'}
                       </span>
                       {complete && <CheckCircle2 className="text-green-500" size={20} />}
                     </div>
@@ -563,7 +578,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
         </div>
       ) : (
       <div className="grid grid-cols-1 gap-4">
-        <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Week {intermediateWeek} of 7 · any 4 days this week</div>
+        <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">{isTryout ? 'Try-out week · any days' : `Week ${intermediateWeek} of 7 · any 4 days this week`}</div>
         {PROGRAM.DAYS.map((day, index) => {
           const complete = isDayComplete(day.id);
           return (

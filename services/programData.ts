@@ -102,6 +102,15 @@ export const PROGRAM_FIRST_WEEK = ADVANCED_FIRST_WEEK;
 export const PROGRAM_LAST_WEEK = ADVANCED_LAST_WEEK;
 export const PROGRAM_DATES_LABEL = 'Mon 2 Nov – Sun 20 Dec 2026';
 
+// Try-out week: the week before the program starts. Players can log Week 1's sessions to learn the app.
+// Those logs are dated to this week, so the Stat Board and Tracker (which count from SEASON_START) ignore them.
+export const TRYOUT_WEEK: WeekIdentifier = (() => {
+  const [y, m, d] = ADVANCED_WEEKS[0].startDate.split('-').map(Number);
+  return getISOWeek(new Date(y, m - 1, d - 7));
+})();
+export const isTryoutWeek = (weekId: WeekIdentifier) =>
+  weekId.year === TRYOUT_WEEK.year && weekId.week === TRYOUT_WEEK.week;
+
 // Week number in the block (1–7) for a calendar week, or undefined outside the program's dates.
 export const programWeekNumber = (weekId: WeekIdentifier): number | undefined => {
   const i = ADVANCED_WEEKS.findIndex(w => {
