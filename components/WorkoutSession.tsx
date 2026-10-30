@@ -516,12 +516,6 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
               autoCapitalize="off"
               spellCheck="true"
             />
-            {/* Debug info - remove after fixing */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mt-2 text-xs text-neutral-600">
-                Debug: customWorkout state = "{customWorkout}" (length: {customWorkout.length})
-              </div>
-            )}
           </div>
         </div>
 

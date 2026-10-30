@@ -163,7 +163,8 @@ export const computePlayerStats = (playerLogs: WorkoutLog[], todayIso: string): 
           const t = timeSeconds(log.data, ex.id);
           if (t !== undefined) stats.bestTest[test] = Math.min(stats.bestTest[test] ?? Infinity, t);
         }
-        if (ex.logType === 'cardio') stats.runMiles += num(log.data[`${ex.id}_distance`]) ?? 0;
+        // Bike miles are logged too, but they aren't run miles.
+        if (ex.logType === 'cardio' && !/bike/i.test(ex.name)) stats.runMiles += num(log.data[`${ex.id}_distance`]) ?? 0;
       }
     }
   }
