@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Medal, Loader2 } from 'lucide-react';
+import { ArrowLeft, Medal, Loader2, Youtube } from 'lucide-react';
 import { AppView, Player, TestResult, TestSession } from '../types';
 import { db } from '../services/db';
 import { ROSTER_PLAYERS } from '../services/rosterData';
@@ -308,6 +308,12 @@ const StandardsTables: React.FC = () => {
           <div key={t.key} className="p-3 bg-neutral-900 border border-neutral-800 rounded-lg">
             <p className="text-xs text-white font-bold">{t.label}</p>
             <p className="text-[11px] text-neutral-400 mt-0.5">{t.how}</p>
+            {t.videoUrl && (
+              <a href={t.videoUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-1.5 text-[11px] text-amber-500 hover:text-amber-400">
+                <Youtube size={14} /> Watch the demo
+              </a>
+            )}
           </div>
         ))}
         <p className="text-[11px] text-neutral-500">Same surface, same order, warm up first.</p>

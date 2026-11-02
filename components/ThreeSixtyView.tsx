@@ -22,7 +22,7 @@ const KICKER_NAMES_SET = new Set(
 );
 
 const ThreeSixtyView: React.FC<Props> = ({ allRatings, selectedPlayer, currentPlayer }) => {
-  const { squadInfo } = useRosterClasses();
+  const { squadInfo, groupOf } = useRosterClasses();
   const isCoach = currentPlayer?.role?.toLowerCase() === 'coach';
 
   // Get aggregated data for selected player
@@ -200,8 +200,8 @@ const ThreeSixtyView: React.FC<Props> = ({ allRatings, selectedPlayer, currentPl
           <h2 className="text-lg font-bold text-white truncate">{selectedPlayer}</h2>
           {rosterPlayer && (
             <div className="flex items-center gap-2 mt-1">
-              <span className={`text-xs px-2 py-0.5 rounded ${GROUP_COLORS[rosterPlayer.trainingGroup]?.bg} ${GROUP_COLORS[rosterPlayer.trainingGroup]?.text}`}>
-                {rosterPlayer.trainingGroup}
+              <span className={`text-xs px-2 py-0.5 rounded ${GROUP_COLORS[groupOf(rosterPlayer)]?.bg} ${GROUP_COLORS[groupOf(rosterPlayer)]?.text}`}>
+                {groupOf(rosterPlayer)}
               </span>
               <span className="text-xs text-neutral-500">{squadInfo(rosterPlayer).squad}</span>
             </div>

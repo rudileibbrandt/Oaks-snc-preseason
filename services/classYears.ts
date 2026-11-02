@@ -2,7 +2,7 @@
 //
 // We store the graduation year, never "Senior": the label is derived, so it rolls over each
 // school year without anyone re-marking players.
-import { InjuryRecord, Player, PlayerRating, RosterClass, RosterPlayer, Squad } from '../types';
+import { InjuryRecord, Player, PlayerRating, RosterClass, RosterPlayer, Squad, TrainingGroup } from '../types';
 import { db } from './db';
 import { isAlumni, normalizeName } from './alumni';
 
@@ -103,6 +103,10 @@ export const setRosterAlumni = async (name: string, account: Player | undefined,
     invalidateAlumniNames();
   }
 };
+
+// A player's training group: the coach's move on the Groups board, else the roster file.
+export const groupOf = (rp: RosterPlayer, classes: Record<string, RosterClass>): TrainingGroup =>
+  classes[classKey(rp.name)]?.trainingGroup ?? rp.trainingGroup;
 
 // ---------- Shared, cached roster lookup (alumni and squads) ----------
 

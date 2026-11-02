@@ -3,12 +3,14 @@ import { AlertTriangle, AlertCircle, Users, ChevronDown, ChevronUp } from 'lucid
 import { PlayerRating } from '../types';
 import { findVarianceHotspots, VARIANCE_COLORS, VarianceHotspot } from '../services/ratingAnalytics';
 import { ROSTER_PLAYERS, GROUP_COLORS } from '../services/rosterData';
+import { useRosterClasses } from '../hooks/useRosterContext';
 
 interface Props {
   allRatings: PlayerRating[];
 }
 
 const TeamInsights: React.FC<Props> = ({ allRatings }) => {
+  const { groupOf } = useRosterClasses();
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
 
   // Find variance hotspots
@@ -48,7 +50,7 @@ const TeamInsights: React.FC<Props> = ({ allRatings }) => {
     const player = ROSTER_PLAYERS.find(
       p => p.name.toLowerCase().trim() === playerName.toLowerCase().trim()
     );
-    return player?.trainingGroup || null;
+    return player ? groupOf(player) : null;
   };
 
   // Count stats

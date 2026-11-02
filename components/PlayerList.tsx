@@ -7,12 +7,16 @@ import { getMyRatingForPlayer, loadRatings, RATING_SKILLS, RATING_COLORS, calcul
 import { loadPositionOverrides, savePlayerPositions, formatPosition, POSITION_OPTIONS, PlayerPositions } from '../services/positionData';
 import { db } from '../services/db';
 import InjuryModal from './InjuryModal';
+import BodyStatsCard from './BodyStatsCard';
+import { useBodyStats } from '../hooks/useBodyStats';
+import { formatHeight } from '../services/bodyStats';
 import InjuryHistorySection from './InjuryHistorySection';
 import RatingModal from './RatingModal';
 import RatingHistorySection from './RatingHistorySection';
 import GraduateSeniorsModal from './GraduateSeniorsModal';
+import GroupBoard from './GroupBoard';
 import SetClassesModal from './SetClassesModal';
-import { rosterAlumniNames, gradYearOf, classLabel, classKey, currentClassYears, squadOf, squadLabel, squadFromClass, SQUADS, invalidateRosterContext } from '../services/classYears';
+import { rosterAlumniNames, groupOf, gradYearOf, classLabel, classKey, currentClassYears, squadOf, squadLabel, squadFromClass, SQUADS, invalidateRosterContext } from '../services/classYears';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 
 interface Props {
@@ -31,6 +35,7 @@ const normalizeName = (name: string): string => {
 
 const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const isCoach = currentPlayer?.role === 'Coach';
+  const body = useBodyStats();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<TrainingGroup>('All');
   const [selectedSquad, setSelectedSquad] = useState<SquadFilter>('All');
@@ -59,6 +64,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   const [showGraduate, setShowGraduate] = useState(false);
   const [showSetClasses, setShowSetClasses] = useState(false);
+  const [showGroupBoard, setShowGroupBoard] = useState(false);
   const [savingClass, setSavingClass] = useState(false);
   // Graduation and alumni years by roster name (shared across coaches)
   const [rosterClasses, setRosterClasses] = useState<Record<string, RosterClass>>({});
@@ -243,11 +249,11 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       // Search filter (by name, training group, or squad)
       const matchesSearch = searchQuery === '' ||
         player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        player.trainingGroup.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        groupOf(player, rosterClasses).toLowerCase().includes(searchQuery.toLowerCase()) ||
         squadOf(player, rosterClasses).squad.toLowerCase().includes(searchQuery.toLowerCase());
 
       // Group filter
-      const matchesGroup = selectedGroup === 'All' || player.trainingGroup === selectedGroup;
+      const matchesGroup = selectedGroup === 'All' || groupOf(player, rosterClasses) === selectedGroup;
 
       // Squad filter
       const matchesSquad = selectedSquad === 'All' || squadOf(player, rosterClasses).squad === selectedSquad;
@@ -260,7 +266,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
       return matchesSearch && matchesGroup && matchesSquad && matchesInjuryStatus;
     });
-  }, [searchQuery, selectedGroup, selectedSquad, selectedInjuryStatus, injuryMap, shownRoster]);
+  }, [searchQuery, selectedGroup, selectedSquad, selectedInjuryStatus, injuryMap, shownRoster, rosterClasses]);
 
   // Group players by training group for display
   const groupedPlayers = useMemo(() => {
@@ -272,11 +278,11 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     };
 
     filteredPlayers.forEach(player => {
-      groups[player.trainingGroup].push(player);
+      groups[groupOf(player, rosterClasses)].push(player);
     });
 
     return groups;
-  }, [filteredPlayers]);
+  }, [filteredPlayers, rosterClasses]);
 
   // Get current selected player from index
   const selectedPlayer = selectedPlayerIndex !== null ? filteredPlayers[selectedPlayerIndex] : null;
@@ -379,7 +385,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const renderPlayerCard = (player: RosterPlayer) => {
     const photoUrl = getPhotoUrl(player.name);
     const hasImageError = imageErrors.has(player.name);
-    const groupColor = GROUP_COLORS[player.trainingGroup];
+    const groupColor = GROUP_COLORS[groupOf(player, rosterClasses)];
     const linkedPlayer = getLinkedAppPlayer(player);
     const isLinked = !!linkedPlayer;
     const injury = getActiveInjury(player.name);
@@ -418,7 +424,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           )}
           {/* Training group badge */}
           <div className={`absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-bold ${groupColor.bg} ${groupColor.text}`}>
-            {player.trainingGroup}
+            {groupOf(player, rosterClasses)}
           </div>
           {/* Linked badge */}
           {isLinked && !isInjured && (
@@ -461,11 +467,16 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           {isInjured && injury && (
             <p className="text-xs text-red-400 mt-0.5">{(injury.bodyPart || []).join(', ')} - {(injury.diagnosis || []).join(', ')}</p>
           )}
-          <div className="flex items-center gap-2 mt-2 text-xs text-neutral-400">
-            {player.height && <span>{player.height}</span>}
-            {player.height && player.weight && <span>•</span>}
-            {player.weight && <span>{player.weight} lbs</span>}
-          </div>
+          {(() => {
+            const bs = body.statsFor(player.name, player);
+            return (
+              <div className="flex items-center gap-2 mt-2 text-xs text-neutral-400">
+                {bs.heightIn != null && <span>{formatHeight(bs.heightIn)}</span>}
+                {bs.heightIn != null && bs.weightLb != null && <span>•</span>}
+                {bs.weightLb != null && <span>{bs.weightLb} lbs</span>}
+              </div>
+            );
+          })()}
           {/* Position badges */}
           {(() => {
             const pos = getPositions(player);
@@ -584,6 +595,15 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
             <span className="w-2 h-2 rounded-full bg-amber-500"></span>
           )}
         </button>
+        {isCoach && (
+          <button
+            onClick={() => setShowGroupBoard(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-neutral-900 text-amber-400 hover:text-white transition-colors"
+          >
+            <Users size={16} />
+            Groups
+          </button>
+        )}
         {isCoach && (
           <button
             onClick={() => setShowSetClasses(true)}
@@ -813,8 +833,8 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                     )}
 
                     {/* Training group badge */}
-                    <div className={`absolute top-4 left-4 px-3 py-1 rounded text-sm font-bold ${GROUP_COLORS[selectedPlayer.trainingGroup].bg} ${GROUP_COLORS[selectedPlayer.trainingGroup].text}`}>
-                      {selectedPlayer.trainingGroup} Group
+                    <div className={`absolute top-4 left-4 px-3 py-1 rounded text-sm font-bold ${GROUP_COLORS[groupOf(selectedPlayer, rosterClasses)].bg} ${GROUP_COLORS[groupOf(selectedPlayer, rosterClasses)].text}`}>
+                      {groupOf(selectedPlayer, rosterClasses)} Group
                     </div>
 
                     {/* Linked indicator */}
@@ -839,19 +859,14 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                   <div className="mt-4 text-center">
                     <h2 className="text-2xl font-bold text-white">{selectedPlayer.name}</h2>
 
-                    <div className="flex items-center justify-center gap-4 mt-3 text-neutral-300">
-                      {selectedPlayer.height && (
-                        <div>
-                          <span className="text-neutral-500 text-sm">Height</span>
-                          <p className="font-bold">{selectedPlayer.height}</p>
-                        </div>
-                      )}
-                      {selectedPlayer.weight && (
-                        <div>
-                          <span className="text-neutral-500 text-sm">Weight</span>
-                          <p className="font-bold">{selectedPlayer.weight} lbs</p>
-                        </div>
-                      )}
+                    <div className="mt-4">
+                      <BodyStatsCard
+                        key={selectedPlayer.name}
+                        playerName={selectedPlayer.name}
+                        stats={body.statsFor(selectedPlayer.name, selectedPlayer)}
+                        currentPlayer={currentPlayer ?? null}
+                        onAdd={body.add}
+                      />
                     </div>
 
                     <div className="mt-3 text-sm text-neutral-500">
@@ -1205,6 +1220,14 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           rosterClasses={rosterClasses}
           onClose={() => setShowGraduate(false)}
           onDone={() => { loadAppPlayers(); loadRosterClasses(); }}
+        />
+      )}
+      {showGroupBoard && (
+        <GroupBoard
+          players={teamRoster}
+          rosterClasses={rosterClasses}
+          onClose={() => setShowGroupBoard(false)}
+          onDone={loadRosterClasses}
         />
       )}
       {showSetClasses && (

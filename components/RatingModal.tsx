@@ -14,7 +14,7 @@ interface Props {
 }
 
 const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, currentPlayer }) => {
-  const { squadInfo } = useRosterClasses();
+  const { squadInfo, groupOf } = useRosterClasses();
   const [ratings, setRatings] = useState<PlayerRatings>(createEmptyRatings());
   const [existingRating, setExistingRating] = useState<PlayerRating | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -146,7 +146,7 @@ const RatingModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, current
             </div>
             <div>
               <h3 className="text-xl font-bold text-white">{player.name}</h3>
-              <p className="text-sm text-neutral-400">{squadInfo(player).squad} • {player.trainingGroup} Group</p>
+              <p className="text-sm text-neutral-400">{squadInfo(player).squad} • {groupOf(player)} Group</p>
               {existingRating && (
                 <p className="text-xs text-amber-400 mt-1">
                   Last feedback: {new Date(existingRating.updatedAt).toLocaleDateString()}

@@ -4,7 +4,10 @@ import { db } from '../services/db';
 import { PROGRAM, ADVANCED_WEEKS, getAdvancedWeek, findWorkoutDay, ADVANCED_FIRST_WEEK, ADVANCED_LAST_WEEK, PROGRAM_DATES_LABEL, programWeekNumber, isTryoutWeek } from '../services/programData';
 import { ChevronLeft, CheckCircle2, User, ChevronRight, Settings, Users, Moon } from 'lucide-react';
 import WorkoutSession from './WorkoutSession';
-import { isAlumni } from '../services/alumni';
+import { isAlumni, normalizeName } from '../services/alumni';
+import { ROSTER_PLAYERS } from '../services/rosterData';
+import { useBodyStats } from '../hooks/useBodyStats';
+import BodyStatsCard from './BodyStatsCard';
 import { 
   getCurrentISOWeek, 
   getISOWeekFromTimestamp, 
@@ -30,6 +33,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
   const [currentWeek, setCurrentWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
   const [selectedWeek, setSelectedWeek] = useState<WeekIdentifier>(getCurrentISOWeek());
   const isNavigatingRef = useRef<string | null>(null);
+  const body = useBodyStats();
 
   // Position Update State
   const [isUpdatingPosition, setIsUpdatingPosition] = useState(false);
@@ -293,6 +297,17 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
           )}
         </div>
       </header>
+
+      {selectedPlayer.role === 'Player' && (
+        <div className="mb-6">
+          <BodyStatsCard
+            playerName={selectedPlayer.name}
+            stats={body.statsFor(selectedPlayer.name, ROSTER_PLAYERS.find(p => normalizeName(p.name) === normalizeName(selectedPlayer.name)))}
+            currentPlayer={selectedPlayer}
+            onAdd={body.add}
+          />
+        </div>
+      )}
 
       {/* Program Switcher */}
       <div className="mb-6">

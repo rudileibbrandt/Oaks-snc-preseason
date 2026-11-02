@@ -18,7 +18,7 @@ interface RaterSummary {
 }
 
 const RaterView: React.FC<Props> = ({ allRatings }) => {
-  const { squadInfo } = useRosterClasses();
+  const { squadInfo, groupOf } = useRosterClasses();
   const [expandedRater, setExpandedRater] = useState<string | null>(null);
   const [selectedRating, setSelectedRating] = useState<PlayerRating | null>(null);
 
@@ -192,7 +192,7 @@ const RaterView: React.FC<Props> = ({ allRatings }) => {
                                 <p className="font-medium text-white truncate">{rating.playerName}</p>
                                 {rosterPlayer && (
                                   <p className="text-xs text-neutral-500 truncate">
-                                    {squadInfo(rosterPlayer).squad} • {rosterPlayer.trainingGroup}
+                                    {squadInfo(rosterPlayer).squad} • {groupOf(rosterPlayer)}
                                   </p>
                                 )}
                               </div>

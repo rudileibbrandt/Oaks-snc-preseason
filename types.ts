@@ -49,6 +49,7 @@ export interface RosterClass {
   gradYear?: number | null; // graduation year; null = coach cleared it; missing = use the roster file
   alumniClass?: number | null; // set = graduated (alumni); null/missing = current player
   squad?: Squad | null; // coach override; null/missing = worked out from the class
+  trainingGroup?: TrainingGroup | null; // coach override from the Groups board; null/missing = the roster file
 }
 
 // High school squads. JV is freshmen and sophomores (u16); everyone else is Varsity.
@@ -95,10 +96,13 @@ export const POSITION_SHORT: Record<RugbyPosition, string> = {
   11: 'LW', 12: 'IC', 13: 'OC', 14: 'RW', 15: 'FB',
 };
 
+export type TrainingGroup = 'Black' | 'Gold' | 'Silver' | 'Bronze';
+export const TRAINING_GROUPS: TrainingGroup[] = ['Black', 'Gold', 'Silver', 'Bronze'];
+
 // Extended player info for roster display
 export interface RosterPlayer {
   name: string;
-  trainingGroup: 'Black' | 'Gold' | 'Silver' | 'Bronze';
+  trainingGroup: TrainingGroup; // default; a coach's move on the Groups board overrides it (RosterClass)
   height?: string;
   weight?: number;
   email?: string;
@@ -200,6 +204,22 @@ export interface TestResult {
   squat3rm?: number | null; // lb
   enteredBy: string;
   updatedAt: number;
+}
+
+// One height and/or weight entry for a roster player, keyed by normalized name like test results.
+// Entries are never edited: a correction is a newer entry. "Current" is worked out from the
+// entries plus testing-day bodyweights (services/bodyStats.ts), never stored.
+export interface BodyMeasurement {
+  id: string;
+  nameKey: string; // normalized roster name
+  playerName: string;
+  date: string; // YYYY-MM-DD, the day it was measured
+  heightIn?: number; // total inches
+  weightLb?: number;
+  enteredBy: string; // name of who typed it
+  enteredByRole: 'Player' | 'Coach';
+  enteredByUserId?: string; // auth uid, checked by the security rules
+  createdAt: number;
 }
 
 // Team calendar: practices, matches and other events coaches schedule.

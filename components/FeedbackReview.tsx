@@ -72,7 +72,7 @@ interface PlayerDev {
 
 const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
   const { isAlumniName } = useAlumniNames();
-  const { classes, squadInfo } = useRosterClasses();
+  const { classes, squadInfo, groupOf } = useRosterClasses();
   const currentRosterSize = ROSTER_PLAYERS.filter(p => !isAlumniName(p.name)).length;
   const [groupFilter, setGroupFilter] = useState<TrainingGroupFilter>('All');
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
@@ -144,7 +144,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
       const rosterPlayer = ROSTER_PLAYERS.find(
         p => p.name.toLowerCase().trim() === r.playerName.toLowerCase().trim()
       );
-      const group = rosterPlayer?.trainingGroup || 'Unknown';
+      const group = (rosterPlayer ? groupOf(rosterPlayer) : 'Unknown');
       if (!groupValues.has(group)) groupValues.set(group, []);
       CORE_SKILLS.forEach(skill => {
         const val = r.ratings[skill.key];
@@ -158,7 +158,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
     });
 
     return { teamAverage: Math.round(teamAverage * 100) / 100, coaches, groupAverages };
-  }, [peerRatings]);
+  }, [peerRatings, classes]);
 
   // ===== SECTION 1B: Skill Leaders =====
   // Who is the highest-rated player in each skill category? (peer ratings only)
@@ -200,7 +200,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
         const rosterPlayer = ROSTER_PLAYERS.find(
           p => p.name.toLowerCase().trim() === _key
         );
-        const group = rosterPlayer?.trainingGroup || 'Unknown';
+        const group = (rosterPlayer ? groupOf(rosterPlayer) : 'Unknown');
 
         runners.push({ name: ratings[0].playerName, avg, group });
 
@@ -264,7 +264,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
 
     const groupPlayerNames = new Set(
       ROSTER_PLAYERS
-        .filter(p => p.trainingGroup === groupFilter)
+        .filter(p => groupOf(p) === groupFilter)
         .map(p => p.name.toLowerCase().trim())
     );
     const ratingsToUse = peerRatings.filter(r =>
@@ -280,7 +280,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
     specialist.sort((a, b) => a.average - b.average);
 
     return { coreProfile: core, specialistProfile: specialist };
-  }, [peerRatings, groupFilter]);
+  }, [peerRatings, groupFilter, classes]);
 
   // Per-group profiles (used when "All" is selected — side-by-side view)
   const groupProfiles = useMemo(() => {
@@ -290,7 +290,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
     return groups.map(group => {
       const groupPlayerNames = new Set(
         ROSTER_PLAYERS
-          .filter(p => p.trainingGroup === group)
+          .filter(p => groupOf(p) === group)
           .map(p => p.name.toLowerCase().trim())
       );
       const ratingsToUse = peerRatings.filter(r =>
@@ -304,7 +304,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
 
       return { group, coreProfile: core };
     }).filter((g): g is NonNullable<typeof g> => g !== null && g.coreProfile.length > 0);
-  }, [peerRatings, groupFilter]);
+  }, [peerRatings, groupFilter, classes]);
 
   // ===== SECTION 3: Player Development Areas =====
   const playerDevData = useMemo(() => {
@@ -323,7 +323,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
       const rosterPlayer = ROSTER_PLAYERS.find(
         p => p.name.toLowerCase().trim() === _key
       );
-      const trainingGroup = rosterPlayer?.trainingGroup || 'Unknown';
+      const trainingGroup = (rosterPlayer ? groupOf(rosterPlayer) : 'Unknown');
       const playerIsKicker = isKicker(playerName);
 
       // Compute per-skill mean and stdDev
@@ -401,7 +401,7 @@ const FeedbackReview: React.FC<Props> = ({ allRatings }) => {
     });
 
     return result;
-  }, [peerRatings]);
+  }, [peerRatings, classes]);
 
   const togglePlayerExpanded = (name: string) => {
     setExpandedPlayers(prev => {

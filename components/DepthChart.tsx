@@ -36,7 +36,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
 
   // Alumni (graduated players) are left off the depth chart, and their ratings of others don't count.
   const { alumniNames, ready: alumniReady } = useAlumniNames();
-  const { classes, squadInfo, ready: classesReady } = useRosterClasses();
+  const { classes, squadInfo, groupOf, ready: classesReady } = useRosterClasses();
   const [rawRatings, setRawRatings] = useState<PlayerRating[]>([]);
 
   useEffect(() => {
@@ -248,7 +248,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
             {entry.player.name}
           </span>
           {posTypeBadge(entry.positionType)}
-          {groupBadge(entry.player.trainingGroup)}
+          {groupBadge(groupOf(entry.player))}
         </div>
       </div>
       {ratingBadge(entry.rating, entry.totalRaters)}
@@ -299,7 +299,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
             <div className="text-sm font-bold text-white truncate">{starter.player.name}</div>
             <div className="flex items-center gap-1.5 mt-1">
               {ratingBadge(starter.rating, starter.totalRaters)}
-              {groupBadge(starter.player.trainingGroup)}
+              {groupBadge(groupOf(starter.player))}
             </div>
           </div>
         ) : (
@@ -325,7 +325,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {posTypeBadge(entry.positionType)}
                   {ratingBadge(entry.rating, entry.totalRaters)}
-                  {groupBadge(entry.player.trainingGroup)}
+                  {groupBadge(groupOf(entry.player))}
                 </div>
               </div>
             ))}
@@ -449,7 +449,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-[10px] text-neutral-500">{entry.assignedPos}-{POSITION_SHORT[entry.assignedPos]}</span>
                         {posTypeBadge(entry.positionType)}
-                        {groupBadge(entry.player.trainingGroup)}
+                        {groupBadge(groupOf(entry.player))}
                       </div>
                     </div>
                     {ratingBadge(entry.rating, entry.totalRaters)}
@@ -503,7 +503,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
                             <div className="flex items-center gap-1.5 mt-1">
                               {posTypeBadge(entry.positionType)}
                               {ratingBadge(entry.rating, entry.totalRaters)}
-                              {groupBadge(entry.player.trainingGroup)}
+                              {groupBadge(groupOf(entry.player))}
                             </div>
                           </div>
                         ) : (

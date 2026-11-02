@@ -54,6 +54,24 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Height and weight entries, keyed by roster name like test results. Add-only: a correction
+    // is a newer entry, so nothing in the history can be changed or removed from the app.
+    // Who may enter for whom (self vs coach) is enforced in the app, as for testing.
+    match /bodyMeasurements/{entryId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.enteredByUserId == request.auth.uid
+        && request.resource.data.nameKey is string
+        && request.resource.data.date is string
+        && (request.resource.data.enteredByRole == 'Player' || request.resource.data.enteredByRole == 'Coach')
+        && (request.resource.data.get('heightIn', null) != null || request.resource.data.get('weightLb', null) != null)
+        && (request.resource.data.get('heightIn', null) == null
+            || (request.resource.data.heightIn is number && request.resource.data.heightIn >= 48 && request.resource.data.heightIn <= 90))
+        && (request.resource.data.get('weightLb', null) == null
+            || (request.resource.data.weightLb is number && request.resource.data.weightLb >= 80 && request.resource.data.weightLb <= 400));
+      allow update, delete: if false;
+    }
+
     // Injuries: Anyone authenticated can read, coaches can create/update
     match /injuries/{injuryId} {
       allow read: if request.auth != null;

@@ -37,7 +37,7 @@ function normalizeName(name: string): string {
 }
 
 const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
-  const { squadInfo } = useRosterClasses();
+  const { squadInfo, groupOf, classes } = useRosterClasses();
   const { alumniNames, isAlumniName, ready: alumniReady } = useAlumniNames(); // alumni are out of every list and number here
   const [coaches, setCoaches] = useState<Player[]>([]);
   const [allRatings, setAllRatings] = useState<PlayerRating[]>([]);
@@ -149,13 +149,13 @@ const CoachActivity: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     const unrated = ROSTER_PLAYERS.filter(p => !ratedNames.has(p.name) && !isAlumniName(p.name));
     const groups = new Map<string, typeof ROSTER_PLAYERS>();
     for (const p of unrated) {
-      const group = p.trainingGroup;
+      const group = groupOf(p);
       const existing = groups.get(group) || [];
       existing.push(p);
       groups.set(group, existing);
     }
     return { groups, total: unrated.length };
-  }, [currentPlayer, ratingsByRater, alumniNames, alumniReady]);
+  }, [currentPlayer, ratingsByRater, alumniNames, alumniReady, classes]);
 
   const isDuplicate = (coachId: string): boolean => {
     for (const group of duplicateGroups.values()) {

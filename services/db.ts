@@ -1,4 +1,4 @@
-import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamEvent } from '../types';
+import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamEvent, BodyMeasurement, TRAINING_GROUPS, TrainingGroup } from '../types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -148,6 +148,13 @@ const ls = {
   saveTestResult: async (result: TestResult) => {
     const all: TestResult[] = JSON.parse(localStorage.getItem('oaks_test_results_v1') || '[]');
     localStorage.setItem('oaks_test_results_v1', JSON.stringify([...all.filter(r => r.id !== result.id), result]));
+  },
+  getBodyMeasurements: async (): Promise<BodyMeasurement[]> => JSON.parse(localStorage.getItem('oaks_body_v1') || '[]'),
+  addBodyMeasurement: async (entry: Omit<BodyMeasurement, 'id'>): Promise<BodyMeasurement> => {
+    const all: BodyMeasurement[] = JSON.parse(localStorage.getItem('oaks_body_v1') || '[]');
+    const created = { ...entry, id: `bm-${Date.now()}` };
+    localStorage.setItem('oaks_body_v1', JSON.stringify([...all, created]));
+    return created;
   },
   getInjuries: async (): Promise<InjuryRecord[]> => {
     const data = localStorage.getItem(INJURIES_KEY);
@@ -510,6 +517,8 @@ export const db = {
         if ('gradYear' in d) entry.gradYear = d.gradYear ?? null;
         if ('alumniClass' in d) entry.alumniClass = d.alumniClass ?? null;
         if ('squad' in d) entry.squad = d.squad ?? null;
+        // Only a known group counts, so a bad value can't break group colours on screen.
+        if (TRAINING_GROUPS.includes(d.trainingGroup as TrainingGroup)) entry.trainingGroup = d.trainingGroup;
         result[doc.id] = entry;
       });
       return result;
@@ -707,6 +716,33 @@ export const db = {
       await dbInstance.collection('testResults').doc(id).set(clean);
     } catch (e) {
       return handleFirebaseError(e, 'saveTestResult');
+    }
+  },
+
+  // ---------- Height and weight ----------
+  getBodyMeasurements: async (): Promise<BodyMeasurement[]> => {
+    if (!isConfigured || !dbInstance) return ls.getBodyMeasurements();
+    try {
+      await ensureAuth();
+      const snap = await dbInstance.collection('bodyMeasurements').get();
+      return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as BodyMeasurement));
+    } catch (e) {
+      return handleFirebaseError(e, 'getBodyMeasurements');
+    }
+  },
+
+  // Entries are only ever added (the rules forbid edits), so the history stays intact.
+  addBodyMeasurement: async (entry: Omit<BodyMeasurement, 'id' | 'enteredByUserId'>): Promise<BodyMeasurement> => {
+    if (!isConfigured || !dbInstance) return ls.addBodyMeasurement(entry);
+    try {
+      await ensureAuth();
+      const uid = firebase.auth().currentUser?.uid;
+      // Firestore rejects undefined fields (e.g. weight only, no height).
+      const clean = Object.fromEntries(Object.entries({ ...entry, enteredByUserId: uid }).filter(([, v]) => v !== undefined)) as Omit<BodyMeasurement, 'id'>;
+      const ref = await dbInstance.collection('bodyMeasurements').add(clean);
+      return { id: ref.id, ...clean };
+    } catch (e) {
+      return handleFirebaseError(e, 'addBodyMeasurement');
     }
   },
 

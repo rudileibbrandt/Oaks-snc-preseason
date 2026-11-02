@@ -23,6 +23,7 @@ export interface TestDef {
   unit: string; // shown after numbers
   lowerIsBetter: boolean;
   how: string;
+  videoUrl?: string; // a demo clip, shown as a link under "How we test"
 }
 
 export const TESTS: TestDef[] = [
@@ -35,7 +36,8 @@ export const TESTS: TestDef[] = [
   { key: 'broadJump', label: 'Broad jump', unit: 'in', lowerIsBetter: false,
     how: 'Two-foot take-off, land on both feet. Measure to the back of the nearest heel. Best of 3.' },
   { key: 'chinup', label: 'Chin-up total', unit: 'lb', lowerIsBetter: false,
-    how: 'Palms facing you, dead hang to chin over the bar. Score = bodyweight + weight added. Best of 2.' },
+    how: 'Palms facing you, dead hang to chin over the bar. Score = bodyweight + weight added. Best of 2.',
+    videoUrl: 'https://youtu.be/giv9miiVsKs' },
   { key: 'squat3rm', label: 'Squat 3RM', unit: 'lb', lowerIsBetter: false,
     how: 'Heaviest weight for 3 clean reps, thighs at least parallel, coach watching. Only once a coach has signed off technique.' },
 ];
