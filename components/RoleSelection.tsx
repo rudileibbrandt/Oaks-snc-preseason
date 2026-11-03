@@ -168,6 +168,11 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
               <div>Coach</div>
             </button>
           </div>
+          {selectedRole === 'Coach' && (
+            <p className="mt-3 text-xs text-neutral-400">
+              An Oaks coach turns on coach access for you. Until then you'll see the player view. Tell your head coach you've signed up.
+            </p>
+          )}
         </div>
 
         {/* Name Input (if needed) */}

@@ -42,6 +42,7 @@ export interface Player {
   mergedInto?: string; // If set, this account was merged into the referenced Player ID
   program?: ProgramLevel; // S&C program the player chose; missing means Intermediate
   alumniClass?: number; // Graduation year; set means the player is alumni (kept for the records, off current boards)
+  coachRequested?: boolean; // chose Coach at sign-up; starts as a Player until a coach turns on coach access in Admin
 }
 
 // Per roster player (keyed by normalized name), shared by coaches. Works for players with no app account.

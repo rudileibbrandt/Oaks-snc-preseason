@@ -178,15 +178,18 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     return map;
   }, [injuries]);
 
-  // Get active injury for a player from the map
+  // Get active injury for a player from the map. Injuries are private: players only see their own,
+  // so every badge, filter and report on this screen hides other players' injuries from them.
   const getActiveInjury = (playerName: string): InjuryRecord | undefined => {
+    if (!isCoach && normalizeName(playerName) !== normalizeName(currentPlayer?.name ?? '')) return undefined;
     return injuryMap.get(playerName.toLowerCase().trim());
   };
 
   // Count of injured players
   const injuredCount = useMemo(() => {
     return teamRoster.filter(p => getActiveInjury(p.name)).length;
-  }, [injuryMap, teamRoster]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injuryMap, teamRoster, isCoach, currentPlayer?.name]);
 
   // Refresh injuries after modal save
   const handleInjurySaved = async () => {
@@ -670,8 +673,8 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
               </div>
             </div>
 
-            {/* Injury Status Filter */}
-            <div>
+            {/* Injury Status Filter (coaches only: players can't see other players' injuries) */}
+            {isCoach && <div>
               <label className="text-xs text-neutral-500 mb-2 block">Injury Status</label>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -710,7 +713,7 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                   Healthy
                 </button>
               </div>
-            </div>
+            </div>}
 
             {/* Clear filters */}
             {(selectedGroup !== 'All' || selectedSquad !== 'All' || selectedInjuryStatus !== 'All') && (

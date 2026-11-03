@@ -4,9 +4,11 @@ service cloud.firestore {
     // Roster: Anyone authenticated can read/update (for stat board, admin role changes, merge)
     match /roster/{playerId} {
       allow read: if request.auth != null;
-      // Users can only create profiles with their own auth UID
+      // Users can only create profiles with their own auth UID, and only as a Player:
+      // coach access is turned on afterwards by an existing coach (Admin -> Users).
       allow create: if request.auth != null &&
-                    request.resource.data.userId == request.auth.uid;
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.role == 'Player';
       // Any authenticated user can update (needed for admin role changes, account merging)
       allow update: if request.auth != null;
       // Deletes are not allowed from the app

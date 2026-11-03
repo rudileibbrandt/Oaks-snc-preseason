@@ -434,9 +434,12 @@ export const db = {
         if (!displayName) {
           displayName = user.displayName || user.email?.split('@')[0] || 'User';
         }
+        // Everyone starts as a Player. Choosing Coach only asks for coach access, which an existing
+        // coach turns on in Admin (firestore.rules refuse a new profile created as a Coach).
         const newPlayerData: any = {
           name: displayName,
-          role,
+          role: 'Player',
+          ...(role === 'Coach' && { coachRequested: true }),
           ...(role === 'Player' && position && { position }),
           userId: user.uid,
           ...(user.email && { email: user.email })
@@ -552,14 +555,14 @@ export const db = {
     if (!isConfigured || !dbInstance) {
       const data = localStorage.getItem('oaks_roster_v1');
       const players = data ? JSON.parse(data) : [];
-      const updated = players.map((p: any) => p.id === id ? { ...p, role } : p);
+      const updated = players.map((p: any) => p.id === id ? { ...p, role, coachRequested: false } : p);
       localStorage.setItem('oaks_roster_v1', JSON.stringify(updated));
       return;
     }
 
     try {
       await ensureAuth();
-      await dbInstance.collection('roster').doc(id).update({ role });
+      await dbInstance.collection('roster').doc(id).update({ role, coachRequested: false });
     } catch (e) {
       return handleFirebaseError(e, 'updatePlayerRole');
     }
