@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, Plus, Search, X, ClipboardPaste, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Search, X, ClipboardPaste, CheckCircle, AlertTriangle, Loader2, Pencil } from 'lucide-react';
 import { Player, TestResult, TestSession } from '../types';
 import { db } from '../services/db';
 import { ROSTER_PLAYERS } from '../services/rosterData';
@@ -151,6 +151,36 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer,
   const [squad, setSquad] = useState<'All' | 'Varsity' | 'JV'>('All');
   const [editing, setEditing] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [editingDay, setEditingDay] = useState(false);
+  const [dayName, setDayName] = useState(session.name);
+  const [dayDate, setDayDate] = useState(session.date);
+  const [dayTime, setDayTime] = useState(session.time ?? '');
+  const [daySaving, setDaySaving] = useState(false);
+  const [dayError, setDayError] = useState<string | null>(null);
+
+  const handleEditDay = () => {
+    setDayName(session.name);
+    setDayDate(session.date);
+    setDayTime(session.time ?? '');
+    setDayError(null);
+    setEditingDay(true);
+  };
+
+  const handleSaveDay = async () => {
+    if (!dayName.trim() || !dayDate) return;
+    setDaySaving(true);
+    setDayError(null);
+    try {
+      await db.updateTestSession(session.id, { name: dayName.trim(), date: dayDate, time: dayTime || undefined });
+      await onChanged();
+      setEditingDay(false);
+    } catch (e) {
+      console.error('[TestingDays] Could not update session:', e);
+      setDayError('Could not save. Check your connection and try again.');
+    } finally {
+      setDaySaving(false);
+    }
+  };
 
   const byName = useMemo(() => new Map(results.map(r => [r.nameKey, r])), [results]);
   const positions = useMemo(() => loadPositionOverrides(), []);
@@ -170,10 +200,39 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer,
       <button onClick={onBack} className="flex items-center gap-2 text-sm text-neutral-400 hover:text-white">
         <ArrowLeft size={16} /> Testing days
       </button>
-      <div>
-        <h2 className="text-xl font-bold text-white">{session.name}</h2>
-        <p className="text-xs text-neutral-500">{session.date}{session.time ? ` · ${formatClock(session.time)}` : ''} · {results.length} player{results.length === 1 ? '' : 's'} entered</p>
-      </div>
+      {editingDay ? (
+        <div className="p-4 bg-neutral-900 border border-neutral-800 rounded-xl space-y-3">
+          <input value={dayName} onChange={e => setDayName(e.target.value)} placeholder="Name, e.g. Baseline testing"
+            className="w-full px-3 py-2 bg-black border border-neutral-700 rounded-lg text-sm text-white" />
+          <div className="flex gap-2">
+            <input type="date" value={dayDate} onChange={e => setDayDate(e.target.value)}
+              className="flex-1 px-3 py-2 bg-black border border-neutral-700 rounded-lg text-sm text-white" />
+            <input type="time" value={dayTime} onChange={e => setDayTime(e.target.value)}
+              className="px-3 py-2 bg-black border border-neutral-700 rounded-lg text-sm text-white" />
+          </div>
+          {results.length > 0 && (
+            <p className="text-xs text-neutral-400">The {results.length} result{results.length === 1 ? '' : 's'} already entered move with it.</p>
+          )}
+          {dayError && <p className="text-xs text-red-400">{dayError}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => setEditingDay(false)} disabled={daySaving} className="flex-1 py-2 rounded-lg bg-neutral-800 text-neutral-300 text-sm">Cancel</button>
+            <button onClick={handleSaveDay} disabled={daySaving || !dayName.trim() || !dayDate}
+              className="flex-1 py-2 rounded-lg bg-amber-500 text-black font-bold text-sm disabled:opacity-40">
+              {daySaving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-white">{session.name}</h2>
+            <p className="text-xs text-neutral-500">{session.date}{session.time ? ` · ${formatClock(session.time)}` : ''} · {results.length} player{results.length === 1 ? '' : 's'} entered</p>
+          </div>
+          <button onClick={handleEditDay} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs text-amber-400 hover:text-white">
+            <Pencil size={12} /> Edit
+          </button>
+        </div>
+      )}
       <button onClick={() => setImporting(true)}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-neutral-900 border border-neutral-800 text-sm text-amber-400 hover:text-white">
         <ClipboardPaste size={16} /> Paste results from a sheet

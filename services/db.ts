@@ -145,6 +145,14 @@ const ls = {
     localStorage.setItem('oaks_test_sessions_v1', JSON.stringify([...all, created]));
     return created;
   },
+  updateTestSession: async (id: string, fields: Pick<TestSession, 'name' | 'date' | 'time'>) => {
+    const all: TestSession[] = JSON.parse(localStorage.getItem('oaks_test_sessions_v1') || '[]');
+    localStorage.setItem('oaks_test_sessions_v1', JSON.stringify(all.map(t => {
+      if (t.id !== id) return t;
+      const { time: _old, ...rest } = t;
+      return { ...rest, name: fields.name, date: fields.date, ...(fields.time && { time: fields.time }) };
+    })));
+  },
   getTestResults: async (): Promise<TestResult[]> => JSON.parse(localStorage.getItem('oaks_test_results_v1') || '[]'),
   saveTestResult: async (result: TestResult) => {
     const all: TestResult[] = JSON.parse(localStorage.getItem('oaks_test_results_v1') || '[]');
@@ -686,6 +694,21 @@ export const db = {
       return { id: ref.id, ...clean };
     } catch (e) {
       return handleFirebaseError(e, 'addTestSession');
+    }
+  },
+
+  // Rename or move a testing day. Results stay with it (they hold its id, not its date).
+  updateTestSession: async (id: string, fields: Pick<TestSession, 'name' | 'date' | 'time'>) => {
+    if (!isConfigured || !dbInstance) return ls.updateTestSession(id, fields);
+    try {
+      await ensureAuth();
+      await dbInstance.collection('testSessions').doc(id).update({
+        name: fields.name,
+        date: fields.date,
+        time: fields.time ? fields.time : firebase.firestore.FieldValue.delete(), // no time = clear it
+      });
+    } catch (e) {
+      return handleFirebaseError(e, 'updateTestSession');
     }
   },
 
