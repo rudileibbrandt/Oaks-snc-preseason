@@ -7,6 +7,8 @@ import { useRosterClasses } from '../hooks/useRosterContext';
 import { injurySquad } from '../services/classYears';
 import { normalizeName } from '../services/alumni';
 import { useAlumniNames } from '../hooks/useAlumniNames';
+import { rtpState, rtpGaps as countRtpGaps, todayIso } from '../services/returnToPlay';
+import ReturnToPlayPanel from './ReturnToPlayPanel';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -16,7 +18,7 @@ interface Props {
 type StatusFilter = 'All' | 'Day to Day' | 'Questionable' | 'IR / Out' | 'Returned to Play';
 type TeamFilter = 'All' | 'Varsity' | 'JV';
 
-const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
+const InjuryTracker: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
   const [teamFilter, setTeamFilter] = useState<TeamFilter>('All');
@@ -90,6 +92,13 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
     return injuries.filter(i => i.currentStatus !== 'Returned to Play').length;
   }, [injuries]);
 
+  // Return-to-play gaps among active injuries: no stage set, or a concussion with no clearance on file.
+  const today = todayIso();
+  const rtpGaps = useMemo(() => countRtpGaps(injuries, today), [injuries, today]);
+
+  const handleRtpChanged = (updated: InjuryRecord) =>
+    setInjuries(prev => prev.map(i => (i.id === updated.id ? updated : i)));
+
   const handleImageError = (playerName: string) => {
     setImageErrors(prev => new Set(prev).add(playerName));
   };
@@ -100,6 +109,7 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
     const photoUrl = getPhotoUrl(injury.playerName);
     const hasImageError = imageErrors.has(injury.playerName);
     const days = daysSinceInjury(injury.dateOfInjury);
+    const rtp = rtpState(injury, today);
 
     return (
       <div
@@ -140,6 +150,16 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
               </span>
               <span className="text-xs text-neutral-500">{squadOfInjury(injury)}</span>
             </div>
+            {rtp.active && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                {rtp.current
+                  ? <span className="text-[10px] text-neutral-300">Stage {rtp.current.index + 1}/{rtp.stages.length} · {rtp.current.def.name} · day {rtp.current.daysOn + 1}</span>
+                  : <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">No stage set</span>}
+                {rtp.flags.includes('no-clearance') && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">Concussion · no clearance</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Injury summary */}
@@ -237,6 +257,10 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
               )}
             </div>
 
+            {currentPlayer?.role === 'Coach' && (
+              <ReturnToPlayPanel injury={injury} currentPlayer={currentPlayer} onChanged={handleRtpChanged} />
+            )}
+
             {/* Submitted by */}
             <div className="mt-3 pt-3 border-t border-neutral-800">
               <p className="text-xs text-neutral-500">
@@ -268,6 +292,13 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate }) => {
             <p className="text-xs text-neutral-500">
               {activeCount} active injuries • {injuries.length} total records
             </p>
+            {(rtpGaps.noStage > 0 || rtpGaps.noClearance > 0) && (
+              <p className="text-xs mt-0.5">
+                {rtpGaps.noStage > 0 && <span className="text-amber-400">{rtpGaps.noStage} with no return-to-play stage</span>}
+                {rtpGaps.noStage > 0 && rtpGaps.noClearance > 0 && <span className="text-neutral-600"> • </span>}
+                {rtpGaps.noClearance > 0 && <span className="text-red-400">{rtpGaps.noClearance} concussion{rtpGaps.noClearance > 1 ? 's' : ''} without clearance</span>}
+              </p>
+            )}
           </div>
         </div>
 

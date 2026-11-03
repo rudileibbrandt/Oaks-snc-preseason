@@ -138,6 +138,24 @@ export interface InjuryRecord {
   notes?: string;
   createdAt?: number; // timestamp when injury was first recorded
   updatedAt: number; // timestamp when injury was last updated
+  // Return to play (services/returnToPlay.ts). Every stage move is kept; the current stage is the
+  // last entry, worked out, never stored on its own.
+  rtpStages?: RtpStageEntry[];
+  clearances?: RtpClearance[]; // written medical clearances, newest last; required before contact after a concussion
+}
+
+export interface RtpStageEntry {
+  stage: string; // a stage key from services/returnToPlay.ts, e.g. 'c4'
+  startedOn: string; // YYYY-MM-DD
+  by: string; // who moved the player
+  at: number;
+}
+
+export interface RtpClearance {
+  date: string; // YYYY-MM-DD, the date on the clearance
+  provider: string; // who signed it, e.g. "Dr Patel, Kaiser Walnut Creek"
+  recordedBy: string;
+  at: number;
 }
 
 // Player skill ratings (360-degree review)

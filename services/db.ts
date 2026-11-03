@@ -1,4 +1,4 @@
-import { Player, WorkoutLog, InjuryRecord, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamEvent, BodyMeasurement, TRAINING_GROUPS, TrainingGroup } from '../types';
+import { Player, WorkoutLog, InjuryRecord, RtpStageEntry, RtpClearance, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamEvent, BodyMeasurement, TRAINING_GROUPS, TrainingGroup } from '../types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -186,6 +186,15 @@ const ls = {
     const index = injuries.findIndex(i => i.id === id);
     if (index === -1) return null;
     injuries[index] = { ...injuries[index], ...updates, updatedAt: Date.now() };
+    localStorage.setItem(INJURIES_KEY, JSON.stringify(injuries));
+    return injuries[index];
+  },
+  appendInjuryEntry: async (id: string, list: 'rtpStages' | 'clearances', entry: RtpStageEntry | RtpClearance, fields: Partial<InjuryRecord> = {}): Promise<InjuryRecord | null> => {
+    const injuries = await ls.getInjuries();
+    const index = injuries.findIndex(i => i.id === id);
+    if (index === -1) return null;
+    const current = injuries[index];
+    injuries[index] = { ...current, ...fields, [list]: [...((current[list] as unknown[]) ?? []), entry], updatedAt: Date.now() };
     localStorage.setItem(INJURIES_KEY, JSON.stringify(injuries));
     return injuries[index];
   },
@@ -856,6 +865,24 @@ export const db = {
     } catch (e: unknown) {
       console.error('[db.updateInjury] Error:', e);
       return handleFirebaseError(e, 'updateInjury');
+    }
+  },
+
+  // Add one return-to-play stage move or clearance to an injury's history. arrayUnion adds to the saved
+  // list, so two coaches saving at once don't overwrite each other's entries.
+  appendInjuryEntry: async (id: string, list: 'rtpStages' | 'clearances', entry: RtpStageEntry | RtpClearance, fields: Partial<InjuryRecord> = {}): Promise<InjuryRecord | null> => {
+    if (!isConfigured || !dbInstance) return ls.appendInjuryEntry(id, list, entry, fields);
+
+    try {
+      await ensureAuth();
+      const docRef = dbInstance.collection('injuries').doc(id);
+      const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+      await docRef.update({ ...clean, [list]: firebase.firestore.FieldValue.arrayUnion(entry), updatedAt: Date.now() });
+      const doc = await docRef.get();
+      return doc.exists ? ({ id, ...doc.data() } as InjuryRecord) : null;
+    } catch (e) {
+      console.error('[db.appendInjuryEntry] Error:', e);
+      return handleFirebaseError(e, 'appendInjuryEntry');
     }
   },
 

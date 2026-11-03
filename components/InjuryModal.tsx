@@ -4,6 +4,7 @@ import { InjuryRecord, RosterPlayer, Player } from '../types';
 import { db } from '../services/db';
 import { invalidateInjuryCache, STATUS_COLORS } from '../services/injuryData';
 import { assertNotAlumni, classLabel, gradYearOf } from '../services/classYears';
+import { checkInjuryEdit } from '../services/returnToPlay';
 import { useRosterClasses } from '../hooks/useRosterContext';
 
 interface Props {
@@ -82,6 +83,12 @@ const InjuryModal: React.FC<Props> = ({ isOpen, onClose, onSave, player, existin
         setError('Please select at least one injury type');
         return;
       }
+    }
+
+    const statusProblem = checkInjuryEdit(existingInjury, { diagnosis, currentStatus });
+    if (statusProblem) {
+      setError(statusProblem);
+      return;
     }
 
     setIsSaving(true);

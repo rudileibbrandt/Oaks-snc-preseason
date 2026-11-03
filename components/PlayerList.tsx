@@ -7,6 +7,7 @@ import { getMyRatingForPlayer, loadRatings, RATING_SKILLS, RATING_COLORS, calcul
 import { loadPositionOverrides, savePlayerPositions, formatPosition, POSITION_OPTIONS, PlayerPositions } from '../services/positionData';
 import { db } from '../services/db';
 import InjuryModal from './InjuryModal';
+import ReturnToPlayPanel from './ReturnToPlayPanel';
 import BodyStatsCard from './BodyStatsCard';
 import { useBodyStats } from '../hooks/useBodyStats';
 import { formatHeight } from '../services/bodyStats';
@@ -1148,6 +1149,9 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                         </div>
                         {selectedInjury.notes && (
                           <p className="mt-2 text-xs text-neutral-400">{selectedInjury.notes}</p>
+                        )}
+                        {isCoach && currentPlayer && (
+                          <ReturnToPlayPanel key={selectedInjury.id} injury={selectedInjury} currentPlayer={currentPlayer} onChanged={handleInjurySaved} />
                         )}
                       </div>
                     )}
