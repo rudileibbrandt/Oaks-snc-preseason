@@ -92,7 +92,7 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     return injuries.filter(i => i.currentStatus !== 'Returned to Play').length;
   }, [injuries]);
 
-  // Return-to-play gaps among active injuries: no stage set, or a concussion with no clearance on file.
+  // Return-to-play gaps among active injuries: no stage set, or a serious injury with no clearance on file.
   const today = todayIso();
   const rtpGaps = useMemo(() => countRtpGaps(injuries, today), [injuries, today]);
 
@@ -156,7 +156,7 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                   ? <span className="text-[10px] text-neutral-300">Stage {rtp.current.index + 1}/{rtp.stages.length} · {rtp.current.def.name} · day {rtp.current.daysOn + 1}</span>
                   : <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">No stage set</span>}
                 {rtp.flags.includes('no-clearance') && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">Concussion · no clearance</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">Needs clearance</span>
                 )}
               </div>
             )}
@@ -296,7 +296,7 @@ const InjuryTracker: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
               <p className="text-xs mt-0.5">
                 {rtpGaps.noStage > 0 && <span className="text-amber-400">{rtpGaps.noStage} with no return-to-play stage</span>}
                 {rtpGaps.noStage > 0 && rtpGaps.noClearance > 0 && <span className="text-neutral-600"> • </span>}
-                {rtpGaps.noClearance > 0 && <span className="text-red-400">{rtpGaps.noClearance} concussion{rtpGaps.noClearance > 1 ? 's' : ''} without clearance</span>}
+                {rtpGaps.noClearance > 0 && <span className="text-red-400">{rtpGaps.noClearance} need{rtpGaps.noClearance > 1 ? '' : 's'} medical clearance</span>}
               </p>
             )}
           </div>

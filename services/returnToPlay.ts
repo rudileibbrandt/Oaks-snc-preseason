@@ -10,7 +10,7 @@ export interface RtpStageDef {
   key: string;
   name: string;
   detail: string;
-  contact: boolean; // contact stages need clearance on file after a concussion
+  contact: boolean; // contact stages need clearance on file when the injury needs it
 }
 
 export const LADDERS: Record<Ladder, RtpStageDef[]> = {
@@ -38,6 +38,7 @@ export interface RtpState {
   ladder: Ladder;
   stages: RtpStageDef[];
   concussion: boolean;
+  clearanceRequired: boolean; // a concussion or another serious injury: no contact without clearance on file
   active: boolean; // not yet returned to play
   current?: { index: number; def: RtpStageDef; startedOn: string; daysOn: number };
   next?: RtpStageDef;
@@ -49,17 +50,22 @@ export interface RtpState {
 export const todayIso = () => new Date().toLocaleDateString('en-CA');
 
 const isConcussion = (diagnosis?: string[]) => (diagnosis ?? []).includes('Concussion');
+
+// Diagnoses that need a written medical clearance before contact (coaching team, 2026-11-02).
+export const CLEARANCE_DIAGNOSES = ['Concussion', 'Break', 'Fracture', 'Dislocation', 'Tear'];
+const clearanceDiagnoses = (diagnosis?: string[]) => (diagnosis ?? []).filter(d => CLEARANCE_DIAGNOSES.includes(d));
 const latestClearance = (injury: Pick<InjuryRecord, 'clearances'>) => injury.clearances?.[injury.clearances.length - 1];
 
 // Whole days between two YYYY-MM-DD dates.
 const daysBetween = (from: string, to: string) =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 
-// The one clearance rule: after a concussion, contact stages need a clearance on file.
-export const needsClearance = (state: RtpState, stage: RtpStageDef) => state.concussion && stage.contact && !state.clearance;
+// The one clearance rule: for a concussion or other serious injury, contact stages need a clearance on file.
+export const needsClearance = (state: RtpState, stage: RtpStageDef) => state.clearanceRequired && stage.contact && !state.clearance;
 
 export const rtpState = (injury: InjuryRecord, today = todayIso()): RtpState => {
   const concussion = isConcussion(injury.diagnosis);
+  const clearanceRequired = clearanceDiagnoses(injury.diagnosis).length > 0;
   const ladder: Ladder = concussion ? 'concussion' : 'general';
   const stages = LADDERS[ladder];
   const active = injury.currentStatus !== 'Returned to Play';
@@ -74,9 +80,9 @@ export const rtpState = (injury: InjuryRecord, today = todayIso()): RtpState => 
 
   const flags: RtpFlag[] = [];
   if (active && !current) flags.push('no-stage');
-  if (active && concussion && !clearance) flags.push('no-clearance');
+  if (active && clearanceRequired && !clearance) flags.push('no-clearance');
 
-  return { ladder, stages, concussion, active, current, clearance, flags, next: current ? stages[current.index + 1] : undefined };
+  return { ladder, stages, concussion, clearanceRequired, active, current, clearance, flags, next: current ? stages[current.index + 1] : undefined };
 };
 
 // Counts for the injury list's header.
@@ -102,7 +108,7 @@ export const checkStageMove = (injury: InjuryRecord, toKey: string): string | nu
     return 'Players move up one stage at a time. Set the stage they are on now.';
   }
   if (needsClearance(state, state.stages[to])) {
-    return 'Record the written medical clearance before any contact after a concussion.';
+    return 'Record the written medical clearance before any contact for this injury.';
   }
   return null;
 };
@@ -125,13 +131,14 @@ export const checkInjuryEdit = (
   before: InjuryRecord | undefined,
   after: { diagnosis: string[]; currentStatus: InjuryRecord['currentStatus'] },
 ): string | null => {
-  const wasConcussion = isConcussion(before?.diagnosis);
   const stillOpen = before ? before.currentStatus !== 'Returned to Play' : true;
-  if (wasConcussion && stillOpen && !isConcussion(after.diagnosis) && !(before && latestClearance(before))) {
-    return 'Concussion can\'t be removed from an open injury until a medical clearance is on file.';
+  const cleared = !!(before && latestClearance(before));
+  const removed = clearanceDiagnoses(before?.diagnosis).filter(d => !after.diagnosis.includes(d));
+  if (stillOpen && !cleared && removed.length > 0) {
+    return `${removed.join(' and ')} can't be removed from an open injury until a medical clearance is on file.`;
   }
-  if (isConcussion(after.diagnosis) && after.currentStatus === 'Returned to Play' && stillOpen) {
-    return 'A concussed player returns to play through the return-to-play stages, not this form.';
+  if (clearanceDiagnoses(after.diagnosis).length > 0 && after.currentStatus === 'Returned to Play' && stillOpen) {
+    return 'A player with this injury returns to play through the return-to-play stages, not this form.';
   }
   return null;
 };

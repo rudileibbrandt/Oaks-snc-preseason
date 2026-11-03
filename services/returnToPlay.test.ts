@@ -118,3 +118,26 @@ test('a clearance needs who signed it and a date between the injury and today', 
   assert.equal(checkClearance('Dr Patel', '2026-11-08', TODAY, '2026-11-03'), null);
   assert.equal(checkClearance('Dr Patel', '2026-11-08', TODAY, 'TBD'), null);
 });
+
+test('a break, fracture, dislocation or tear also needs clearance before contact', () => {
+  for (const d of ['Break', 'Fracture', 'Dislocation', 'Tear']) {
+    const i = inj({ diagnosis: [d], rtpStages: [at('g3', '2026-11-07')] });
+    assert.equal(rtpState(i, TODAY).ladder, 'general', d);
+    assert.deepEqual(rtpState(i, TODAY).flags, ['no-clearance'], d);
+    assert.match(checkStageMove(i, 'g4') ?? '', /clearance/i, d);
+    assert.equal(checkStageMove({ ...i, ...cleared }, 'g4'), null, d);
+  }
+});
+
+test('a strain or sprain does not need clearance', () => {
+  for (const d of ['Strain', 'Sprain', 'Sore', 'Bruise']) {
+    assert.equal(rtpState(inj({ diagnosis: [d] }), TODAY).clearanceRequired, false, d);
+  }
+});
+
+test('the injury form: a serious injury returns through the stages, and its diagnosis stays until cleared', () => {
+  const fracture = inj({ diagnosis: ['Fracture'] });
+  assert.match(checkInjuryEdit(fracture, form(['Fracture'], 'Returned to Play')) ?? '', /stages/i);
+  assert.match(checkInjuryEdit(fracture, form(['Strain'], 'IR / Out')) ?? '', /fracture/i);
+  assert.equal(checkInjuryEdit({ ...fracture, ...cleared }, form(['Strain'], 'IR / Out')), null);
+});

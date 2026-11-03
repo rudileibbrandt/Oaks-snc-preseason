@@ -133,9 +133,9 @@ const ReturnToPlayPanel: React.FC<Props> = ({ injury, currentPlayer, onChanged }
             {(injury.clearances?.length ?? 0) > 1 && <span className="text-neutral-500">({injury.clearances!.length} on file)</span>}
           </p>
         ) : (
-          <p className={`text-xs flex items-center gap-1.5 ${state.concussion ? 'text-red-400' : 'text-neutral-500'}`}>
+          <p className={`text-xs flex items-center gap-1.5 ${state.clearanceRequired ? 'text-red-400' : 'text-neutral-500'}`}>
             <ShieldAlert size={14} />
-            {state.concussion ? 'No medical clearance on file. Needed before any contact.' : 'No medical clearance on file.'}
+            {state.clearanceRequired ? 'No medical clearance on file. Needed before any contact.' : 'No medical clearance on file.'}
           </p>
         )}
 
