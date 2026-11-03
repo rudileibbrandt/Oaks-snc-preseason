@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Landing from './components/Landing';
 import CoachDashboard from './components/CoachDashboard';
 import AthleteView from './components/AthleteView';
@@ -14,7 +14,8 @@ import CoachesCorner from './components/CoachesCorner';
 import MergePrompt, { isDismissed } from './components/MergePrompt';
 import DesktopLayout from './components/DesktopLayout';
 import { AppView, Player } from './types';
-import { onAuthStateChanged } from './services/auth';
+import { onAuthStateChanged, signOut } from './services/auth';
+import { profileOutcome, ProfileOutcome } from './services/profileLoad';
 import { db, migrateRatingsTo5PointScale, findDuplicatesByName } from './services/db';
 import { invalidateRatingsCache } from './services/ratingData';
 
@@ -23,6 +24,8 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [needsRoleSelection, setNeedsRoleSelection] = useState(false);
+  const [profileError, setProfileError] = useState(false); // profile lookup failed or timed out
+  const lookupId = useRef(0); // only the newest profile lookup may change the screen
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [coachDashboardRefresh, setCoachDashboardRefresh] = useState(0);
   const [duplicatePlayers, setDuplicatePlayers] = useState<Player[]>([]);
@@ -40,13 +43,60 @@ const App: React.FC = () => {
     }
   };
 
+  // Look up the signed-in user's profile. Only a definite "no profile" shows the sign-up screen;
+  // a slow or failed lookup shows Try again (services/profileLoad.ts).
+  const loadProfile = async () => {
+    const id = ++lookupId.current;
+    setIsLoading(true);
+    setProfileError(false);
+    let outcome: ProfileOutcome;
+    let player: Player | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      player = await Promise.race([
+        db.getOrCreatePlayerForUser(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Profile check timeout after 15 seconds')), 15000);
+        }),
+      ]);
+      outcome = profileOutcome({ player });
+    } catch (error) {
+      console.error('[App] Profile lookup failed:', error);
+      outcome = profileOutcome({ error });
+    } finally {
+      clearTimeout(timer);
+    }
+    // A newer lookup, or a sign-out, has started since: this answer is stale.
+    if (id !== lookupId.current) return;
+    if (outcome === 'ready' && player) {
+      setCurrentPlayer(player);
+      setNeedsRoleSelection(false);
+      setCurrentView(v => (v === 'LOGIN' ? 'LANDING' : v));
+      checkForDuplicates(player);
+    } else if (outcome === 'register') {
+      setNeedsRoleSelection(true);
+    } else {
+      setProfileError(true);
+    }
+    setIsLoading(false);
+  };
+
+  const handleRetry = () => { loadProfile(); };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (e) {
+      console.error('[App] Sign out failed:', e);
+    }
+  };
+
   useEffect(() => {
-    // Check auth state and check if user has a profile
+    // Runs once. Firebase calls back on sign-in and sign-out, not on every screen change.
     const unsubscribe = onAuthStateChanged(async (user) => {
       setIsAuthenticated(!!user);
-      
+
       if (user) {
-        // User is logged in - run migrations then check profile
         migrateRatingsTo5PointScale().catch(e => console.error('[App] Migration error:', e));
         // One-time fix: Carter White Coach→Player
         if (!localStorage.getItem('fix_carter_white_role')) {
@@ -62,92 +112,23 @@ const App: React.FC = () => {
             }
           }).catch(e => console.error('[App] Carter White fix error:', e));
         }
-        console.log('[App] User authenticated, checking profile...');
-        try {
-          // Add timeout to prevent hanging
-          const player = await Promise.race([
-            db.getOrCreatePlayerForUser(),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Profile check timeout after 15 seconds')), 15000)
-            )
-          ]) as Player;
-          
-          setCurrentPlayer(player);
-          setIsLoading(false);
-
-          // If player has a role, go to landing
-          if (player.role) {
-            setNeedsRoleSelection(false);
-            if (currentView === 'LOGIN') {
-              setCurrentView('LANDING');
-            }
-            // Check for duplicates in background
-            checkForDuplicates(player);
-          } else {
-            // No role set - need role selection
-            setNeedsRoleSelection(true);
-          }
-        } catch (error: any) {
-          console.error('[App] Error getting player:', error);
-          // If error is about missing profile, show role selection
-          // This is expected for new users - they need to complete registration
-          const errorMessage = error?.message || error?.toString() || '';
-          if (errorMessage.includes('not found') || 
-              errorMessage.includes('complete registration') ||
-              errorMessage.includes('timeout') ||
-              errorMessage.includes('User profile not found')) {
-            console.log('[App] New user detected - showing role selection');
-            setNeedsRoleSelection(true);
-            setIsLoading(false);
-          } else {
-            console.error('Failed to get player:', error);
-            setIsLoading(false);
-            // Still show role selection as fallback for any error
-            setNeedsRoleSelection(true);
-          }
-        }
+        await loadProfile();
       } else {
-        // User is not logged in, show login
+        lookupId.current++; // drop any lookup still running for the previous sign-in
         setIsLoading(false);
         setCurrentView('LOGIN');
         setNeedsRoleSelection(false);
+        setProfileError(false);
         setCurrentPlayer(null);
       }
     });
 
     return () => unsubscribe();
-  }, [currentView]);
+  }, []);
 
-  const handleLoginSuccess = async () => {
+  const handleLoginSuccess = () => {
+    // The sign-in listener above loads the profile.
     setIsAuthenticated(true);
-    // Check if user has a profile
-    try {
-      const player = await db.getOrCreatePlayerForUser();
-      setCurrentPlayer(player);
-
-      if (player.role) {
-        setNeedsRoleSelection(false);
-        setCurrentView('LANDING');
-        // Check for duplicates in background
-        checkForDuplicates(player);
-      } else {
-        setNeedsRoleSelection(true);
-      }
-    } catch (error: any) {
-      // If error is about missing profile, show role selection
-      // This is expected for new users - they need to complete registration
-      const errorMessage = error?.message || error?.toString() || '';
-      if (errorMessage.includes('not found') || 
-          errorMessage.includes('complete registration') ||
-          errorMessage.includes('User profile not found')) {
-        console.log('[App] New user detected - showing role selection');
-        setNeedsRoleSelection(true);
-      } else {
-        console.error('Failed to get player:', error);
-        // Still show role selection as fallback
-        setNeedsRoleSelection(true);
-      }
-    }
   };
 
   // Trigger refresh when navigating to coach dashboard
@@ -158,22 +139,13 @@ const App: React.FC = () => {
   }, [currentView]);
 
   const handleSignUpSuccess = () => {
-    // For new signups, immediately show role selection
+    // The sign-in listener looks the new account up, finds no profile and shows the role screen.
     setIsAuthenticated(true);
-    setNeedsRoleSelection(true);
-    setIsLoading(false);
   };
 
   const handleRoleSelectionComplete = async () => {
-    // Reload player after role selection
-    try {
-      const player = await db.getOrCreatePlayerForUser();
-      setCurrentPlayer(player);
-      setNeedsRoleSelection(false);
-      setCurrentView('LANDING');
-    } catch (error) {
-      console.error('Failed to reload player:', error);
-    }
+    // The profile now exists; load it the same way as at sign-in.
+    await loadProfile();
   };
 
   const handleMergeComplete = async () => {
@@ -200,6 +172,17 @@ const App: React.FC = () => {
       return (
         <div className="flex items-center justify-center min-h-[85vh]">
           <div className="text-neutral-400">Loading...</div>
+        </div>
+      );
+    }
+
+    if (profileError && isAuthenticated) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[85vh] text-center gap-4">
+          <p className="text-white font-bold">Can't reach the server</p>
+          <p className="text-sm text-neutral-400 max-w-xs">Your profile didn't load. Check your connection, then try again.</p>
+          <button onClick={handleRetry} className="px-6 py-3 rounded-lg bg-amber-500 text-black font-bold">Try again</button>
+          <button onClick={handleSignOut} className="text-sm text-neutral-500 hover:text-white">Sign out</button>
         </div>
       );
     }
@@ -246,7 +229,7 @@ const App: React.FC = () => {
   };
 
   // Views that should NOT get the desktop sidebar (pre-auth flows)
-  const isPreAuthView = !isAuthenticated || needsRoleSelection || currentView === 'LOGIN';
+  const isPreAuthView = !isAuthenticated || needsRoleSelection || profileError || currentView === 'LOGIN';
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 font-sans selection:bg-amber-500 selection:text-black">

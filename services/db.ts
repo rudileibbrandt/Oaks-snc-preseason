@@ -1,4 +1,5 @@
 import { Player, WorkoutLog, InjuryRecord, RtpStageEntry, RtpClearance, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamEvent, BodyMeasurement, TRAINING_GROUPS, TrainingGroup } from '../types';
+import { PROFILE_NOT_FOUND } from './profileLoad';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -391,36 +392,18 @@ export const db = {
             console.log('[getOrCreatePlayerForUser] Merge target invalid, clearing mergedInto');
             await dbInstance.collection('roster').doc(doc.id).update({ mergedInto: firebase.firestore.FieldValue.delete() });
           } catch (redirectError) {
+            // A failed read (offline, timeout) is not a broken merge: keep the link and let the
+            // app show Try again, instead of landing on the merged-away profile.
             console.error('[getOrCreatePlayerForUser] Error following merge redirect:', redirectError);
-            // Clear stale mergedInto and fall through
-            await dbInstance.collection('roster').doc(doc.id).update({ mergedInto: firebase.firestore.FieldValue.delete() });
+            throw redirectError;
           }
         }
 
-        // Check if this is a mislinked account (linked to wrong roster player)
-        // If the stored name doesn't match the Google display name and it's a roster player (not a coach account),
-        // clear the link and let them create a new profile
-        const googleDisplayName = user.displayName || '';
-        const storedName = existingData.name || '';
-
-        // If this looks like a roster player link (name mismatch with Google account)
-        // and user has a Google display name, unlink it
-        if (googleDisplayName && storedName &&
-            !storedName.toLowerCase().includes(googleDisplayName.toLowerCase().split(' ')[0]) &&
-            !googleDisplayName.toLowerCase().includes(storedName.toLowerCase().split(' ')[0])) {
-          console.log('[getOrCreatePlayerForUser] Detected mislinked account, clearing link');
-          console.log('  Google name:', googleDisplayName, '| Stored name:', storedName);
-          // Clear the userId from the mislinked document
-          await dbInstance.collection('roster').doc(doc.id).update({
-            userId: null,
-            email: null
-          });
-          // Fall through to create new profile
-        } else {
-          const player = { id: doc.id, ...doc.data() } as Player;
-          console.log('[getOrCreatePlayerForUser] Found existing player:', player.id);
-          return player;
-        }
+        // The sign-in is linked to this profile: use it. (Names are not compared: a renamed profile or
+        // a nickname is not a mislink, and unlinking here made a second account on the next choice.)
+        const player = { id: doc.id, ...existingData } as Player;
+        console.log('[getOrCreatePlayerForUser] Found existing player:', player.id);
+        return player;
       }
 
       // Email-matching disabled - users create their own profiles
@@ -455,7 +438,7 @@ export const db = {
       // This is expected for new users - they need to complete registration
       console.log('[getOrCreatePlayerForUser] No player found, no role provided - user needs to register');
       const error = new Error('User profile not found. Please complete registration.');
-      (error as any).code = 'PROFILE_NOT_FOUND';
+      (error as any).code = PROFILE_NOT_FOUND;
       throw error;
     } catch (e: any) {
       console.error('[getOrCreatePlayerForUser] Error:', e);
