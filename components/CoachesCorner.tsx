@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Layers, BarChart3, AlertTriangle, UserCog } from 'lucide-react';
+import { ArrowLeft, Layers, BarChart3, AlertTriangle, UserCog, Table } from 'lucide-react';
 import { AppView, Player } from '../types';
 import DepthChart from './DepthChart';
 import RatingAnalytics from './RatingAnalytics';
 import InjuryTracker from './InjuryTracker';
 import CoachActivity from './CoachActivity';
+import TrackerView from './TrackerView';
 
 interface Props {
   onNavigate: (view: AppView) => void;
   currentPlayer?: Player | null;
 }
 
-type SubView = 'hub' | 'depth_chart' | 'analytics' | 'injuries' | 'activity';
+type SubView = 'hub' | 'depth_chart' | 'analytics' | 'injuries' | 'activity' | 'tracker';
 
 const CoachesCorner: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const [subView, setSubView] = useState<SubView>('hub');
@@ -45,6 +46,10 @@ const CoachesCorner: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     return <InjuryTracker onNavigate={subNavigate} currentPlayer={currentPlayer} />;
   }
 
+  if (subView === 'tracker') {
+    return <TrackerView onNavigate={subNavigate} currentPlayer={currentPlayer} />;
+  }
+
   if (subView === 'activity') {
     return <CoachActivity onNavigate={subNavigate} currentPlayer={currentPlayer} />;
   }
@@ -74,6 +79,14 @@ const CoachesCorner: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       subtitle: 'Player injuries & return-to-play',
       iconColor: 'text-red-400',
       iconBg: 'bg-red-500/20',
+    },
+    {
+      key: 'tracker' as SubView,
+      icon: Table,
+      title: 'WORKOUT TRACKER',
+      subtitle: 'Every player\'s workouts, export to CSV',
+      iconColor: 'text-green-400',
+      iconBg: 'bg-green-500/20',
     },
     {
       key: 'activity' as SubView,
