@@ -85,6 +85,9 @@ const isoWeekOfDate = (isoDate: string): WeekIdentifier => {
   return getISOWeek(new Date(y, m - 1, d));
 };
 
+// Calendar weeks of the program (both programs share them), in date order.
+export const PROGRAM_CALENDAR_WEEKS: WeekIdentifier[] = ADVANCED_WEEKS.map(w => isoWeekOfDate(w.startDate));
+
 // The Advanced week scheduled for a calendar week, or undefined outside the program's dates.
 export const getAdvancedWeek = (weekId: WeekIdentifier): AdvancedWeek | undefined =>
   ADVANCED_WEEKS.find(w => {

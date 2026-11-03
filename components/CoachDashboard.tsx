@@ -6,7 +6,8 @@ import AdvancedStatBoard from './AdvancedStatBoard';
 import AlumniBoard from './AlumniBoard';
 import { isAlumni } from '../services/alumni';
 import { UserPlus, LogOut, Trophy, ChevronRight, AlertCircle, X, Dumbbell, ChevronLeft, TrendingUp, Users } from 'lucide-react';
-import { PROGRAM } from '../services/programData';
+import { PROGRAM, PROGRAM_CALENDAR_WEEKS } from '../services/programData';
+import { intermediateCompletionRate } from '../services/intermediateCompletion';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { 
   getCurrentISOWeek, 
@@ -324,45 +325,14 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
     return totalVolume / 1000 + avgSprintScore * 10;
   };
 
-  // Calculate completion rate for a player
-  const getPlayerCompletionRate = (playerId: string) => {
-    const current = getCurrentISOWeek();
-    const weeks: WeekIdentifier[] = [];
-    for (let i = 7; i >= 0; i--) {
-      const weekStart = getISOWeekStart(current.year, current.week);
-      weekStart.setUTCDate(weekStart.getUTCDate() - (i * 7));
-      weeks.push(getISOWeek(weekStart));
-    }
-
-    let totalPossible = 0;
-    let completed = 0;
-
-    for (const week of weeks) {
-      const weekLogs = allLogs.filter(log => {
-        if (log.playerId !== playerId) return false;
-        if (log.weekYear !== undefined && log.week !== undefined) {
-          return log.weekYear === week.year && log.week === week.week;
-        }
-        if (log.weekNumber !== undefined) {
-          const logWeek = getISOWeekFromTimestamp(log.timestamp);
-          return logWeek.year === week.year && logWeek.week === week.week;
-        }
-        const weekStart = getISOWeekStart(week.year, week.week).getTime();
-        const weekEnd = getISOWeekEnd(week.year, week.week).getTime();
-        return log.timestamp >= weekStart && log.timestamp <= weekEnd;
-      });
-
-      totalPossible += 4; // 4 days per week
-      for (const day of PROGRAM.DAYS) {
-        const dayLog = weekLogs.find(l => l.dayId === day.id);
-        if (dayLog && dayLog.completed) {
-          completed++;
-        }
-      }
-    }
-
-    return totalPossible > 0 ? Math.round((completed / totalPossible) * 100) : 0;
-  };
+  // Completion rate for a player: program weeks only (services/intermediateCompletion.ts).
+  const getPlayerCompletionRate = (playerId: string) =>
+    intermediateCompletionRate(
+      allLogs.filter(l => l.playerId === playerId),
+      PROGRAM_CALENDAR_WEEKS,
+      getCurrentISOWeek(),
+      PROGRAM.DAYS.map(d => d.id),
+    );
 
   // Calculate player score for a specific week
   const getPlayerScoreForWeek = (playerId: string, week: WeekIdentifier) => {
@@ -550,7 +520,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       // Sort by completion rate (descending), then by score as secondary
       return playersWithScores.sort((a, b) => {
         if (b.completionRate !== a.completionRate) {
-          return b.completionRate - a.completionRate;
+          return (b.completionRate ?? -1) - (a.completionRate ?? -1);
         }
         return b.score - a.score;
       });
@@ -560,7 +530,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
         if (b.score !== a.score) {
           return b.score - a.score;
         }
-        return b.completionRate - a.completionRate;
+        return (b.completionRate ?? -1) - (a.completionRate ?? -1);
       });
     }
   }, [intermediatePlayers, allLogs, viewMode, currentPlayer]);
@@ -574,10 +544,13 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       weekStart.setUTCDate(weekStart.getUTCDate() - (i * 7));
       weeks.push(getISOWeek(weekStart));
     }
+    // Program weeks only: weeks before the season have no logs that count.
+    const inProgram = (w: WeekIdentifier) =>
+      PROGRAM_CALENDAR_WEEKS.some(p => p.year === w.year && p.week === w.week);
 
     const playerPlayers = intermediatePlayers.filter(p => p.role === 'Player');
     
-    return weeks.map(week => {
+    return weeks.filter(inProgram).map(week => {
       const weekLogs = allLogs.filter(log => {
         if (log.weekYear !== undefined && log.week !== undefined) {
           return log.weekYear === week.year && log.week === week.week;
@@ -887,7 +860,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
             <div className="bg-neutral-900 rounded-xl p-6 border border-neutral-800">
               <h3 className="text-lg font-bold text-white mb-4 flex items-center">
                 <Users className="mr-2 text-amber-500" size={20} />
-                Team Completion Rate (Last 8 Weeks)
+                Team Completion Rate (This Season)
               </h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={completionData}>
@@ -1223,11 +1196,12 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
 
                   <td className="px-2 py-2 text-center">
                     <div className={`text-xs font-bold ${
+                      player.completionRate === null ? 'text-neutral-500' :
                       player.completionRate >= 80 ? 'text-green-500' :
                       player.completionRate >= 60 ? 'text-amber-500' :
                       'text-red-500'
                     }`}>
-                      {player.completionRate}%
+                      {player.completionRate === null ? '–' : `${player.completionRate}%`}
                     </div>
                   </td>
                   <td className="px-2 py-2 text-right">
