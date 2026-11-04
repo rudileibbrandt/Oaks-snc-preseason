@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { thisSeasonOnly } from '../services/season';
-import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
+import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
 import { ChevronLeft, Download, Table } from 'lucide-react';
 import { PROGRAM, ADVANCED_WEEKS } from '../services/programData';
@@ -25,18 +25,23 @@ interface Column {
   cell: (playerId: string) => { text: string; status: 'complete' | 'partial' | 'empty' };
 }
 
+// One program's table: its own columns, since Intermediate and Advanced sessions don't line up.
+interface Section {
+  title: string;
+  columns: Column[];
+  rows: Player[];
+  emptyText: string;
+}
+
 const todayIso = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
-const TrackerView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
+const TrackerView: React.FC<Props> = ({ onNavigate }) => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [allLogs, setAllLogs] = useState<WorkoutLog[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // Which program's tracker is showing; opens on the viewer's own program.
-  const [program, setProgram] = useState<ProgramLevel>(currentPlayer?.program ?? 'Intermediate');
-  const pickedProgramRef = useRef(false);
 
   // Load all data
   useEffect(() => {
@@ -62,13 +67,6 @@ const TrackerView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
     loadData();
   }, []);
-
-  // The app's currentPlayer can predate a program switch, so default from the loaded roster.
-  useEffect(() => {
-    if (pickedProgramRef.current || !currentPlayer) return;
-    const me = players.find(p => p.id === currentPlayer.id);
-    if (me) setProgram(me.program ?? 'Intermediate');
-  }, [players, currentPlayer]);
 
   // ---------- Intermediate: weeks that have logs × the 4 days ----------
   const intermediate = useMemo(() => {
@@ -146,29 +144,32 @@ const TrackerView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     return { columns, rows };
   }, [allLogs, players]);
 
-  const { columns, rows: playerRows } = program === 'Advanced' ? advanced : intermediate;
+  const sections: Section[] = [
+    { title: 'Intermediate', ...intermediate, emptyText: 'No players found' },
+    { title: 'Advanced', ...advanced, emptyText: 'No players on the Advanced program yet' },
+  ];
 
-  // CSV Export function
+  // CSV export: both programs in one file, one block each with its own header row.
   const exportToCSV = () => {
-    const headers = ['Player', 'Position', ...columns.map(c => `${c.title} ${c.subtitle}`)];
-    const rows = playerRows.map(player => [
-      player.name,
-      player.position || '',
-      ...columns.map(c => c.cell(player.id).text),
+    const quote = (cell: string) => `"${cell.replace(/"/g, '""')}"`;
+    const lines = sections.flatMap((section, i) => [
+      ...(i > 0 ? [''] : []),
+      quote(section.title.toUpperCase()),
+      ['Player', 'Position', ...section.columns.map(c => `${c.title} ${c.subtitle}`)].map(quote).join(','),
+      ...section.rows.map(player => [
+        player.name,
+        player.position || '',
+        ...section.columns.map(c => c.cell(player.id).text),
+      ].map(quote).join(',')),
     ]);
-
-    // Create CSV content (escape embedded quotes)
-    const csvContent = [
-      headers.map(h => `"${h}"`).join(','),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
+    const csvContent = lines.join('\n');
 
     // Download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `workout-tracker-${program.toLowerCase()}-${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `workout-tracker-${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -219,74 +220,64 @@ const TrackerView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         </button>
       </div>
 
-      {/* Program Toggle */}
-      <div className="grid grid-cols-2 gap-2 p-1 bg-neutral-900 border border-neutral-800 rounded-xl">
-        {(['Intermediate', 'Advanced'] as ProgramLevel[]).map(level => (
-          <button
-            key={level}
-            onClick={() => { pickedProgramRef.current = true; setProgram(level); }}
-            className={`py-2 rounded-lg text-sm font-bold transition-all ${
-              program === level ? 'bg-amber-500 text-black' : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            {level}
-          </button>
-        ))}
-      </div>
-
-      <div className="bg-neutral-900 rounded-xl overflow-hidden border border-neutral-800 shadow-xl">
-        <div className="overflow-x-auto custom-scrollbar" style={{ maxHeight: '70vh' }}>
-          <table className="w-full text-xs text-left border-collapse">
-            <thead className="bg-black text-neutral-200 uppercase tracking-wider font-bold sticky top-0 z-10">
-              <tr>
-                <th className="px-3 py-3 text-left sticky left-0 bg-black z-20 border-r border-neutral-800">Player</th>
-                <th className="px-2 py-3 text-center sticky left-32 bg-black z-20 border-r border-neutral-800">Position</th>
-                {columns.map(col => (
-                  <th key={col.key} className="px-2 py-3 text-center border-r border-neutral-800 min-w-[80px]">
-                    <div className="font-bold">{col.title}</div>
-                    <div className="text-[10px] text-neutral-400 font-normal">{col.subtitle}</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {playerRows.length === 0 ? (
-                <tr>
-                  <td colSpan={2 + columns.length} className="px-4 py-8 text-center text-neutral-500">
-                    {program === 'Advanced' ? 'No players on the Advanced program yet' : 'No players found'}
-                  </td>
-                </tr>
-              ) : (
-                playerRows.map((player, idx) => (
-                <tr key={player.id} className={`border-b border-neutral-800 hover:bg-neutral-800/50 ${idx % 2 === 0 ? 'bg-neutral-900' : 'bg-neutral-900/50'}`}>
-                  <td className="px-3 py-2 font-semibold text-white sticky left-0 bg-inherit z-10 border-r border-neutral-800">
-                    {player.name}
-                  </td>
-                  <td className="px-2 py-2 text-center text-neutral-400 sticky left-32 bg-inherit z-10 border-r border-neutral-800">
-                    {player.position || '-'}
-                  </td>
-                  {columns.map(col => {
-                    const { text, status } = col.cell(player.id);
-                    return (
-                      <td
-                        key={`${player.id}-${col.key}`}
-                        className={`px-2 py-2 text-center border-r border-neutral-800 whitespace-nowrap ${
-                          status === 'complete' ? 'bg-green-900/30 text-green-400' :
-                          status === 'partial' ? 'bg-amber-900/30 text-amber-400' :
-                          'text-neutral-600'
-                        }`}
-                      >
-                        {text || '-'}
+      {sections.map(section => (
+        <section key={section.title} className="space-y-2">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-amber-500">{section.title}</h3>
+          <div className="bg-neutral-900 rounded-xl overflow-hidden border border-neutral-800 shadow-xl">
+            <div className="overflow-x-auto custom-scrollbar" style={{ maxHeight: '70vh' }}>
+              <table className="w-full text-xs text-left border-collapse">
+                <thead className="bg-black text-neutral-200 uppercase tracking-wider font-bold sticky top-0 z-10">
+                  <tr>
+                    <th className="px-3 py-3 text-left sticky left-0 bg-black z-20 border-r border-neutral-800">Player</th>
+                    <th className="px-2 py-3 text-center sticky left-32 bg-black z-20 border-r border-neutral-800">Position</th>
+                    {section.columns.map(col => (
+                      <th key={col.key} className="px-2 py-3 text-center border-r border-neutral-800 min-w-[80px]">
+                        <div className="font-bold">{col.title}</div>
+                        <div className="text-[10px] text-neutral-400 font-normal">{col.subtitle}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {section.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={2 + section.columns.length} className="px-4 py-8 text-center text-neutral-500">
+                        {section.emptyText}
                       </td>
-                    );
-                  })}
-                </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    </tr>
+                  ) : (
+                    section.rows.map((player, idx) => (
+                    <tr key={player.id} className={`border-b border-neutral-800 hover:bg-neutral-800/50 ${idx % 2 === 0 ? 'bg-neutral-900' : 'bg-neutral-900/50'}`}>
+                      <td className="px-3 py-2 font-semibold text-white sticky left-0 bg-inherit z-10 border-r border-neutral-800">
+                        {player.name}
+                      </td>
+                      <td className="px-2 py-2 text-center text-neutral-400 sticky left-32 bg-inherit z-10 border-r border-neutral-800">
+                        {player.position || '-'}
+                      </td>
+                      {section.columns.map(col => {
+                        const { text, status } = col.cell(player.id);
+                        return (
+                          <td
+                            key={`${player.id}-${col.key}`}
+                            className={`px-2 py-2 text-center border-r border-neutral-800 whitespace-nowrap ${
+                              status === 'complete' ? 'bg-green-900/30 text-green-400' :
+                              status === 'partial' ? 'bg-amber-900/30 text-amber-400' :
+                              'text-neutral-600'
+                            }`}
+                          >
+                            {text || '-'}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      ))}
     </div>
   );
 };
