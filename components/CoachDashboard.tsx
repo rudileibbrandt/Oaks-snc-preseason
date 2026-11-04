@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { thisSeasonOnly } from '../services/season';
-import { Player, WorkoutLog, AppView, ProgramLevel } from '../types';
+import { Player, WorkoutLog, AppView } from '../types';
 import { db } from '../services/db';
 import AdvancedStatBoard from './AdvancedStatBoard';
 import AlumniBoard from './AlumniBoard';
@@ -43,11 +43,11 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
   
   // View States
   const [viewMode, setViewMode] = useState<'completion' | 'metrics' | 'analytics' | 'performers'>('completion');
-  // Which program's board is showing; opens on the viewer's own program.
-  // Alumni have their own board; alumni open on it.
-  const boardFor = (p: Player): ProgramLevel | 'Alumni' => (isAlumni(p) ? 'Alumni' : p.program ?? 'Intermediate');
-  const [boardProgram, setBoardProgram] = useState<ProgramLevel | 'Alumni'>(currentPlayer ? boardFor(currentPlayer) : 'Intermediate');
-  const showIntermediate = boardProgram === 'Intermediate';
+  // This season shows Intermediate, then Advanced, on one page. Alumni have their own board; alumni open on it.
+  type Board = 'Season' | 'Alumni';
+  const boardFor = (p: Player): Board => (isAlumni(p) ? 'Alumni' : 'Season');
+  const [board, setBoard] = useState<Board>(currentPlayer ? boardFor(currentPlayer) : 'Season');
+  const showIntermediate = board === 'Season';
   // Current team only: alumni are kept off the program boards.
   const currentPlayers = useMemo(() => players.filter(p => !isAlumni(p)), [players]);
   // Each program has its own board: Advanced players only appear on the Advanced one.
@@ -57,7 +57,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
   useEffect(() => {
     if (pickedProgramRef.current || !currentPlayer) return;
     const me = players.find(p => p.id === currentPlayer.id);
-    if (me) setBoardProgram(boardFor(me));
+    if (me) setBoard(boardFor(me));
   }, [players, currentPlayer]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedPlayerForChart, setSelectedPlayerForChart] = useState<Player | null>(null);
@@ -773,23 +773,23 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
         </div>
       </div>
 
-      {/* Program Toggle */}
-      <div className="grid grid-cols-3 gap-2 p-1 mb-3 bg-neutral-900 border border-neutral-800 rounded-xl">
-        {(['Intermediate', 'Advanced', 'Alumni'] as Array<ProgramLevel | 'Alumni'>).map(level => (
+      {/* Board Toggle: this season (both programs) or alumni */}
+      <div className="grid grid-cols-2 gap-2 p-1 mb-3 bg-neutral-900 border border-neutral-800 rounded-xl">
+        {(['Season', 'Alumni'] as Board[]).map(b => (
           <button
-            key={level}
-            onClick={() => { pickedProgramRef.current = true; setBoardProgram(level); }}
+            key={b}
+            onClick={() => { pickedProgramRef.current = true; setBoard(b); }}
             className={`py-2 rounded-lg text-sm font-bold transition-all ${
-              boardProgram === level ? 'bg-amber-500 text-black' : 'text-neutral-400 hover:text-white'
+              board === b ? 'bg-amber-500 text-black' : 'text-neutral-400 hover:text-white'
             }`}
           >
-            {level}
+            {b === 'Season' ? 'This season' : 'Alumni'}
           </button>
         ))}
       </div>
 
       {/* View Toggle */}
-      {boardProgram !== 'Alumni' && (
+      {board !== 'Alumni' && (
       <div className={`flex p-1 bg-neutral-900 rounded-xl mb-6 border border-neutral-800 ${currentPlayer?.role === 'Coach' ? 'flex-wrap gap-1' : ''}`}>
         <button
           onClick={() => setViewMode('completion')}
@@ -837,20 +837,11 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
             </div>
       )}
 
-      {boardProgram === 'Alumni' && (
+      {board === 'Alumni' && (
         <AlumniBoard players={players} allLogs={everyLog} currentPlayer={currentPlayer} />
       )}
 
-      {boardProgram === 'Advanced' && (
-        <AdvancedStatBoard
-          players={currentPlayers}
-          allLogs={allLogs}
-          selectedWeek={selectedWeek}
-          onSelectWeek={setSelectedWeek}
-          currentPlayer={currentPlayer}
-          viewMode={viewMode}
-        />
-      )}
+      {showIntermediate && <h3 className="text-sm font-bold uppercase tracking-wider text-amber-500 mb-2">Intermediate</h3>}
 
       {/* Analytics View */}
       {showIntermediate && viewMode === 'analytics' && (
@@ -1220,6 +1211,20 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
           </table>
         </div>
       </div>
+      )}
+
+      {board === 'Season' && (
+        <>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-amber-500 mb-2">Advanced</h3>
+          <AdvancedStatBoard
+            players={currentPlayers}
+            allLogs={allLogs}
+            selectedWeek={selectedWeek}
+            onSelectWeek={setSelectedWeek}
+            currentPlayer={currentPlayer}
+            viewMode={viewMode}
+          />
+        </>
       )}
 
       {/* Registered players: everyone with an app account, full size, players and coaches apart */}
