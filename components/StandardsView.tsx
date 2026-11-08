@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Medal, Loader2, Youtube } from 'lucide-react';
+import { ArrowLeft, Medal, Loader2, Youtube, Pencil } from 'lucide-react';
 import { AppView, Player, TestResult, TestSession } from '../types';
 import { db } from '../services/db';
 import { ROSTER_PLAYERS } from '../services/rosterData';
@@ -11,7 +11,7 @@ import {
   GROUPS, LEVELS, PositionGroup, STANDARDS, TESTS, formatStandard, formatValue,
   groupLabel, levelIndex, playerGroup, testSummary,
 } from '../services/standards';
-import TestingDays from './TestingDays';
+import TestingDays, { EntryModal } from './TestingDays';
 import LevelChip from './LevelChip';
 import ResultCards from './ResultCards';
 
@@ -84,7 +84,7 @@ const StandardsView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       {loading && tab !== 'tables' ? (
         <div className="flex justify-center py-12"><Loader2 className="animate-spin text-neutral-500" /></div>
       ) : tab === 'mine' && currentPlayer ? (
-        <MyLevels player={currentPlayer} sessions={sessions} results={results} />
+        <MyLevels player={currentPlayer} sessions={sessions} results={results} onChanged={load} />
       ) : tab === 'team' ? (
         <TeamLevels sessions={sessions} results={results} />
       ) : tab === 'testing' && isCoach && currentPlayer ? (
@@ -98,12 +98,28 @@ const StandardsView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
 // ---------- A player's own levels ----------
 
-const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: TestResult[] }> = ({ player, sessions, results }) => {
+// Local calendar date, YYYY-MM-DD (testing days are stored that way).
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: TestResult[]; onChanged: () => Promise<void> }> = ({ player, sessions, results, onChanged }) => {
   const key = normalizeName(player.name);
   const rosterPlayer = ROSTER_PLAYERS.find(p => normalizeName(p.name) === key);
   const mine = useMemo(() => results.filter(r => r.nameKey === key), [results, key]);
   const defaultGroup = playerGroup(mine, sessions, rosterPlayer?.bestPosition);
   const [group, setGroup] = useState<PositionGroup | ''>(defaultGroup ?? '');
+  const [entering, setEntering] = useState<TestSession | null>(null);
+
+  // Players enter their own scores for testing days that have started (most recent first).
+  // A score a coach entered is the player's to see, not to change.
+  const enterable = useMemo(() => {
+    const today = localToday();
+    return sessions.filter(s => s.date <= today).sort((a, b) => b.date.localeCompare(a.date));
+  }, [sessions]);
+  const resultFor = (sessionId: string) => mine.find(r => r.sessionId === sessionId);
+  const coachEntered = (r?: TestResult) => !!r && normalizeName(r.enteredBy) !== key;
 
   return (
     <div className="space-y-4">
@@ -116,10 +132,44 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
         </select>
       </label>
 
+      {enterable.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-neutral-500">Enter your test results</p>
+          {enterable.map(s => {
+            const r = resultFor(s.id);
+            const locked = coachEntered(r);
+            return (
+              <button key={s.id} disabled={locked} onClick={() => setEntering(s)}
+                className="w-full flex items-center justify-between gap-3 p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left disabled:hover:bg-neutral-900">
+                <div className="min-w-0">
+                  <p className="text-sm text-white truncate">{s.name}</p>
+                  <p className="text-[11px] text-neutral-500">
+                    {s.date} · {!r ? 'Not entered' : locked ? `Entered by ${r.enteredBy}` : 'Entered by you, tap to change'}
+                  </p>
+                </div>
+                {!locked && <Pencil size={14} className="text-amber-400 flex-shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {mine.length === 0 && (
         <p className="text-sm text-neutral-400 p-4 bg-neutral-900 border border-neutral-800 rounded-xl">
-          No test results yet. Your coach enters them after each testing day. Until then, the numbers below are the lines to aim for.
+          No test results yet. Enter yours above after a testing day, or your coach will. Until then, the numbers below are the lines to aim for.
         </p>
+      )}
+
+      {entering && (
+        <EntryModal
+          session={entering}
+          playerName={rosterPlayer?.name ?? player.name}
+          existing={resultFor(entering.id)}
+          defaultGroup={(group || defaultGroup) || undefined}
+          currentPlayer={player}
+          onClose={() => setEntering(null)}
+          onSaved={async () => { await onChanged(); setEntering(null); }}
+        />
       )}
 
       {group && (

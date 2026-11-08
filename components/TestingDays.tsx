@@ -262,7 +262,12 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer,
               <button key={p.name} onClick={() => setEditing(p.name)}
                 className="w-full flex items-center justify-between gap-3 p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left">
                 <div className="min-w-0">
-                  <p className="text-sm text-white truncate">{p.name}</p>
+                  <p className="text-sm text-white truncate">
+                    {p.name}
+                    {r && normalizeName(r.enteredBy) === r.nameKey && (
+                      <span className="ml-2 text-[10px] font-bold uppercase text-sky-400">Self-entered</span>
+                    )}
+                  </p>
                   <p className="text-[11px] text-neutral-500 truncate">
                     {r ? `${groupLabel(r.group)} · ${done.map(t => `${t.label} ${formatValue(t.key, scoreOf(r, t.key)!)}`).join(' · ') || 'nothing yet'}` : 'Not entered'}
                   </p>
@@ -314,7 +319,7 @@ interface EntryProps {
   onSaved: () => Promise<void>;
 }
 
-const EntryModal: React.FC<EntryProps> = ({ session, playerName, existing, defaultGroup, currentPlayer, onClose, onSaved }) => {
+export const EntryModal: React.FC<EntryProps> = ({ session, playerName, existing, defaultGroup, currentPlayer, onClose, onSaved }) => {
   const [form, setForm] = useState<Form>(() => ({
     group: existing?.group ?? defaultGroup ?? '',
     ...Object.fromEntries(FIELDS.map(f => [f.key, toText(f.key, existing?.[f.key])])) as Omit<Form, 'group'>,
