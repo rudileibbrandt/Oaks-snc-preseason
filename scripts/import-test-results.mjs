@@ -27,6 +27,8 @@ const SPRINT10_NOV8 = {
   // Fastest of two runs (Rudi): Andrew Born 1.78/1.77, Tyler Leary 1.89/1.75. Zach F's 1.76 was
   // listed without a name ("probably Zach F", Rudi).
   'Andrew Born': 1.77, 'Tyler Leary': 1.75, 'Zachary Filal': 1.76,
+  // "Nate": probably Nathaniel Goldberg (Rudi); not Nathan Hoge.
+  'Nathaniel Goldberg': 1.76,
 };
 
 const DAYS = [
@@ -53,7 +55,7 @@ const DAYS = [
       ['Zachary Filal', 5.76], ['Josh Davis', 5.41], ['Joshua Boudreau', 5.98],
       ['Finn Little', 5.40], ['Andrew Born', 5.33], ['Christian Sisneroz', 5.94], ['Luc Purcell', 6.80],
       ['Duke Chiosso', 5.39], ['Rudy Duggineni', 6.39], ['Frank Tucker', 5.68], ['Julian Gomez', 5.48],
-      ['Christopher Castro', 5.59], ['Tristan Comiskey', 6.27], ['Zachary Taylor', 6.37], ['Quinten Snyder', 6.83],
+      ['Christopher Castro', 5.59], ['Tristan Comiskey', 6.27], ['Zachary Taylor', 6.37], ['Quinten Snyder', 6.83], ['Nathaniel Goldberg', 5.61],
     ].map(([name, sprint40]) => ({ name, sprint40, sprint10: SPRINT10_NOV8[name] })),
   },
 ];
