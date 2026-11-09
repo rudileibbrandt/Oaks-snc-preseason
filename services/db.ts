@@ -376,7 +376,7 @@ export const db = {
           .limit(1)
           .get(),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
+          setTimeout(() => reject(Object.assign(new Error('Query timeout after 10 seconds'), { code: 'timeout' })), 10000)
         )
       ]) as any;
 
@@ -436,8 +436,10 @@ export const db = {
           ...(user.email && { email: user.email })
         };
         
-        const docRef = await dbInstance.collection('roster').add(newPlayerData);
-        const player = { id: docRef.id, ...newPlayerData } as Player;
+        // Saved under the sign-in's uid, so a retry after a slow save writes the same profile
+        // instead of adding a second one.
+        await dbInstance.collection('roster').doc(user.uid).set(newPlayerData);
+        const player = { id: user.uid, ...newPlayerData } as Player;
         console.log('[getOrCreatePlayerForUser] Created new player:', player.id);
         return player;
       }
@@ -1652,114 +1654,6 @@ function needsMigration(ratings: Record<string, number>): boolean {
   // If any value is > 3, assume already migrated
   return Object.values(ratings).every(v => v <= 3) &&
          Object.values(ratings).some(v => v >= 1);
-}
-
-export async function migrateRatingsTo5PointScale(): Promise<void> {
-  if (localStorage.getItem(MIGRATION_FLAG)) {
-    console.log('[migration] Already migrated to 5-point scale, skipping');
-    return;
-  }
-
-  console.log('[migration] Starting 1-3 → 1-5 rating scale migration...');
-
-  if (isConfigured && dbInstance) {
-    // Firebase migration
-    try {
-      await ensureAuth();
-
-      // Migrate ratings collection
-      const ratingsSnapshot = await dbInstance.collection('ratings').get();
-      if (!ratingsSnapshot.empty) {
-        const batch = dbInstance.batch();
-        let migratedCount = 0;
-
-        ratingsSnapshot.docs.forEach((doc: any) => {
-          const data = doc.data();
-          if (data.ratings && needsMigration(data.ratings)) {
-            const migratedRatings = migrateRatingsObject(data.ratings);
-            batch.update(doc.ref, { ratings: migratedRatings });
-            migratedCount++;
-          }
-        });
-
-        if (migratedCount > 0) {
-          await batch.commit();
-          console.log(`[migration] Migrated ${migratedCount} ratings in Firebase`);
-        } else {
-          console.log('[migration] No Firebase ratings needed migration');
-        }
-      }
-
-      // Migrate ratingHistory collection
-      const historySnapshot = await dbInstance.collection('ratingHistory').get();
-      if (!historySnapshot.empty) {
-        const batch = dbInstance.batch();
-        let migratedCount = 0;
-
-        historySnapshot.docs.forEach((doc: any) => {
-          const data = doc.data();
-          if (data.ratings && needsMigration(data.ratings)) {
-            const migratedRatings = migrateRatingsObject(data.ratings);
-            batch.update(doc.ref, { ratings: migratedRatings });
-            migratedCount++;
-          }
-        });
-
-        if (migratedCount > 0) {
-          await batch.commit();
-          console.log(`[migration] Migrated ${migratedCount} history entries in Firebase`);
-        } else {
-          console.log('[migration] No Firebase history entries needed migration');
-        }
-      }
-    } catch (e) {
-      console.error('[migration] Firebase migration error:', e);
-      // Don't set the flag - allow retry on next load
-      return;
-    }
-  } else {
-    // LocalStorage migration
-    const ratingsData = localStorage.getItem(RATINGS_KEY);
-    if (ratingsData) {
-      const ratings: PlayerRating[] = JSON.parse(ratingsData);
-      let migratedCount = 0;
-
-      const migrated = ratings.map(r => {
-        if (r.ratings && needsMigration(r.ratings as unknown as Record<string, number>)) {
-          migratedCount++;
-          return { ...r, ratings: migrateRatingsObject(r.ratings as unknown as Record<string, number>) as unknown as typeof r.ratings };
-        }
-        return r;
-      });
-
-      if (migratedCount > 0) {
-        localStorage.setItem(RATINGS_KEY, JSON.stringify(migrated));
-        console.log(`[migration] Migrated ${migratedCount} ratings in localStorage`);
-      }
-    }
-
-    const historyData = localStorage.getItem(RATING_HISTORY_KEY);
-    if (historyData) {
-      const history: RatingHistoryEntry[] = JSON.parse(historyData);
-      let migratedCount = 0;
-
-      const migrated = history.map(h => {
-        if (h.ratings && needsMigration(h.ratings as unknown as Record<string, number>)) {
-          migratedCount++;
-          return { ...h, ratings: migrateRatingsObject(h.ratings as unknown as Record<string, number>) as unknown as typeof h.ratings };
-        }
-        return h;
-      });
-
-      if (migratedCount > 0) {
-        localStorage.setItem(RATING_HISTORY_KEY, JSON.stringify(migrated));
-        console.log(`[migration] Migrated ${migratedCount} history entries in localStorage`);
-      }
-    }
-  }
-
-  localStorage.setItem(MIGRATION_FLAG, new Date().toISOString());
-  console.log('[migration] Migration complete, flag set');
 }
 
 // Manual migration triggered from admin panel — ignores flag, returns counts

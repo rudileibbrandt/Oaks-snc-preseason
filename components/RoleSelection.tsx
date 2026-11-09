@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, AlertCircle, User, Users } from 'lucide-react';
 import { db } from '../services/db';
+import type { Player } from '../types';
+import { withTimeout } from '../services/authErrors';
 import { getCurrentUser } from '../services/auth';
 import { classKey, classLabel, currentClassYears } from '../services/classYears';
 
 interface Props {
-  onComplete: () => void;
+  onComplete: (player: Player) => void; // the profile just saved
 }
 
 const RoleSelection: React.FC<Props> = ({ onComplete }) => {
@@ -93,10 +95,16 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
         ? `${firstName.trim()} ${lastName.trim()}`.trim()
         : undefined;
       
-      const player = await db.getOrCreatePlayerForUser(
-        selectedRole,
-        selectedRole === 'Player' ? selectedPosition : undefined,
-        fullName
+      // A save that never answers must not spin forever. Retrying is safe: the profile is saved
+      // under the sign-in's own id, so a second tap can't make a second profile.
+      const player = await withTimeout(
+        db.getOrCreatePlayerForUser(
+          selectedRole,
+          selectedRole === 'Player' ? selectedPosition : undefined,
+          fullName
+        ),
+        20000,
+        'Saving your profile is taking too long. Check your connection and tap Continue again.'
       );
       // Save the player's class by name (coaches can change it on the Player Roster).
       // A failure here shouldn't block sign-up.
@@ -107,10 +115,12 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
           console.error('[RoleSelection] Could not save class:', classErr);
         }
       }
-      onComplete();
+      onComplete(player);
     } catch (err: any) {
       console.error('Role selection failed:', err);
-      setError(err.message || 'Failed to create profile. Please try again.');
+      setError(err?.code === 'timeout'
+        ? 'Saving your profile is taking too long. Check your connection and tap Continue again.'
+        : err?.message || 'Failed to create profile. Please try again.');
       setIsSubmitting(false);
     }
   };

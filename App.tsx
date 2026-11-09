@@ -16,7 +16,7 @@ import DesktopLayout from './components/DesktopLayout';
 import { AppView, Player } from './types';
 import { onAuthStateChanged, signOut } from './services/auth';
 import { profileOutcome, ProfileOutcome } from './services/profileLoad';
-import { db, migrateRatingsTo5PointScale, findDuplicatesByName } from './services/db';
+import { db, findDuplicatesByName } from './services/db';
 import { invalidateRatingsCache } from './services/ratingData';
 
 const App: React.FC = () => {
@@ -97,21 +97,8 @@ const App: React.FC = () => {
       setIsAuthenticated(!!user);
 
       if (user) {
-        migrateRatingsTo5PointScale().catch(e => console.error('[App] Migration error:', e));
-        // One-time fix: Carter White Coach→Player
-        if (!localStorage.getItem('fix_carter_white_role')) {
-          db.getPlayers().then(players => {
-            const carter = players.find(p => p.name === 'Carter White' && p.role === 'Coach');
-            if (carter) {
-              db.updatePlayerRole(carter.id, 'Player').then(() => {
-                console.log('[App] Fixed Carter White role to Player');
-                localStorage.setItem('fix_carter_white_role', 'done');
-              });
-            } else {
-              localStorage.setItem('fix_carter_white_role', 'done');
-            }
-          }).catch(e => console.error('[App] Carter White fix error:', e));
-        }
+        // Sign-in reads only the user's own profile. (Old one-off fix-ups that ran here downloaded
+        // every rating on each new device, ~1 MB, and starved this lookup on slow connections.)
         await loadProfile();
       } else {
         lookupId.current++; // drop any lookup still running for the previous sign-in
@@ -143,9 +130,16 @@ const App: React.FC = () => {
     setIsAuthenticated(true);
   };
 
-  const handleRoleSelectionComplete = async () => {
-    // The profile now exists; load it the same way as at sign-in.
-    await loadProfile();
+  const handleRoleSelectionComplete = (player: Player) => {
+    // Use the profile just saved: looking it up again could time out on a slow link and show
+    // "Can't reach the server" right after a successful sign-up.
+    lookupId.current++; // any lookup still running for this sign-in is now stale
+    setCurrentPlayer(player);
+    setNeedsRoleSelection(false);
+    setProfileError(false);
+    setIsLoading(false);
+    setCurrentView('LANDING');
+    checkForDuplicates(player);
   };
 
   const handleMergeComplete = async () => {

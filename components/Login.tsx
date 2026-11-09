@@ -1,13 +1,25 @@
 import React, { useState } from 'react';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, sendPasswordReset } from '../services/auth';
 import { Loader2, AlertCircle, Mail } from 'lucide-react';
+import { authErrorMessage, cleanEmail, isInAppBrowser } from '../services/authErrors';
 
 interface Props {
   onLoginSuccess: () => void;
   onSignUpSuccess: () => void; // New callback for signup
 }
 
+const inAppBrowser = typeof navigator !== 'undefined' && isInAppBrowser(navigator.userAgent);
+
 const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
+  const [linkCopied, setLinkCopied] = useState(false);
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.origin);
+      setLinkCopied(true);
+    } catch (e) {
+      console.error('[Login] Could not copy link:', e);
+    }
+  };
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -26,7 +38,7 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
       onLoginSuccess();
     } catch (err: any) {
       console.error('Sign in error:', err);
-      setError(err.message || `Failed to sign in with ${provider}`);
+      setError(authErrorMessage(err, 'sign in'));
       setIsLoading(null);
     }
   };
@@ -43,17 +55,17 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
 
     try {
       if (isSignUp) {
-        await signUpWithEmail(email, password);
+        await signUpWithEmail(cleanEmail(email), password);
         // For signup, trigger registration flow
         onSignUpSuccess();
       } else {
-        await signInWithEmail(email, password);
+        await signInWithEmail(cleanEmail(email), password);
         // For signin, use normal login flow
         onLoginSuccess();
       }
     } catch (err: any) {
       console.error('Email auth error:', err);
-      setError(err.message || `Failed to ${isSignUp ? 'sign up' : 'sign in'}`);
+      setError(authErrorMessage(err, isSignUp ? 'sign up' : 'sign in'));
       setIsLoading(null);
     }
   };
@@ -70,12 +82,12 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
     setSuccess(null);
 
     try {
-      await sendPasswordReset(email);
+      await sendPasswordReset(cleanEmail(email));
       setSuccess('Password reset email sent! Check your inbox.');
       setIsLoading(null);
     } catch (err: any) {
       console.error('Password reset error:', err);
-      setError(err.message || 'Failed to send password reset email');
+      setError(authErrorMessage(err, 'send the reset email'));
       setIsLoading(null);
     }
   };
@@ -88,6 +100,18 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
           <h1 className="text-3xl font-black text-white mb-2">The Oaks</h1>
           <p className="text-neutral-400 text-sm">Performance Portal</p>
         </div>
+
+        {/* Google blocks sign-in inside apps' built-in browsers */}
+        {inAppBrowser && (
+          <div className="bg-amber-900/20 border border-amber-700/50 p-4 rounded-xl text-amber-300 text-sm space-y-2">
+            <p className="font-bold">Open this page in Safari or Chrome</p>
+            <p>You're in an app's built-in browser, where Google sign-in doesn't work. Tap the ⋯ or share menu and choose "Open in browser", or copy the link and paste it into Safari or Chrome. Email sign-up below works here too.</p>
+            <button type="button" onClick={handleCopyLink} className="px-3 py-1.5 rounded-lg bg-amber-500 text-black font-bold text-xs">
+              {linkCopied ? 'Link copied' : 'Copy link'}
+            </button>
+            <p className="text-xs text-amber-200/80 select-all break-all">{window.location.origin}</p>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (
@@ -145,6 +169,9 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
               <label className="block text-neutral-400 text-sm mb-2 font-medium">Email</label>
               <input
                 type="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your.email@example.com"
@@ -186,6 +213,9 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
               <label className="block text-neutral-400 text-sm mb-2 font-medium">Email</label>
               <input
                 type="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your.email@example.com"
@@ -199,6 +229,7 @@ const Login: React.FC<Props> = ({ onLoginSuccess, onSignUpSuccess }) => {
               <label className="block text-neutral-400 text-sm mb-2 font-medium">Password</label>
               <input
                 type="password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
