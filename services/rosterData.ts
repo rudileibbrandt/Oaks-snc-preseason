@@ -91,7 +91,7 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   { name: "Tristan Comiskey", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 15 }, // 40m on 8 Nov 2026
   { name: "Christopher Castro", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 15 }, // "Mac"; on the 2027 registration list; 40m on 8 Nov 2026
   { name: "Zachary Taylor", trainingGroup: "Gold", bestPosition: 12, secondPosition: 10 }, // on the 2027 registration list; 40m on 8 Nov 2026
-  { name: "Quinten Snyder", trainingGroup: "Gold" }, // JV (SportsEngine 2026-27); "Quentin", 40m 6.83 on 8 Nov 2026
+  { name: "Quinten Snyder", trainingGroup: "Gold", bestPosition: 6, secondPosition: 7, thirdPosition: 8 }, // JV (SportsEngine 2026-27); "Quentin", 40m 6.83 on 8 Nov 2026
 ];
 
 // Photo filename mappings (name in roster -> filename)

@@ -53,7 +53,7 @@ const DAYS = [
       ['Zachary Filal', 5.76], ['Josh Davis', 5.41], ['Joshua Boudreau', 5.98],
       ['Finn Little', 5.40], ['Andrew Born', 5.33], ['Christian Sisneroz', 5.94], ['Luc Purcell', 6.80],
       ['Duke Chiosso', 5.39], ['Rudy Duggineni', 6.39], ['Frank Tucker', 5.68], ['Julian Gomez', 5.48],
-      ['Christopher Castro', 5.59], ['Tristan Comiskey', 6.27], ['Zachary Taylor', 6.37],
+      ['Christopher Castro', 5.59], ['Tristan Comiskey', 6.27], ['Zachary Taylor', 6.37], ['Quinten Snyder', 6.83],
     ].map(([name, sprint40]) => ({ name, sprint40, sprint10: SPRINT10_NOV8[name] })),
   },
 ];
