@@ -384,6 +384,18 @@ export const db = {
     return clean;
   },
 
+  // Sign-ins allowed to approve coach access (config/admins; changed in the Firebase console).
+  getAdminUids: async (): Promise<string[]> => {
+    if (!isConfigured || !dbInstance) return [];
+    const snap = await dbInstance.collection('config').doc('admins').get();
+    return snap.exists ? snap.data().uids ?? [] : [];
+  },
+
+  declineCoachRequest: async (id: string) => {
+    if (!isConfigured || !dbInstance) return;
+    await dbInstance.collection('roster').doc(id).update({ coachRequested: false });
+  },
+
   // Get or create player for authenticated user
   getOrCreatePlayerForUser: async (role?: 'Player' | 'Coach', position?: 'Forward' | 'Back', customName?: string): Promise<Player> => {
     if (!isConfigured || !dbInstance) {

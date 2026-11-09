@@ -62,7 +62,7 @@ const Landing: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       {currentPlayer?.coachRequested && !isCoach && (
         <div className="w-full max-w-sm p-4 bg-amber-900/20 border border-amber-700/50 rounded-xl text-left">
           <p className="text-sm font-bold text-amber-300">Coach access requested</p>
-          <p className="text-xs text-amber-200/80 mt-1">An Oaks coach turns it on in Admin. Until then you see the player view. Let your head coach know you've signed up.</p>
+          <p className="text-xs text-amber-200/80 mt-1">The club admin approves coach access. Until then you see the player view.</p>
         </div>
       )}
 

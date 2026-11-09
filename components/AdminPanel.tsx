@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useIsAdmin } from '../hooks/useIsAdmin';
 import { Trash2, AlertTriangle, CheckCircle, Shield, User, RefreshCw, ArrowRightLeft, Search, Undo2, GraduationCap } from 'lucide-react';
 import { isAlumni, defaultAlumniClass } from '../services/alumni';
 import { setRosterAlumni } from '../services/classYears';
@@ -14,6 +15,7 @@ interface Props {
 }
 
 const AdminPanel: React.FC<Props> = ({ allRatings, onRatingsDeleted }) => {
+  const isAdmin = useIsAdmin(); // only the admin changes roles (firestore.rules)
   const [selectedPlayer, setSelectedPlayer] = useState<string>('');
   const [selectedRatingId, setSelectedRatingId] = useState<string>('');
   const [selectedRaterId, setSelectedRaterId] = useState<string>('');
@@ -596,7 +598,7 @@ const AdminPanel: React.FC<Props> = ({ allRatings, onRatingsDeleted }) => {
                       }`}>
                         {player.role}
                       </span>
-                      <button
+                      {isAdmin && <button
                         onClick={() => handleRoleChange(player)}
                         disabled={changingRoleId === player.id}
                         className="text-xs px-2 py-1 rounded-md bg-neutral-700 text-neutral-300 hover:bg-neutral-600 hover:text-white transition-colors disabled:opacity-50 flex items-center gap-1"
@@ -609,7 +611,7 @@ const AdminPanel: React.FC<Props> = ({ allRatings, onRatingsDeleted }) => {
                             → {player.role === 'Coach' ? 'Player' : 'Coach'}
                           </>
                         )}
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 ))

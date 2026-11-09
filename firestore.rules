@@ -16,6 +16,16 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/roster/$(m.get('profileId', request.auth.uid))).data.role == 'Coach';
     }
 
+    // The club admin (Rudi) approves coach access. The list is changed in the Firebase console only.
+    function isAdmin() {
+      return request.auth.uid in get(/databases/$(database)/documents/config/admins).data.uids;
+    }
+
+    match /config/admins {
+      allow get: if isMember();
+      allow create, update, delete, list: if false;
+    }
+
     match /members/{uid} {
       allow get: if request.auth != null && request.auth.uid == uid;
       // Join (or re-join) with the current code. The code itself is never readable before joining.
@@ -41,12 +51,14 @@ service cloud.firestore {
                   (request.auth != null && (resource.data.userId == request.auth.uid ||
                                             request.auth.uid in resource.data.get('linkedUserIds', [])));
       // Users can only create profiles with their own auth UID, and only as a Player:
-      // coach access is turned on afterwards by an existing coach (Admin -> Users).
+      // coach access is turned on afterwards by the admin (Coaches Corner -> Coach requests).
       allow create: if isMember() &&
                     request.resource.data.userId == request.auth.uid &&
                     request.resource.data.role == 'Player';
-      // Any member can update (needed for admin role changes, account merging)
-      allow update: if isMember();
+      // Any member can update other fields (merging, positions, classes); only the admin can
+      // change a role, so nobody can make themselves (or anyone else) a coach.
+      allow update: if isMember() &&
+                    (request.resource.data.get('role', null) == resource.data.get('role', null) || isAdmin());
       // Deletes are not allowed from the app
       allow delete: if false;
     }

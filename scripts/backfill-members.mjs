@@ -11,6 +11,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 
 const JOIN_CODE = 'OAKS-CG3G';
+// Rudi's sign-ins (gmail, danvillerugby): the club admin, who approves coach access.
+const ADMIN_UIDS = ['WC3d8uSCN0R1EGDGh9TycegBXO52', 'Lduzu5a6qFMPpuyesIHdC2EzFwQ2'];
 const APPLY = process.argv.includes('--apply');
 const DB = 'projects/oaks-snc/databases/(default)/documents';
 const API = 'https://firestore.googleapis.com/v1';
@@ -63,7 +65,11 @@ const existing = new Set(((await getJson(`${API}/${DB}/members?pageSize=1000`)).
 const team = await getJson(`${API}/${DB}/config/team`, { allowMissing: true });
 const toAdd = [...members].filter(([uid]) => !existing.has(uid));
 const needCode = !team?.fields?.joinCode;
-console.log(`members already: ${existing.size} | to add: ${toAdd.length} | join code: ${needCode ? `not set, will set ${JOIN_CODE}` : team.fields.joinCode.stringValue}`);
+const admins = await getJson(`${API}/${DB}/config/admins`, { allowMissing: true });
+const needAdmins = !admins?.fields?.uids;
+const unknownAdmins = ADMIN_UIDS.filter(uid => !members.has(uid));
+if (unknownAdmins.length) { console.error('STOP: admin sign-ins not on the roster:', unknownAdmins); process.exit(1); }
+console.log(`members already: ${existing.size} | to add: ${toAdd.length} | join code: ${needCode ? `not set, will set ${JOIN_CODE}` : team.fields.joinCode.stringValue} | admins: ${needAdmins ? `not set, will set ${ADMIN_UIDS.length}` : admins.fields.uids.arrayValue.values?.length ?? 0}`);
 
 if (!APPLY) {
   console.log('DRY RUN: nothing written. Re-run with --apply.');
@@ -79,6 +85,10 @@ if (needCode) writes.push({
   update: { name: `${DB}/config/team`, fields: { joinCode: { stringValue: JOIN_CODE }, updatedAt: { integerValue: now }, updatedBy: { stringValue: 'backfill' } } },
   currentDocument: { exists: false },
 });
+if (needAdmins) writes.push({
+  update: { name: `${DB}/config/admins`, fields: { uids: { arrayValue: { values: ADMIN_UIDS.map(stringValue => ({ stringValue })) } } } },
+  currentDocument: { exists: false },
+});
 if (writes.length) {
   const res = await (await fetch(`${API}/${DB}:commit`, { method: 'POST', headers: H, body: JSON.stringify({ writes }) })).json();
   if (res.error) { console.error('WRITE FAILED, nothing changed:', res.error.message); process.exit(1); }
@@ -91,8 +101,9 @@ if (writes.length) {
 const after = new Set(((await getJson(`${API}/${DB}/members?pageSize=1000`)).documents ?? []).map(idOf));
 const missing = [...members.keys()].filter(uid => !after.has(uid));
 const code = (await getJson(`${API}/${DB}/config/team`)).fields?.joinCode?.stringValue;
-if (missing.length || !code) {
-  console.error(`CHECK FAILED: ${missing.length} logins without membership; join code is ${code}`);
+const adminCount = (await getJson(`${API}/${DB}/config/admins`)).fields?.uids?.arrayValue?.values?.length ?? 0;
+if (missing.length || !code || !adminCount) {
+  console.error(`CHECK FAILED: ${missing.length} logins without membership; join code is ${code}; admins ${adminCount}`);
   process.exit(1);
 }
-console.log(`CHECK PASSED: all ${members.size} logins are members; join code is ${code}. Safe to deploy.`);
+console.log(`CHECK PASSED: all ${members.size} logins are members; join code is ${code}; ${adminCount} admin sign-ins. Safe to deploy.`);

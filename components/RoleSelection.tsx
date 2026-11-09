@@ -199,7 +199,7 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
           </div>
           {selectedRole === 'Coach' && (
             <p className="mt-3 text-xs text-neutral-400">
-              An Oaks coach turns on coach access for you. Until then you'll see the player view. Tell your head coach you've signed up.
+              The club admin approves coach access. Until then you'll see the player view.
             </p>
           )}
         </div>

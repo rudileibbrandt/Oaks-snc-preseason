@@ -7,6 +7,8 @@ import InjuryTracker from './InjuryTracker';
 import CoachActivity from './CoachActivity';
 import TrackerView from './TrackerView';
 import TeamCodeCard from './TeamCodeCard';
+import CoachRequestsCard from './CoachRequestsCard';
+import { useIsAdmin } from '../hooks/useIsAdmin';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -17,6 +19,7 @@ type SubView = 'hub' | 'depth_chart' | 'analytics' | 'injuries' | 'activity' | '
 
 const CoachesCorner: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const [subView, setSubView] = useState<SubView>('hub');
+  const isAdmin = useIsAdmin();
 
   const handleBack = () => {
     if (subView === 'hub') {
@@ -115,6 +118,7 @@ const CoachesCorner: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
         </div>
       </div>
 
+      {isAdmin && <CoachRequestsCard />}
       <TeamCodeCard currentPlayer={currentPlayer} />
 
       {/* Menu items */}
