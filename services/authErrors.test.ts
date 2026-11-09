@@ -1,7 +1,7 @@
 // Run: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { authErrorMessage, withTimeout, isInAppBrowser, cleanEmail } from './authErrors.ts';
+import { authErrorMessage, withTimeout, isInAppBrowser, cleanEmail, cleanJoinCode } from './authErrors.ts';
 
 const fbErr = (code: string) => Object.assign(new Error(`Firebase: Something (${code}).`), { code });
 
@@ -58,4 +58,11 @@ test('app built-in browsers (where Google blocks sign-in) are spotted; Safari an
 
 test('emails lose stray spaces and capitals from phone keyboards', () => {
   assert.equal(cleanEmail('  Steve.Tucker@Gmail.com '), 'steve.tucker@gmail.com');
+});
+
+test('join codes match however a player types them', () => {
+  assert.equal(cleanJoinCode(' oaks-cg3g '), 'OAKS-CG3G');
+  assert.equal(cleanJoinCode('oaks cg3g'), 'OAKS-CG3G');
+  assert.equal(cleanJoinCode('OAKSCG3G'), 'OAKS-CG3G');
+  assert.equal(cleanJoinCode('OAKS–CG3G'), 'OAKS-CG3G'); // phone keyboards turn - into a dash
 });

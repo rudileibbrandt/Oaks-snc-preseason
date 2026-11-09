@@ -6,6 +6,7 @@ import RatingAnalytics from './RatingAnalytics';
 import InjuryTracker from './InjuryTracker';
 import CoachActivity from './CoachActivity';
 import TrackerView from './TrackerView';
+import TeamCodeCard from './TeamCodeCard';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -113,6 +114,8 @@ const CoachesCorner: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
           <p className="text-xs text-neutral-500">Coach tools & analytics</p>
         </div>
       </div>
+
+      <TeamCodeCard currentPlayer={currentPlayer} />
 
       {/* Menu items */}
       <div className="space-y-3">

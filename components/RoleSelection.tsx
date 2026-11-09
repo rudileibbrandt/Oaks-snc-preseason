@@ -3,7 +3,8 @@ import { Loader2, AlertCircle, User, Users } from 'lucide-react';
 import { db } from '../services/db';
 import type { Player } from '../types';
 import { withTimeout } from '../services/authErrors';
-import { getCurrentUser } from '../services/auth';
+import TeamCodeField from './TeamCodeField';
+import { getCurrentUser, signOut } from '../services/auth';
 import { classKey, classLabel, currentClassYears } from '../services/classYears';
 
 interface Props {
@@ -19,6 +20,7 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
   const [lastName, setLastName] = useState('');
   const [needsNameInput, setNeedsNameInput] = useState(false);
   const [gradYear, setGradYear] = useState<number | null>(null); // players pick their class
+  const [teamCode, setTeamCode] = useState('');
 
   useEffect(() => {
     // Check if we can get name from user profile
@@ -33,7 +35,7 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
         if (nameParts.length >= 2) {
           setFirstName(nameParts[0]);
           setLastName(nameParts.slice(1).join(' '));
-          setNeedsNameInput(false);
+          setNeedsNameInput(true); // always confirm: the Google account may be a parent's
         } else if (nameParts.length === 1) {
           setFirstName(nameParts[0]);
           setNeedsNameInput(true); // Need last name
@@ -60,6 +62,11 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
   }, []);
 
   const handleSubmit = async () => {
+    if (!teamCode.trim()) {
+      setError('Enter the team code from your coach');
+      return;
+    }
+
     if (!selectedRole) {
       setError('Please select a role');
       return;
@@ -95,6 +102,16 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
         ? `${firstName.trim()} ${lastName.trim()}`.trim()
         : undefined;
       
+      // Join the team first: without it the profile can't be saved (firestore.rules).
+      try {
+        await withTimeout(db.joinTeam(teamCode), 20000, 'Joining the team is taking too long. Check your connection and tap Continue again.');
+      } catch (joinErr: any) {
+        if (joinErr?.code === 'permission-denied') {
+          joinErr.message = "That team code isn't right. Check it with your coach.";
+        }
+        throw joinErr;
+      }
+
       // A save that never answers must not spin forever. Retrying is safe: the profile is saved
       // under the sign-in's own id, so a second tap can't make a second profile.
       const player = await withTimeout(
@@ -118,8 +135,8 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
       onComplete(player);
     } catch (err: any) {
       console.error('Role selection failed:', err);
-      setError(err?.code === 'timeout'
-        ? 'Saving your profile is taking too long. Check your connection and tap Continue again.'
+      setError(err?.code === 'timeout' || err?.code === 'permission-denied'
+        ? err.message
         : err?.message || 'Failed to create profile. Please try again.');
       setIsSubmitting(false);
     }
@@ -141,6 +158,8 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
             <span>{error}</span>
           </div>
         )}
+
+        <TeamCodeField value={teamCode} onChange={v => { setTeamCode(v); setError(null); }} disabled={isSubmitting} />
 
         {/* Role Selection */}
         <div>
@@ -185,7 +204,7 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
           )}
         </div>
 
-        {/* Name Input (if needed) */}
+        {/* Name (always shown, so a name from a parent's Google account can be fixed) */}
         {needsNameInput && (
           <div className="space-y-3">
             <div>
@@ -290,6 +309,7 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
           onClick={handleSubmit}
           disabled={
             isSubmitting || 
+            !teamCode.trim() ||
             !selectedRole || 
             (selectedRole === 'Player' && (!selectedPosition || !gradYear)) ||
             (needsNameInput && (!firstName.trim() || !lastName.trim()))
@@ -304,6 +324,15 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
           ) : (
             'Continue'
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => signOut().catch(e => console.error('[RoleSelection] Sign out failed:', e))}
+          disabled={isSubmitting}
+          className="w-full text-sm text-neutral-500 hover:text-neutral-300 underline disabled:opacity-50"
+        >
+          Wrong account? Sign out
         </button>
       </div>
     </div>

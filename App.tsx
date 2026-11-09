@@ -7,6 +7,7 @@ import PlayerList from './components/PlayerList';
 import SetupWarning from './components/SetupWarning';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
+import JoinTeam from './components/JoinTeam';
 import StandardsView from './components/StandardsView';
 import CalendarView from './components/CalendarView';
 import RatingAnalytics from './components/RatingAnalytics';
@@ -25,6 +26,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [needsRoleSelection, setNeedsRoleSelection] = useState(false);
   const [profileError, setProfileError] = useState(false); // profile lookup failed or timed out
+  const [needsJoin, setNeedsJoin] = useState(false); // has a profile but hasn't entered the team code
   const lookupId = useRef(0); // only the newest profile lookup may change the screen
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [coachDashboardRefresh, setCoachDashboardRefresh] = useState(0);
@@ -51,10 +53,15 @@ const App: React.FC = () => {
     setProfileError(false);
     let outcome: ProfileOutcome;
     let player: Player | undefined;
+    let member = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       player = await Promise.race([
-        db.getOrCreatePlayerForUser(),
+        (async () => {
+          const p = await db.getOrCreatePlayerForUser();
+          member = await db.isTeamMember();
+          return p;
+        })(),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new Error('Profile check timeout after 15 seconds')), 15000);
         }),
@@ -68,7 +75,10 @@ const App: React.FC = () => {
     }
     // A newer lookup, or a sign-out, has started since: this answer is stale.
     if (id !== lookupId.current) return;
-    if (outcome === 'ready' && player) {
+    if (outcome === 'ready' && player && !member) {
+      setNeedsJoin(true);
+    } else if (outcome === 'ready' && player) {
+      setNeedsJoin(false);
       setCurrentPlayer(player);
       setNeedsRoleSelection(false);
       setCurrentView(v => (v === 'LOGIN' ? 'LANDING' : v));
@@ -106,6 +116,7 @@ const App: React.FC = () => {
         setCurrentView('LOGIN');
         setNeedsRoleSelection(false);
         setProfileError(false);
+        setNeedsJoin(false);
         setCurrentPlayer(null);
       }
     });
@@ -181,6 +192,10 @@ const App: React.FC = () => {
       );
     }
 
+    if (needsJoin && isAuthenticated) {
+      return <JoinTeam onJoined={() => { loadProfile(); }} />;
+    }
+
     // Show role selection if user is authenticated but needs to register
     if (needsRoleSelection && isAuthenticated) {
       return <RoleSelection onComplete={handleRoleSelectionComplete} />;
@@ -223,7 +238,7 @@ const App: React.FC = () => {
   };
 
   // Views that should NOT get the desktop sidebar (pre-auth flows)
-  const isPreAuthView = !isAuthenticated || needsRoleSelection || profileError || currentView === 'LOGIN';
+  const isPreAuthView = !isAuthenticated || needsRoleSelection || needsJoin || profileError || currentView === 'LOGIN';
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 font-sans selection:bg-amber-500 selection:text-black">

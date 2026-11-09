@@ -1,5 +1,6 @@
 import { Player, WorkoutLog, InjuryRecord, RtpStageEntry, RtpClearance, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamEvent, BodyMeasurement, TRAINING_GROUPS, TrainingGroup } from '../types';
 import { PROFILE_NOT_FOUND } from './profileLoad';
+import { cleanJoinCode } from './authErrors';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -349,6 +350,38 @@ export const db = {
     } catch (e) {
       return handleFirebaseError(e, 'addPlayer');
     }
+  },
+
+  // ---------- Team membership (join code; see firestore.rules) ----------
+  // Is the signed-in user a team member? Only a definite "no" returns false; errors throw.
+  isTeamMember: async (): Promise<boolean> => {
+    if (!isConfigured || !dbInstance) return true;
+    const user = firebase.auth().currentUser;
+    if (!user) throw new Error('User must be authenticated');
+    const snap = await dbInstance.collection('members').doc(user.uid).get();
+    return snap.exists;
+  },
+
+  // Join with the team code. A wrong code is refused by the rules (code 'permission-denied').
+  joinTeam: async (code: string): Promise<void> => {
+    if (!isConfigured || !dbInstance) return;
+    const user = firebase.auth().currentUser;
+    if (!user) throw new Error('User must be authenticated');
+    await dbInstance.collection('members').doc(user.uid).set({ code: cleanJoinCode(code), joinedAt: Date.now() });
+  },
+
+  getJoinCode: async (): Promise<string | null> => {
+    if (!isConfigured || !dbInstance) return null;
+    const snap = await dbInstance.collection('config').doc('team').get();
+    return snap.exists ? snap.data().joinCode ?? null : null;
+  },
+
+  // Coaches only (firestore.rules). Members who already joined are not affected.
+  setJoinCode: async (code: string, coachName: string): Promise<string> => {
+    const clean = cleanJoinCode(code);
+    if (!isConfigured || !dbInstance) return clean;
+    await dbInstance.collection('config').doc('team').update({ joinCode: clean, updatedAt: Date.now(), updatedBy: coachName });
+    return clean;
   },
 
   // Get or create player for authenticated user

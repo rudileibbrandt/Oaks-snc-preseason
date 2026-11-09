@@ -1,16 +1,52 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Roster: Anyone authenticated can read/update (for stat board, admin role changes, merge)
+    // ---------- Team membership (join code) ----------
+    // Signing in is open to anyone, but only team members can read or write team data. A sign-in
+    // becomes a member by entering the team's join code (members/{uid}). Existing users were
+    // made members when the code was introduced (Nov 2026).
+    function isMember() {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/members/$(request.auth.uid));
+    }
+    // A coach is a member whose profile has role Coach. Members created at sign-up have no
+    // profileId: their profile is saved under their uid.
+    function isCoach() {
+      let m = get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
+      return get(/databases/$(database)/documents/roster/$(m.get('profileId', request.auth.uid))).data.role == 'Coach';
+    }
+
+    match /members/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      // Join (or re-join) with the current code. The code itself is never readable before joining.
+      allow create, update: if request.auth != null && request.auth.uid == uid &&
+                    request.resource.data.code == get(/databases/$(database)/documents/config/team).data.joinCode &&
+                    request.resource.data.keys().hasOnly(['code', 'joinedAt']);
+      allow list, delete: if false;
+    }
+
+    match /config/team {
+      allow get: if isMember();
+      allow update: if isMember() && isCoach() &&
+                    request.resource.data.joinCode is string && request.resource.data.joinCode.size() >= 4 &&
+                    request.resource.data.keys().hasOnly(['joinCode', 'updatedAt', 'updatedBy']);
+      allow create, delete, list: if false;
+    }
+
+    // Roster: members read/update (stat board, admin role changes, merge). Before joining, a
+    // sign-in may only look up its own profile, which is how the app tells a new user from a
+    // returning one.
     match /roster/{playerId} {
-      allow read: if request.auth != null;
+      allow read: if isMember() ||
+                  (request.auth != null && (resource.data.userId == request.auth.uid ||
+                                            request.auth.uid in resource.data.get('linkedUserIds', [])));
       // Users can only create profiles with their own auth UID, and only as a Player:
       // coach access is turned on afterwards by an existing coach (Admin -> Users).
-      allow create: if request.auth != null &&
+      allow create: if isMember() &&
                     request.resource.data.userId == request.auth.uid &&
                     request.resource.data.role == 'Player';
-      // Any authenticated user can update (needed for admin role changes, account merging)
-      allow update: if request.auth != null;
+      // Any member can update (needed for admin role changes, account merging)
+      allow update: if isMember();
       // Deletes are not allowed from the app
       allow delete: if false;
     }
@@ -22,17 +58,17 @@ service cloud.firestore {
       return p.userId == request.auth.uid || request.auth.uid in p.get('linkedUserIds', []);
     }
 
-    // Logs: Anyone authenticated can read (for stat board), but only create/update their own
+    // Logs: Any member can read (for stat board), but only create/update their own
     match /logs/{logId} {
-      // Anyone authenticated can read (for stat board)
-      allow read: if request.auth != null;
+      // Any member can read (for stat board)
+      allow read: if isMember();
       // Users can only create/update logs for their own playerId
       // Verify the playerId belongs to the user by checking the roster document
-      allow create: if request.auth != null &&
+      allow create: if isMember() &&
                     request.resource.data.playerId != null &&
                     exists(/databases/$(database)/documents/roster/$(request.resource.data.playerId)) &&
                     ownsProfile(request.resource.data.playerId);
-      allow update: if request.auth != null &&
+      allow update: if isMember() &&
                     resource.data.playerId != null &&
                     exists(/databases/$(database)/documents/roster/$(resource.data.playerId)) &&
                     ownsProfile(resource.data.playerId);
@@ -42,24 +78,24 @@ service cloud.firestore {
 
     // Roster classes: graduation year per roster player, keyed by normalized name
     match /rosterClasses/{nameKey} {
-      allow read, create, update: if request.auth != null;
+      allow read, create, update: if isMember();
       allow delete: if false;
     }
 
     // Team calendar events (practices, matches). Coach-only editing is enforced in the app.
     // Deletes allowed so a cancelled event can be removed.
     match /events/{eventId} {
-      allow read, create, update, delete: if request.auth != null;
+      allow read, create, update, delete: if isMember();
     }
 
     // S&C standards testing: testing days and each player's results on them.
     // Coach-only entry is enforced in the app (roster roles are editable, so rules can't check them).
     match /testSessions/{sessionId} {
-      allow read, create, update: if request.auth != null;
+      allow read, create, update: if isMember();
       allow delete: if false;
     }
     match /testResults/{resultId} {
-      allow read, create, update: if request.auth != null;
+      allow read, create, update: if isMember();
       allow delete: if false;
     }
 
@@ -67,8 +103,8 @@ service cloud.firestore {
     // is a newer entry, so nothing in the history can be changed or removed from the app.
     // Who may enter for whom (self vs coach) is enforced in the app, as for testing.
     match /bodyMeasurements/{entryId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
+      allow read: if isMember();
+      allow create: if isMember()
         && request.resource.data.enteredByUserId == request.auth.uid
         && request.resource.data.nameKey is string
         && request.resource.data.date is string
@@ -83,32 +119,32 @@ service cloud.firestore {
 
     // Injuries: Anyone authenticated can read, coaches can create/update
     match /injuries/{injuryId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null;
+      allow read: if isMember();
+      allow create, update: if isMember();
       allow delete: if false;
     }
 
     // Player Ratings: Anyone authenticated can read, create, and update (true 360 review)
     match /ratings/{ratingId} {
-      allow read: if request.auth != null;
+      allow read: if isMember();
       // Users can only create ratings with their own auth UID
-      allow create: if request.auth != null &&
+      allow create: if isMember() &&
                     request.resource.data.raterUserId == request.auth.uid;
       // Users can update their own ratings; any authenticated user can update ratings field only (migration)
-      allow update: if request.auth != null;
+      allow update: if isMember();
       // Users can delete their own ratings, coaches can delete any (app-level restriction)
-      allow delete: if request.auth != null;
+      allow delete: if isMember();
     }
 
     // Rating History: Anyone authenticated can read, create, update ratings field (migration), delete
     match /ratingHistory/{historyId} {
-      allow read: if request.auth != null;
+      allow read: if isMember();
       // Users can only create history entries with their own auth UID
-      allow create: if request.auth != null &&
+      allow create: if isMember() &&
                     request.resource.data.raterUserId == request.auth.uid;
       // Allow update for migration (ratings field only)
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
+      allow update: if isMember();
+      allow delete: if isMember();
     }
   }
 }

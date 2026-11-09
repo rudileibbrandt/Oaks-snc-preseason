@@ -46,3 +46,10 @@ export const cleanEmail = (email: string) => email.trim().toLowerCase();
 // the page in Safari or Chrome.
 export const isInAppBrowser = (ua: string) =>
   /FBAN|FBAV|FB_IAB|Instagram|Snapchat|musical_ly|BytedanceWebview|TikTok|GroupMe|LinkedInApp|Line\/|; wv\)/i.test(ua);
+
+// Team join codes look like OAKS-CG3G. Typed codes are matched however they're spaced, dashed or
+// capitalised; coaches' new codes are saved the same way so the two always line up.
+export const cleanJoinCode = (code: string) => {
+  const bare = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return bare.startsWith('OAKS') && bare.length > 4 ? `OAKS-${bare.slice(4)}` : bare;
+};
