@@ -112,6 +112,7 @@ export interface RosterPlayer {
   grade?: number;
   classYear?: 'Freshman' | 'Sophomore' | 'Junior' | 'Senior';
   kicker?: boolean;
+  squad?: Squad; // the SportsEngine roster this player is on (2026-27); a coach can override it
   bestPosition?: RugbyPosition;
   secondPosition?: RugbyPosition;
   thirdPosition?: RugbyPosition;

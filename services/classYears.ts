@@ -5,6 +5,7 @@
 import { InjuryRecord, Player, PlayerRating, RosterClass, RosterPlayer, Squad, TrainingGroup } from '../types';
 import { db } from './db';
 import { isAlumni, normalizeName } from './alumni';
+import { pickSquad, type SquadInfo } from './squad';
 
 // The class that graduates at the end of the current school year (Aug–Jul).
 // Oct 2026 → 2027; May 2027 → 2027; Aug 2027 → 2028.
@@ -50,25 +51,25 @@ export const gradYearOf = (rp: RosterPlayer, classes: Record<string, RosterClass
 
 // ---------- Squads ----------
 //
-// JV is freshmen and sophomores (u16); juniors and seniors are Varsity. Worked out from the class,
-// so it rolls over each year. A coach can override any player. No class yet = Varsity, flagged.
+// JV is freshmen and sophomores (u16); juniors and seniors are Varsity. Taken from the team's
+// SportsEngine roster when the player is on it (team list file), else worked out from the class,
+// so it rolls over each year. A coach can override any player. Neither = Varsity, flagged.
 
 export const SQUADS: Squad[] = ['Varsity', 'JV'];
 
-export interface SquadInfo {
-  squad: Squad;
-  source: 'coach' | 'class' | 'unset'; // unset = no class yet, counted as Varsity
-}
+export type { SquadInfo } from './squad';
 
 export const squadFromClass = (gradYear: number, now = new Date()): Squad =>
   gradYear >= seniorClassYear(now) + 2 ? 'JV' : 'Varsity';
 
+// A coach's override, then the SportsEngine roster, then the class year.
 export const squadOf = (rp: RosterPlayer, classes: Record<string, RosterClass>, now = new Date()): SquadInfo => {
-  const override = classes[classKey(rp.name)]?.squad;
-  if (override) return { squad: override, source: 'coach' };
   const gradYear = gradYearOf(rp, classes);
-  if (gradYear === undefined) return { squad: 'Varsity', source: 'unset' };
-  return { squad: squadFromClass(gradYear, now), source: 'class' };
+  return pickSquad({
+    override: classes[classKey(rp.name)]?.squad,
+    sportsEngine: rp.squad,
+    fromClass: gradYear === undefined ? undefined : squadFromClass(gradYear, now),
+  });
 };
 
 // "Varsity", "JV · set by coach", "Varsity · class not set"
