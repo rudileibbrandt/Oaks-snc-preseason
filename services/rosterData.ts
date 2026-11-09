@@ -83,6 +83,11 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   { name: "Dylan Boydon", trainingGroup: "Gold" },
   { name: "Luke Dorrington", trainingGroup: "Gold", height: "5'8\"", weight: 125 },
   { name: "Otto Maher", trainingGroup: "Gold", height: "6'0\"", weight: 228 },
+
+  // On the 2027 roster sheet with 25 Oct 2026 test results (added Nov 2026; positions not known yet).
+  { name: "Frank Tucker", trainingGroup: "Gold" },
+  { name: "Jaden Selha", trainingGroup: "Gold" },
+  { name: "Thunder Hazen", trainingGroup: "Gold" },
 ];
 
 // Photo filename mappings (name in roster -> filename)
