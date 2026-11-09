@@ -90,6 +90,7 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   { name: "Thunder Hazen", trainingGroup: "Gold" },
   { name: "Tristan Comiskey", trainingGroup: "Gold" }, // 40m on 8 Nov 2026; position not known yet
   { name: "Christopher Castro", trainingGroup: "Gold" }, // "Mac"; on the 2027 registration list; 40m on 8 Nov 2026
+  { name: "Zachary Taylor", trainingGroup: "Gold" }, // on the 2027 registration list; 40m on 8 Nov 2026
 ];
 
 // Photo filename mappings (name in roster -> filename)
