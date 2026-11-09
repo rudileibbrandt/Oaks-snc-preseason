@@ -60,7 +60,7 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   { name: "Gabriel Parsons", trainingGroup: "Gold", height: "6'1\"", weight: 246 },
   { name: "Josh Davis", trainingGroup: "Gold", height: "5'9\"", weight: 156, kicker: true, bestPosition: 10 },
   { name: "Joshua Boudreau", trainingGroup: "Gold", grade: 9, classYear: "Freshman", bestPosition: 12 },
-  { name: "Julian Gomez", trainingGroup: "Gold", height: "5'11\"", weight: 142 },
+  { name: "Julian Gomez", trainingGroup: "Gold", height: "5'11\"", weight: 142, bestPosition: 12, secondPosition: 10 },
   { name: "Matteus Drozdowicz", trainingGroup: "Gold", height: "5'8\"", weight: 179 },
   { name: "Yuvraj Lamba", trainingGroup: "Gold", bestPosition: 4, secondPosition: 5, thirdPosition: 6 },
   { name: "Finn Little", trainingGroup: "Gold", height: "6'0\"", weight: 163, bestPosition: 12 },
@@ -84,13 +84,13 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   { name: "Luke Dorrington", trainingGroup: "Gold", height: "5'8\"", weight: 125 },
   { name: "Otto Maher", trainingGroup: "Gold", height: "6'0\"", weight: 228 },
 
-  // On the 2027 roster sheet with 25 Oct 2026 test results (added Nov 2026; positions not known yet).
-  { name: "Frank Tucker", trainingGroup: "Gold" },
+  // On the 2027 roster sheet with 25 Oct 2026 test results (added Nov 2026).
+  { name: "Frank Tucker", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 15 },
   { name: "Jaden Selha", trainingGroup: "Gold" },
   { name: "Thunder Hazen", trainingGroup: "Gold" },
-  { name: "Tristan Comiskey", trainingGroup: "Gold" }, // 40m on 8 Nov 2026; position not known yet
-  { name: "Christopher Castro", trainingGroup: "Gold" }, // "Mac"; on the 2027 registration list; 40m on 8 Nov 2026
-  { name: "Zachary Taylor", trainingGroup: "Gold" }, // on the 2027 registration list; 40m on 8 Nov 2026
+  { name: "Tristan Comiskey", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 15 }, // 40m on 8 Nov 2026
+  { name: "Christopher Castro", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 15 }, // "Mac"; on the 2027 registration list; 40m on 8 Nov 2026
+  { name: "Zachary Taylor", trainingGroup: "Gold", bestPosition: 12, secondPosition: 10 }, // on the 2027 registration list; 40m on 8 Nov 2026
 ];
 
 // Photo filename mappings (name in roster -> filename)
