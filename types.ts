@@ -40,6 +40,7 @@ export interface Player {
   userId?: string; // Firebase auth user ID
   email?: string; // User email from OAuth
   mergedInto?: string; // If set, this account was merged into the referenced Player ID
+  linkedUserIds?: string[]; // sign-ins of profiles merged into this one; they may log workouts here
   program?: ProgramLevel; // S&C program the player chose; missing means Intermediate
   alumniClass?: number; // Graduation year; set means the player is alumni (kept for the records, off current boards)
   coachRequested?: boolean; // chose Coach at sign-up; starts as a Player until a coach turns on coach access in Admin

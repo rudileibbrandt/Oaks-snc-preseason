@@ -393,6 +393,13 @@ export const db = {
             const targetDoc = await dbInstance.collection('roster').doc(existingData.mergedInto).get();
             if (targetDoc.exists && !targetDoc.data().mergedInto) {
               const targetPlayer = { id: targetDoc.id, ...targetDoc.data() } as Player;
+              // Profiles merged before links existed: link this sign-in now so its workouts save.
+              // Not awaited: a slow or failed write must not hold up sign-in; it retries next time.
+              if (targetPlayer.userId !== user.uid && !(targetPlayer.linkedUserIds ?? []).includes(user.uid)) {
+                dbInstance.collection('roster').doc(targetDoc.id)
+                  .update({ linkedUserIds: firebase.firestore.FieldValue.arrayUnion(user.uid) })
+                  .catch((e: any) => console.error('[getOrCreatePlayerForUser] Could not link sign-in to merged profile:', e));
+              }
               console.log('[getOrCreatePlayerForUser] Redirecting to canonical account:', targetPlayer.id);
               return targetPlayer;
             }
@@ -1456,6 +1463,13 @@ export async function mergeAccounts(keepPlayer: Player, removePlayer: Player): P
   const removeDocRef = dbInstance.collection('roster').doc(removePlayer.id);
   batch.update(removeDocRef, { mergedInto: keepPlayer.id });
   batchCount++;
+  // The merged-away sign-in now uses keepPlayer, so let it log workouts there (firestore.rules).
+  if (removePlayer.userId && removePlayer.userId !== keepPlayer.userId) {
+    batch.update(dbInstance.collection('roster').doc(keepPlayer.id), {
+      linkedUserIds: firebase.firestore.FieldValue.arrayUnion(removePlayer.userId),
+    });
+    batchCount++;
+  }
 
   // Commit remaining
   if (batchCount > 0) {

@@ -15,6 +15,13 @@ service cloud.firestore {
       allow delete: if false;
     }
     
+    // A profile belongs to its own sign-in, plus any sign-in whose old profile was merged into it
+    // (linkedUserIds). Without the link, a merged player's workouts were refused.
+    function ownsProfile(playerId) {
+      let p = get(/databases/$(database)/documents/roster/$(playerId)).data;
+      return p.userId == request.auth.uid || request.auth.uid in p.get('linkedUserIds', []);
+    }
+
     // Logs: Anyone authenticated can read (for stat board), but only create/update their own
     match /logs/{logId} {
       // Anyone authenticated can read (for stat board)
@@ -24,11 +31,11 @@ service cloud.firestore {
       allow create: if request.auth != null &&
                     request.resource.data.playerId != null &&
                     exists(/databases/$(database)/documents/roster/$(request.resource.data.playerId)) &&
-                    get(/databases/$(database)/documents/roster/$(request.resource.data.playerId)).data.userId == request.auth.uid;
+                    ownsProfile(request.resource.data.playerId);
       allow update: if request.auth != null &&
                     resource.data.playerId != null &&
                     exists(/databases/$(database)/documents/roster/$(resource.data.playerId)) &&
-                    get(/databases/$(database)/documents/roster/$(resource.data.playerId)).data.userId == request.auth.uid;
+                    ownsProfile(resource.data.playerId);
       // Deletes are not allowed from the app
       allow delete: if false;
     }
