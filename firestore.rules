@@ -21,6 +21,20 @@ service cloud.firestore {
       return request.auth.uid in get(/databases/$(database)/documents/config/admins).data.uids;
     }
 
+    // Coach code: joining with it lets a sign-in create its own profile as a Coach, with no
+    // approval. Only the admin can read or change it (players can read the team code).
+    function coachCode() {
+      return get(/databases/$(database)/documents/config/coach).data.coachCode;
+    }
+
+    match /config/coach {
+      allow get: if isMember() && isAdmin();
+      allow update: if isMember() && isAdmin() &&
+                    request.resource.data.coachCode is string && request.resource.data.coachCode.size() >= 4 &&
+                    request.resource.data.keys().hasOnly(['coachCode', 'updatedAt', 'updatedBy']);
+      allow create, delete, list: if false;
+    }
+
     match /config/admins {
       allow get: if isMember();
       allow create, update, delete, list: if false;
@@ -28,9 +42,10 @@ service cloud.firestore {
 
     match /members/{uid} {
       allow get: if request.auth != null && request.auth.uid == uid;
-      // Join (or re-join) with the current code. The code itself is never readable before joining.
+      // Join (or re-join) with the team code or the coach code. Neither is readable before joining.
       allow create, update: if request.auth != null && request.auth.uid == uid &&
-                    request.resource.data.code == get(/databases/$(database)/documents/config/team).data.joinCode &&
+                    (request.resource.data.code == get(/databases/$(database)/documents/config/team).data.joinCode ||
+                     request.resource.data.code == coachCode()) &&
                     request.resource.data.keys().hasOnly(['code', 'joinedAt']);
       allow list, delete: if false;
     }
@@ -50,11 +65,13 @@ service cloud.firestore {
       allow read: if isMember() ||
                   (request.auth != null && (resource.data.userId == request.auth.uid ||
                                             request.auth.uid in resource.data.get('linkedUserIds', [])));
-      // Users can only create profiles with their own auth UID, and only as a Player:
-      // coach access is turned on afterwards by the admin (Coaches Corner -> Coach requests).
+      // Users can only create profiles with their own auth UID, as a Player, or as a Coach if they
+      // joined with the coach code. Otherwise the admin turns coach access on (Coach requests).
       allow create: if isMember() &&
                     request.resource.data.userId == request.auth.uid &&
-                    request.resource.data.role == 'Player';
+                    (request.resource.data.role == 'Player' ||
+                     (request.resource.data.role == 'Coach' &&
+                      get(/databases/$(database)/documents/members/$(request.auth.uid)).data.code == coachCode()));
       // Any member can update other fields (merging, positions, classes); only the admin can
       // change a role, so nobody can make themselves (or anyone else) a coach.
       allow update: if isMember() &&

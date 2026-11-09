@@ -391,6 +391,20 @@ export const db = {
     return snap.exists ? snap.data().uids ?? [] : [];
   },
 
+  // Admin only (firestore.rules). Joining with it gives coach access with no approval.
+  getCoachCode: async (): Promise<string | null> => {
+    if (!isConfigured || !dbInstance) return null;
+    const snap = await dbInstance.collection('config').doc('coach').get();
+    return snap.exists ? snap.data().coachCode ?? null : null;
+  },
+
+  setCoachCode: async (code: string, adminName: string): Promise<string> => {
+    const clean = cleanJoinCode(code);
+    if (!isConfigured || !dbInstance) return clean;
+    await dbInstance.collection('config').doc('coach').update({ coachCode: clean, updatedAt: Date.now(), updatedBy: adminName });
+    return clean;
+  },
+
   declineCoachRequest: async (id: string) => {
     if (!isConfigured || !dbInstance) return;
     await dbInstance.collection('roster').doc(id).update({ coachRequested: false });
@@ -477,20 +491,30 @@ export const db = {
         if (!displayName) {
           displayName = user.displayName || user.email?.split('@')[0] || 'User';
         }
-        // Everyone starts as a Player. Choosing Coach only asks for coach access, which an existing
-        // coach turns on in Admin (firestore.rules refuse a new profile created as a Coach).
-        const newPlayerData: any = {
+        const base: any = {
           name: displayName,
-          role: 'Player',
-          ...(role === 'Coach' && { coachRequested: true }),
           ...(role === 'Player' && position && { position }),
           userId: user.uid,
           ...(user.email && { email: user.email })
         };
-        
         // Saved under the sign-in's uid, so a retry after a slow save writes the same profile
         // instead of adding a second one.
-        await dbInstance.collection('roster').doc(user.uid).set(newPlayerData);
+        const ref = dbInstance.collection('roster').doc(user.uid);
+        let newPlayerData: any = { ...base, role: 'Player' };
+        if (role === 'Coach') {
+          // Joined with the coach code: firestore.rules allow a Coach profile straight away.
+          // Otherwise they're refused, and the profile is a Player asking the admin for coach access.
+          try {
+            await ref.set({ ...base, role: 'Coach' });
+            newPlayerData = { ...base, role: 'Coach' };
+          } catch (coachErr: any) {
+            if (coachErr?.code !== 'permission-denied') throw coachErr;
+            newPlayerData = { ...base, role: 'Player', coachRequested: true };
+            await ref.set(newPlayerData);
+          }
+        } else {
+          await ref.set(newPlayerData);
+        }
         const player = { id: user.uid, ...newPlayerData } as Player;
         console.log('[getOrCreatePlayerForUser] Created new player:', player.id);
         return player;

@@ -4,9 +4,23 @@ import { Player } from '../types';
 import { db } from '../services/db';
 import { cleanJoinCode } from '../services/authErrors';
 
-// Coaches see the team join code to share, and can change it (e.g. if it leaks). Changing it
-// doesn't affect anyone who already joined.
-const TeamCodeCard: React.FC<{ currentPlayer?: Player | null }> = ({ currentPlayer }) => {
+interface Props {
+  currentPlayer?: Player | null;
+  title?: string;
+  note?: string;
+  load?: () => Promise<string | null>;
+  save?: (code: string, by: string) => Promise<string>;
+}
+
+// A join code to share and change (e.g. if it leaks). Changing it doesn't affect anyone who
+// already joined. Defaults to the team code; the admin also gets one for the coach code.
+const TeamCodeCard: React.FC<Props> = ({
+  currentPlayer,
+  title = 'Team join code',
+  note = "New players and coaches enter this when they sign up. Changing it doesn't sign anyone out.",
+  load = db.getJoinCode,
+  save = db.setJoinCode,
+}) => {
   const [code, setCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -16,7 +30,7 @@ const TeamCodeCard: React.FC<{ currentPlayer?: Player | null }> = ({ currentPlay
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    db.getJoinCode()
+    load()
       .then(setCode)
       .catch(e => { console.error('[TeamCodeCard] Could not load code:', e); setError('Could not load the team code.'); })
       .finally(() => setLoading(false));
@@ -39,7 +53,7 @@ const TeamCodeCard: React.FC<{ currentPlayer?: Player | null }> = ({ currentPlay
     setSaving(true);
     setError(null);
     try {
-      setCode(await db.setJoinCode(clean, currentPlayer?.name ?? 'Coach'));
+      setCode(await save(clean, currentPlayer?.name ?? 'Coach'));
       setEditing(false);
     } catch (e) {
       console.error('[TeamCodeCard] Could not save code:', e);
@@ -53,7 +67,7 @@ const TeamCodeCard: React.FC<{ currentPlayer?: Player | null }> = ({ currentPlay
     <div className="p-4 bg-neutral-900 border border-neutral-800 rounded-xl mb-3 space-y-3">
       <div className="flex items-center gap-2">
         <KeyRound size={16} className="text-amber-400" />
-        <h3 className="text-sm font-bold text-white">Team join code</h3>
+        <h3 className="text-sm font-bold text-white">{title}</h3>
       </div>
       {loading ? (
         <Loader2 size={16} className="animate-spin text-neutral-500" />
@@ -75,7 +89,7 @@ const TeamCodeCard: React.FC<{ currentPlayer?: Player | null }> = ({ currentPlay
           <button onClick={() => { setDraft(code ?? ''); setEditing(true); setError(null); }} className="ml-auto text-xs text-amber-400 hover:text-white">Change</button>
         </div>
       )}
-      <p className="text-xs text-neutral-500">New players and coaches enter this when they sign up. Changing it doesn't sign anyone out.</p>
+      <p className="text-xs text-neutral-500">{note}</p>
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );

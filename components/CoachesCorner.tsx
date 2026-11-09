@@ -7,6 +7,7 @@ import InjuryTracker from './InjuryTracker';
 import CoachActivity from './CoachActivity';
 import TrackerView from './TrackerView';
 import TeamCodeCard from './TeamCodeCard';
+import { db } from '../services/db';
 import CoachRequestsCard from './CoachRequestsCard';
 import { useIsAdmin } from '../hooks/useIsAdmin';
 
@@ -119,6 +120,15 @@ const CoachesCorner: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       </div>
 
       {isAdmin && <CoachRequestsCard />}
+      {isAdmin && (
+        <TeamCodeCard
+          currentPlayer={currentPlayer}
+          title="Coach code (admin only)"
+          note="Anyone who signs up with this code and picks Coach gets coach access straight away, with no approval. Share it only with coaches; change it if it leaks."
+          load={db.getCoachCode}
+          save={db.setCoachCode}
+        />
+      )}
       <TeamCodeCard currentPlayer={currentPlayer} />
 
       {/* Menu items */}
