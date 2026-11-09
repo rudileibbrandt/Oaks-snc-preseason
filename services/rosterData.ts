@@ -88,6 +88,7 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   { name: "Frank Tucker", trainingGroup: "Gold" },
   { name: "Jaden Selha", trainingGroup: "Gold" },
   { name: "Thunder Hazen", trainingGroup: "Gold" },
+  { name: "Tristan Comiskey", trainingGroup: "Gold" }, // 40m on 8 Nov 2026; position not known yet
 ];
 
 // Photo filename mappings (name in roster -> filename)
