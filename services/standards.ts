@@ -11,6 +11,8 @@
 // Hookers and locks share every line except the squat, as the source does.
 import { RugbyPosition, TestResult, TestSession } from '../types';
 import { TESTING_SEASON_START } from './season';
+import { parseBronco, parsePositive } from './parseScores';
+export { parseBronco, parsePositive };
 
 export const LEVELS = ['Bronze', 'Silver', 'Gold', 'Elite'] as const;
 export type Level = typeof LEVELS[number];
@@ -102,18 +104,6 @@ export const STANDARDS: Record<PositionGroup, Record<StandardTest, Row>> = {
 // ---------- Numbers in and out ----------
 
 // "5:24" or "324" (seconds) → 324. Anything else → undefined.
-export function parseBronco(s: string): number | undefined {
-  const v = s.trim();
-  const m = v.match(/^(\d{1,2}):([0-5]\d(?:\.\d+)?)$/);
-  if (m) return parseInt(m[1]) * 60 + parseFloat(m[2]);
-  return parsePositive(v);
-}
-
-export function parsePositive(s: string): number | undefined {
-  const n = parseFloat(s.trim());
-  return /^\d+(\.\d+)?$/.test(s.trim()) && n > 0 ? n : undefined;
-}
-
 export const formatBronco = (sec: number) => {
   const m = Math.floor(sec / 60);
   const s = Math.round(sec - m * 60);
