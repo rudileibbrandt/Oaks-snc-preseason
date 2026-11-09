@@ -23,6 +23,9 @@ const SPRINT10_NOV8 = {
   'Nicholas Donnelly': 1.86, 'Duke Chiosso': 1.98, 'Christian Sisneroz': 2.02, 'Luc Purcell': 2.08,
   'Tristan Comiskey': 1.99, 'Chris Leibbrandt': 1.83, 'Christopher Castro': 1.80, 'Sean Mallie-Ramos': 1.95,
   'Madden Casson': 1.83, 'Vincenzo Uang': 1.84, 'Xerxes Irani': 1.79, 'Nathan Hoge': 1.76,
+  // Fastest of two runs (Rudi): Andrew Born 1.78/1.77, Tyler Leary 1.89/1.75. Zach F's 1.76 was
+  // listed without a name ("probably Zach F", Rudi).
+  'Andrew Born': 1.77, 'Tyler Leary': 1.75, 'Zachary Filal': 1.76,
 };
 
 const DAYS = [
