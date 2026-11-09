@@ -17,12 +17,13 @@ const ENTERED_BY = 'Rudi Leibbrandt';
 
 // Names as on the app's team list. Bronco in m:ss, broad jump in inches (the sheet's metres x 39.37),
 // 40 m and 10 m in seconds. null = not tested.
-// 8 Nov 10 m times (Rudi's paste). Every name here is also in the 8 Nov 40 m list below.
+// 8 Nov 10 m times (Rudi's paste). "Nate" (40 m 5.61, 10 m 1.76) is not Nathan Hoge, who wasn't
+// there (Rudi); left out until we know who he is. Every name here is also in the 8 Nov 40 m list below.
 const SPRINT10_NOV8 = {
   'Finn Hegarty': 1.84, 'Joshua Boudreau': 1.85, 'Josh Davis': 1.87, 'Julian Gomez': 1.76,
   'Nicholas Donnelly': 1.86, 'Duke Chiosso': 1.98, 'Christian Sisneroz': 2.02, 'Luc Purcell': 2.08,
   'Tristan Comiskey': 1.99, 'Chris Leibbrandt': 1.83, 'Christopher Castro': 1.80, 'Sean Mallie-Ramos': 1.95,
-  'Madden Casson': 1.83, 'Vincenzo Uang': 1.84, 'Xerxes Irani': 1.79, 'Nathan Hoge': 1.76,
+  'Madden Casson': 1.83, 'Vincenzo Uang': 1.84, 'Xerxes Irani': 1.79,
   // Fastest of two runs (Rudi): Andrew Born 1.78/1.77, Tyler Leary 1.89/1.75. Zach F's 1.76 was
   // listed without a name ("probably Zach F", Rudi).
   'Andrew Born': 1.77, 'Tyler Leary': 1.75, 'Zachary Filal': 1.76,
@@ -49,7 +50,7 @@ const DAYS = [
     rows: [
       ['Finn Hegarty', 6.37], ['Tyler Leary', 5.36], ['Sean Mallie-Ramos', 5.88], ['Madden Casson', 5.69],
       ['Chris Leibbrandt', 5.57], ['Nicholas Donnelly', 5.40], ['Vincenzo Uang', 5.49], ['Xerxes Irani', 5.37],
-      ['Zachary Filal', 5.76], ['Nathan Hoge', 5.61], ['Josh Davis', 5.41], ['Joshua Boudreau', 5.98],
+      ['Zachary Filal', 5.76], ['Josh Davis', 5.41], ['Joshua Boudreau', 5.98],
       ['Finn Little', 5.40], ['Andrew Born', 5.33], ['Christian Sisneroz', 5.94], ['Luc Purcell', 6.80],
       ['Duke Chiosso', 5.39], ['Rudy Duggineni', 6.39], ['Frank Tucker', 5.68], ['Julian Gomez', 5.48],
       ['Christopher Castro', 5.59], ['Tristan Comiskey', 6.27], ['Zachary Taylor', 6.37],
