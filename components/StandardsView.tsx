@@ -7,6 +7,10 @@ import { normalizeName } from '../services/alumni';
 import { TESTING_SEASON_START } from '../services/season';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 import { useRosterClasses } from '../hooks/useRosterContext';
+import { classKey } from '../services/classYears';
+import { canSetPositions, effectivePositions, positionList, withBest } from '../services/positions';
+import { POSITION_OPTIONS } from '../services/positionData';
+import type { RugbyPosition } from '../types';
 import {
   GROUPS, LEVELS, PositionGroup, STANDARDS, TESTS, formatStandard, formatValue,
   groupLabel, levelIndex, playerGroup, testSummary,
@@ -108,8 +112,26 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
   const key = normalizeName(player.name);
   const rosterPlayer = ROSTER_PLAYERS.find(p => normalizeName(p.name) === key);
   const mine = useMemo(() => results.filter(r => r.nameKey === key), [results, key]);
-  const defaultGroup = playerGroup(mine, sessions, rosterPlayer?.bestPosition);
-  const [group, setGroup] = useState<PositionGroup | ''>(defaultGroup ?? '');
+  // Positions are shared: the player sets their own here, unless a coach has set them.
+  const { classes, reload: reloadClasses, ready: positionsReady } = useRosterClasses();
+  const positions = effectivePositions(rosterPlayer ?? {}, classes[classKey(rosterPlayer?.name ?? player.name)]);
+  const group = playerGroup(mine, sessions, positions.best);
+  const [savingPosition, setSavingPosition] = useState(false);
+  const [positionError, setPositionError] = useState<string | null>(null);
+  const handlePosition = async (best: RugbyPosition) => {
+    const name = rosterPlayer?.name ?? player.name;
+    setSavingPosition(true);
+    setPositionError(null);
+    try {
+      await db.setRosterClass(classKey(name), name, { positions: withBest(best, positionList(positions)), positionsBy: player.role === 'Coach' ? 'coach' : 'player' });
+      reloadClasses();
+    } catch (e) {
+      console.error('[StandardsView] Could not save position:', e);
+      setPositionError('Could not save your position. Try again.');
+    } finally {
+      setSavingPosition(false);
+    }
+  };
   const [entering, setEntering] = useState<TestSession | null>(null);
 
   // Players enter their own scores for testing days that have started (most recent first).
@@ -124,12 +146,21 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
   return (
     <div className="space-y-4">
       <label className="block">
-        <span className="text-xs text-neutral-500">Your position group</span>
-        <select value={group} onChange={e => setGroup(e.target.value as PositionGroup)}
-          className="mt-1 w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-white">
-          <option value="">Choose your position…</option>
-          {GROUPS.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
-        </select>
+        <span className="text-xs text-neutral-500">Your main position</span>
+        {canSetPositions('player', positions.source === 'coach' ? 'coach' : 'player') ? (
+          <select value={positions.best ?? ''} disabled={savingPosition || !positionsReady}
+            onChange={e => e.target.value && handlePosition(Number(e.target.value) as RugbyPosition)}
+            className="mt-1 w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-white disabled:opacity-50">
+            <option value="">Not set: tested as back row</option>
+            {POSITION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.short} · {o.label}</option>)}
+          </select>
+        ) : (
+          <p className="mt-1 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-white">
+            {POSITION_OPTIONS.find(o => o.value === positions.best)?.short ?? 'None'} <span className="text-xs text-neutral-500">· set by your coach</span>
+          </p>
+        )}
+        <span className="mt-1 block text-[11px] text-neutral-500">Tested as {groupLabel(group).split(' · ')[0]}</span>
+        {positionError && <span className="mt-1 block text-xs text-red-400">{positionError}</span>}
       </label>
 
       {enterable.length > 0 && (
@@ -165,22 +196,18 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
           session={entering}
           playerName={rosterPlayer?.name ?? player.name}
           existing={resultFor(entering.id)}
-          defaultGroup={(group || defaultGroup) || undefined}
+          defaultGroup={group}
           currentPlayer={player}
           onClose={() => setEntering(null)}
           onSaved={async () => { await onChanged(); setEntering(null); }}
         />
       )}
 
-      {group && (
-        <>
-          <ResultCards group={group} results={mine} sessions={sessions} />
-          <p className="text-[11px] text-neutral-500">
-            Your tier is your best result since {seasonStartLabel}. Times count at or under the line; jump and lifts at or over.
-            Chin-up total = bodyweight + weight added.
-          </p>
-        </>
-      )}
+      <ResultCards group={group} results={mine} sessions={sessions} />
+      <p className="text-[11px] text-neutral-500">
+        Your tier is your best result since {seasonStartLabel}. Times count at or under the line; jump and lifts at or over.
+        Chin-up total = bodyweight + weight added.
+      </p>
     </div>
   );
 };
@@ -196,7 +223,7 @@ const MODE_NOTE: Record<Mode, string> = {
 
 const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> = ({ sessions, results }) => {
   const { isAlumniName, ready: alumniReady } = useAlumniNames();
-  const { squadInfo, ready: classesReady } = useRosterClasses();
+  const { squadInfo, positionsOf, classes, ready: classesReady } = useRosterClasses();
   const [squad, setSquad] = useState<'All' | 'Varsity' | 'JV'>('Varsity');
   const [testedOnly, setTestedOnly] = useState(true);
   const [mode, setMode] = useState<Mode>('best');
@@ -211,12 +238,12 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
       .map(p => {
         const mine = byPlayer.get(normalizeName(p.name)) ?? [];
         const summaries = Object.fromEntries(TESTS.map(t => [t.key, testSummary(mine, sessions, t.key)]));
-        return { p, mine, group: playerGroup(mine, sessions, p.bestPosition), summaries };
+        return { p, mine, group: playerGroup(mine, sessions, positionsOf(p).best), summaries };
       })
       .filter(r => !testedOnly || Object.values(r.summaries).some(Boolean))
       .sort((a, b) => a.p.name.localeCompare(b.p.name));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, sessions, squad, testedOnly, alumniReady, classesReady]);
+  }, [results, sessions, squad, testedOnly, alumniReady, classesReady, classes]);
 
   // Players at Silver or better per test, for the chosen result.
   const silverPlus = TESTS.map(t => rows.filter(({ group, summaries }) => {

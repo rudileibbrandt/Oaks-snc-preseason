@@ -1,4 +1,5 @@
 import { Player, WorkoutLog, InjuryRecord, RtpStageEntry, RtpClearance, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamEvent, BodyMeasurement, TRAINING_GROUPS, TrainingGroup } from '../types';
+import { cleanPositions } from './positions';
 import { PROFILE_NOT_FOUND } from './profileLoad';
 import { cleanJoinCode } from './authErrors';
 import firebase from 'firebase/compat/app';
@@ -611,6 +612,8 @@ export const db = {
         if ('squad' in d) entry.squad = d.squad ?? null;
         // Only a known group counts, so a bad value can't break group colours on screen.
         if (TRAINING_GROUPS.includes(d.trainingGroup as TrainingGroup)) entry.trainingGroup = d.trainingGroup;
+        if (Array.isArray(d.positions)) entry.positions = cleanPositions(d.positions);
+        if (d.positionsBy === 'coach' || d.positionsBy === 'player') entry.positionsBy = d.positionsBy;
         result[doc.id] = entry;
       });
       return result;

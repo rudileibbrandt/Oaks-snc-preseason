@@ -109,9 +109,24 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Roster classes: graduation year per roster player, keyed by normalized name
+    // Roster classes: graduation year, squad, training group and positions per roster player,
+    // keyed by normalized name. Positions are shared by every screen: a coach can set anyone's;
+    // otherwise they can only be saved as the player's own, and never over a coach's.
+    // beforeBy: who set the positions already saved ('player' when none).
+    function positionsOk(beforeBy) {
+      return request.resource.data.get('positions', []) is list &&
+             request.resource.data.get('positions', []).size() <= 3 &&
+             (isCoach() ||
+              (request.resource.data.get('positionsBy', '') == 'player' &&
+               beforeBy != 'coach'));
+    }
     match /rosterClasses/{nameKey} {
-      allow read, create, update: if isMember();
+      allow read: if isMember();
+      allow create: if isMember() &&
+                    (!request.resource.data.keys().hasAny(['positions', 'positionsBy']) || positionsOk('player'));
+      allow update: if isMember() &&
+                    (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['positions', 'positionsBy']) ||
+                     positionsOk(resource.data.get('positionsBy', 'player')));
       allow delete: if false;
     }
 

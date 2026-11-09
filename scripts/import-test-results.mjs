@@ -108,7 +108,11 @@ const sessions = ((await getJson(`${API}/${DB}/testSessions?pageSize=1000`)).doc
   .map(d => ({ id: idOf(d), date: plain(d.fields?.date), name: plain(d.fields?.name) }));
 const results = new Map(((await getJson(`${API}/${DB}/testResults?pageSize=1000`)).documents ?? [])
   .map(d => [idOf(d), Object.fromEntries(Object.entries(d.fields ?? {}).map(([k, v]) => [k, plain(v)]))]));
-console.log(`read ${sessions.length} testing days, ${results.size} results`);
+// Positions set in the app (coach or player) win over the team list file, as in the app.
+const savedBest = new Map(((await getJson(`${API}/${DB}/rosterClasses?pageSize=1000`)).documents ?? [])
+  .filter(d => d.fields?.positions?.arrayValue) // [] = cleared in the app: no position (back row)
+  .map(d => [decodeURIComponent(idOf(d)), d.fields.positions.arrayValue.values?.map(v => +(v.integerValue ?? v.doubleValue))[0] ?? 0]));
+console.log(`read ${sessions.length} testing days, ${results.size} results, ${savedBest.size} positions set in the app`);
 
 const now = Date.now();
 const writes = [];
@@ -132,7 +136,8 @@ for (const day of DAYS) {
     const id = `${sessionId}__${normalizeName(r.name)}`;
     const prev = results.get(id) ?? {};
     // No position on the team list = back row (Rudi, 8 Nov), as in services/positionGroups.ts.
-    const group = prev.group ?? GROUP_OF_POSITION[positionOf.get(r.name)] ?? 'backrow';
+    const key = normalizeName(r.name);
+    const group = prev.group ?? GROUP_OF_POSITION[savedBest.has(key) ? savedBest.get(key) : positionOf.get(r.name)] ?? 'backrow';
     const values = {};
     if (r.bronco != null) values.bronco = parseBronco(r.bronco);
     if (r.broadJump != null) values.broadJump = r.broadJump;

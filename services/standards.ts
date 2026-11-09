@@ -9,11 +9,11 @@
 // Prop 40 m has no source value; 5.60 is our estimate. Until 2026-10-26 Elite was the sheet's
 // Minimum line. Bronze, Silver and Gold are our own step-downs and did not change with it.
 // Hookers and locks share every line except the squat, as the source does.
-import { RugbyPosition, TestResult, TestSession } from '../types';
+import { TestResult, TestSession } from '../types';
 import { TESTING_SEASON_START } from './season';
 import { parseBronco, parsePositive } from './parseScores';
-import { GROUPS, groupForPosition, groupLabel, testingGroup, DEFAULT_GROUP, type PositionGroup } from './positionGroups';
-export { GROUPS, groupForPosition, groupLabel, testingGroup, DEFAULT_GROUP };
+import { GROUPS, groupForPosition, groupLabel, testingGroup, DEFAULT_GROUP, playerGroup, type PositionGroup } from './positionGroups';
+export { GROUPS, groupForPosition, groupLabel, testingGroup, DEFAULT_GROUP, playerGroup };
 export type { PositionGroup };
 export { parseBronco, parsePositive };
 
@@ -216,10 +216,3 @@ export const formatProgress = (test: StandardTest, p: { improved: boolean; amoun
   return `${Math.round(p.amount)} ${TESTS.find(x => x.key === test)!.unit} ${p.improved ? 'more' : 'less'}`;
 };
 
-// The position group a player is tested in: their latest result's group, else their best position,
-// else back row.
-export const playerGroup = (results: TestResult[], sessions: TestSession[], bestPosition?: RugbyPosition) => {
-  const dateOf = new Map(sessions.map(s => [s.id, s.date]));
-  const latest = [...results].sort((a, b) => (dateOf.get(b.sessionId) ?? '').localeCompare(dateOf.get(a.sessionId) ?? ''))[0];
-  return latest?.group ?? testingGroup(bestPosition);
-};

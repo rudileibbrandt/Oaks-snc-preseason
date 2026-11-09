@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, GripVertical, Loader2 } from 'lucide-react';
 import { RosterClass, RosterPlayer, TrainingGroup, TRAINING_GROUPS, POSITION_SHORT } from '../types';
 import { GROUP_COLORS, GROUP_DESCRIPTIONS } from '../services/rosterData';
-import { classKey, groupOf, invalidateRosterContext } from '../services/classYears';
+import { classKey, groupOf, invalidateRosterContext, positionsOf } from '../services/classYears';
 import { db } from '../services/db';
 
 interface Props {
@@ -209,7 +209,7 @@ const GroupBoard: React.FC<Props> = ({ players, rosterClasses, onClose, onDone }
                       >
                         <GripVertical size={14} className="text-neutral-600 shrink-0" />
                         <span className="flex-1 truncate">{p.name}</span>
-                        {p.bestPosition && <span className="text-[10px] text-neutral-500">{POSITION_SHORT[p.bestPosition]}</span>}
+                        {(() => { const best = positionsOf(p, rosterClasses).best; return best && <span className="text-[10px] text-neutral-500">{POSITION_SHORT[best]}</span>; })()}
                         {saving.has(p.name) && <Loader2 size={12} className="animate-spin text-amber-500" />}
                       </li>
                     );

@@ -3,7 +3,6 @@ import { useRosterClasses } from '../hooks/useRosterContext';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { AppView, Player, RugbyPosition, POSITION_NAMES, POSITION_SHORT, RosterPlayer, PlayerRating, Squad } from '../types';
 import { ROSTER_PLAYERS, GROUP_COLORS, getPhotoUrl } from '../services/rosterData';
-import { loadPositionOverrides } from '../services/positionData';
 import { loadRatings } from '../services/ratingData';
 import { aggregatePlayerRatings } from '../services/ratingAnalytics';
 import { normalizeName } from '../services/alumni';
@@ -36,7 +35,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
 
   // Alumni (graduated players) are left off the depth chart, and their ratings of others don't count.
   const { alumniNames, ready: alumniReady } = useAlumniNames();
-  const { classes, squadInfo, groupOf, ready: classesReady } = useRosterClasses();
+  const { classes, squadInfo, groupOf, positionsOf, ready: classesReady } = useRosterClasses();
   const [rawRatings, setRawRatings] = useState<PlayerRating[]>([]);
 
   useEffect(() => {
@@ -58,7 +57,6 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
 
   // Build depth chart data
   const depthByPosition = useMemo(() => {
-    const overrides = loadPositionOverrides();
     const positions: Record<number, DepthEntry[]> = {};
 
     // Initialize all 15 positions
@@ -69,11 +67,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
     const filteredPlayers = squadPlayers;
 
     filteredPlayers.forEach(player => {
-      // Merge overrides with hardcoded data
-      const override = overrides[player.name];
-      const best = override?.bestPosition ?? player.bestPosition;
-      const second = override?.secondPosition ?? player.secondPosition;
-      const third = override?.thirdPosition ?? player.thirdPosition;
+      const { best, second, third } = positionsOf(player);
 
       // Get player's aggregated rating
       const agg = aggregatePlayerRatings(allRatings, undefined, player.name);
@@ -104,11 +98,10 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
     });
 
     return positions;
-  }, [allRatings, squadPlayers, primaryOnly]);
+  }, [allRatings, squadPlayers, primaryOnly, classes]);
 
   // Best XV: assign best 15 players across all positions, no duplicates
   const bestXV = useMemo(() => {
-    const overrides = loadPositionOverrides();
     const filteredPlayers = squadPlayers;
 
     // Build candidate list: (player, position, rating, positionType, weight)
@@ -117,10 +110,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
     const posTypeWeight = { best: 1.0, second: 0.95, third: 0.9 };
 
     filteredPlayers.forEach(player => {
-      const override = overrides[player.name];
-      const best = override?.bestPosition ?? player.bestPosition;
-      const second = override?.secondPosition ?? player.secondPosition;
-      const third = override?.thirdPosition ?? player.thirdPosition;
+      const { best, second, third } = positionsOf(player);
 
       const agg = aggregatePlayerRatings(allRatings, undefined, player.name);
       const rating = agg?.overallMean ?? 0;
@@ -147,7 +137,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
     }
 
     return assigned;
-  }, [allRatings, squadPlayers]);
+  }, [allRatings, squadPlayers, classes]);
 
   // Positional pools: group players by role, deduplicated, ranked by rating
   const POSITION_POOLS: { label: string; positions: RugbyPosition[] }[] = [
@@ -160,7 +150,6 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
   ];
 
   const poolData = useMemo(() => {
-    const overrides = loadPositionOverrides();
     const filteredPlayers = squadPlayers;
 
     return POSITION_POOLS.map(pool => {
@@ -169,10 +158,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
       const entries: (DepthEntry & { assignedPos: RugbyPosition })[] = [];
 
       filteredPlayers.forEach(player => {
-        const override = overrides[player.name];
-        const best = override?.bestPosition ?? player.bestPosition;
-        const second = override?.secondPosition ?? player.secondPosition;
-        const third = override?.thirdPosition ?? player.thirdPosition;
+        const { best, second, third } = positionsOf(player);
 
         // Check if player belongs to this pool via any of their positions
         let matchPos: RugbyPosition | undefined;
@@ -197,7 +183,7 @@ const DepthChart: React.FC<Props> = ({ onNavigate }) => {
 
       return { ...pool, entries };
     });
-  }, [allRatings, squadPlayers]);
+  }, [allRatings, squadPlayers, classes]);
 
   if (loading || !alumniReady || !classesReady) {
     return (

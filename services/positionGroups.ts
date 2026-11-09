@@ -1,5 +1,5 @@
 // Position groups for testing standards. Only a type import, so the tests can load it.
-import type { RugbyPosition } from '../types';
+import type { RugbyPosition, TestResult, TestSession } from '../types';
 
 export type PositionGroup = 'props' | 'hookers' | 'locks' | 'backrow' | 'scrumhalves' | 'flyhalves' | 'centers' | 'backthree';
 
@@ -21,3 +21,14 @@ export const groupForPosition = (pos?: RugbyPosition): PositionGroup | undefined
 // Players whose position is blank or not sure are tested as back rowers (Rudi, 8 Nov 2026).
 export const DEFAULT_GROUP: PositionGroup = 'backrow';
 export const testingGroup = (pos?: RugbyPosition): PositionGroup => groupForPosition(pos) ?? DEFAULT_GROUP;
+
+// The group a player is tested in: their current position (shared, set in the app or the roster
+// file), else the group on their latest result, else back row. Position first, so changing it
+// updates every board at once.
+export const playerGroup = (results: TestResult[], sessions: Pick<TestSession, 'id' | 'date'>[], bestPosition?: RugbyPosition): PositionGroup => {
+  const fromPosition = groupForPosition(bestPosition);
+  if (fromPosition) return fromPosition;
+  const dateOf = new Map(sessions.map(s => [s.id, s.date]));
+  const latest = [...results].sort((a, b) => (dateOf.get(b.sessionId) ?? '').localeCompare(dateOf.get(a.sessionId) ?? ''))[0];
+  return latest?.group ?? DEFAULT_GROUP;
+};

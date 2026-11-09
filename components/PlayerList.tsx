@@ -4,7 +4,8 @@ import { AppView, Player, RosterPlayer, InjuryRecord, PlayerRating, RugbyPositio
 import { ROSTER_PLAYERS, getPhotoUrl, GROUP_COLORS, GROUP_DESCRIPTIONS } from '../services/rosterData';
 import { STATUS_COLORS, formatInjuryDate, loadInjuries, migrateHardcodedInjuries } from '../services/injuryData';
 import { getMyRatingForPlayer, loadRatings, RATING_SKILLS, RATING_COLORS, calculateAverageRating } from '../services/ratingData';
-import { loadPositionOverrides, savePlayerPositions, formatPosition, POSITION_OPTIONS, PlayerPositions } from '../services/positionData';
+import { formatPosition, POSITION_OPTIONS, PlayerPositions, takeBrowserPositionEdits } from '../services/positionData';
+import { cleanPositions, effectivePositions } from '../services/positions';
 import { db } from '../services/db';
 import InjuryModal from './InjuryModal';
 import ReturnToPlayPanel from './ReturnToPlayPanel';
@@ -55,7 +56,6 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const [isLoadingRating, setIsLoadingRating] = useState(false);
   const [myRatingsMap, setMyRatingsMap] = useState<Map<string, boolean>>(new Map());
   const [ratingsRefreshKey, setRatingsRefreshKey] = useState(0);
-  const [positionOverrides, setPositionOverrides] = useState<Record<string, PlayerPositions>>({});
   const [editingPositions, setEditingPositions] = useState(false);
   const [editBest, setEditBest] = useState<string>('');
   const [editSecond, setEditSecond] = useState<string>('');
@@ -80,6 +80,32 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   useEffect(() => {
     loadRosterClasses();
   }, [loadRosterClasses]);
+
+  // Position edits used to be saved only in the coach's own browser. Once, move them into the app
+  // for everyone, without overwriting positions already saved there.
+  const movedBrowserPositions = useRef(false);
+  useEffect(() => {
+    if (!isCoach || movedBrowserPositions.current) return;
+    movedBrowserPositions.current = true;
+    (async () => {
+      try {
+        const saved = await db.getRosterClasses();
+        const moved = await takeBrowserPositionEdits(async (name, edit) => {
+          if (saved[classKey(name)]?.positions) return; // already set in the app: that wins
+          // What the coach saw: each position from their edit, else the roster file's.
+          const listed = ROSTER_PLAYERS.find(p => p.name === name);
+          const positions = cleanPositions([
+            edit.bestPosition ?? listed?.bestPosition, edit.secondPosition ?? listed?.secondPosition, edit.thirdPosition ?? listed?.thirdPosition,
+          ].filter((x): x is RugbyPosition => !!x));
+          if (positions.length === 0) return; // nothing to keep
+          await db.setRosterClass(classKey(name), name, { positions, positionsBy: 'coach' });
+        });
+        if (moved) await loadRosterClasses();
+      } catch (err) {
+        console.error('[PlayerList] Could not move browser position edits:', err);
+      }
+    })();
+  }, [isCoach, loadRosterClasses]);
 
   // Team vs Alumni: graduated players only show on the Alumni tab.
   const [showAlumni, setShowAlumni] = useState(false);
@@ -109,19 +135,10 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
     loadAppPlayers();
   }, [loadAppPlayers]);
 
-  // Load position overrides
-  useEffect(() => {
-    setPositionOverrides(loadPositionOverrides());
-  }, []);
-
-  // Get effective positions for a player (override > hardcoded)
+  // A player's positions: saved in the app (shared by everyone), else the roster file.
   const getPositions = (player: RosterPlayer): PlayerPositions => {
-    const override = positionOverrides[player.name];
-    return {
-      bestPosition: override?.bestPosition ?? player.bestPosition,
-      secondPosition: override?.secondPosition ?? player.secondPosition,
-      thirdPosition: override?.thirdPosition ?? player.thirdPosition,
-    };
+    const p = effectivePositions(player, rosterClasses[classKey(player.name)]);
+    return { bestPosition: p.best, secondPosition: p.second, thirdPosition: p.third };
   };
 
   // Load injuries and migrate hardcoded data if needed
@@ -1004,15 +1021,20 @@ const PlayerList: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
                               ))}
                               <div className="flex gap-2 pt-2">
                                 <button
-                                  onClick={() => {
-                                    const newPositions: PlayerPositions = {
-                                      bestPosition: editBest ? Number(editBest) as RugbyPosition : undefined,
-                                      secondPosition: editSecond ? Number(editSecond) as RugbyPosition : undefined,
-                                      thirdPosition: editThird ? Number(editThird) as RugbyPosition : undefined,
-                                    };
-                                    savePlayerPositions(selectedPlayer.name, newPositions);
-                                    setPositionOverrides(loadPositionOverrides());
-                                    setEditingPositions(false);
+                                  disabled={savingClass}
+                                  onClick={async () => {
+                                    // Saved in the app for everyone; a coach's positions can't be changed by the player.
+                                    const positions = cleanPositions([editBest, editSecond, editThird].filter(Boolean).map(Number));
+                                    setSavingClass(true);
+                                    try {
+                                      await db.setRosterClass(classKey(selectedPlayer.name), selectedPlayer.name, { positions, positionsBy: 'coach' });
+                                      await loadRosterClasses();
+                                      setEditingPositions(false);
+                                    } catch (err) {
+                                      console.error('[PlayerList] Could not save positions:', err);
+                                    } finally {
+                                      setSavingClass(false);
+                                    }
                                   }}
                                   className="flex-1 px-3 py-2 bg-amber-500 text-black font-bold rounded-lg text-sm hover:bg-amber-400 transition-colors"
                                 >

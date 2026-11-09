@@ -8,27 +8,18 @@ export interface PlayerPositions {
   thirdPosition?: RugbyPosition;
 }
 
-// All position overrides keyed by player name
-type PositionOverrides = Record<string, PlayerPositions>;
-
-export function loadPositionOverrides(): PositionOverrides {
-  try {
-    const data = localStorage.getItem(POSITIONS_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
+// Position edits used to be saved only in the editing coach's browser (this key). They now live
+// in the app (rosterClasses.positions). This hands any left in this browser to `save` once, then
+// clears them. Returns how many were handed over.
+export async function takeBrowserPositionEdits(save: (name: string, edit: PlayerPositions) => Promise<void>): Promise<number> {
+  let edits: Record<string, PlayerPositions> = {};
+  try { edits = JSON.parse(localStorage.getItem(POSITIONS_KEY) || '{}'); } catch { /* unreadable: nothing to move */ }
+  const entries = Object.entries(edits);
+  for (const [name, p] of entries) {
+    await save(name, p);
   }
-}
-
-export function savePlayerPositions(playerName: string, positions: PlayerPositions): void {
-  const overrides = loadPositionOverrides();
-  overrides[playerName] = positions;
-  localStorage.setItem(POSITIONS_KEY, JSON.stringify(overrides));
-}
-
-export function getPlayerPositions(playerName: string): PlayerPositions | undefined {
-  const overrides = loadPositionOverrides();
-  return overrides[playerName];
+  try { localStorage.removeItem(POSITIONS_KEY); } catch { /* storage blocked */ }
+  return entries.length;
 }
 
 // Position options for dropdowns

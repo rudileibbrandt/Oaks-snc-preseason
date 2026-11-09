@@ -6,6 +6,7 @@ import { InjuryRecord, Player, PlayerRating, RosterClass, RosterPlayer, Squad, T
 import { db } from './db';
 import { isAlumni, normalizeName } from './alumni';
 import { pickSquad, type SquadInfo } from './squad';
+import { effectivePositions, type Positions } from './positions';
 
 // The class that graduates at the end of the current school year (Aug–Jul).
 // Oct 2026 → 2027; May 2027 → 2027; Aug 2027 → 2028.
@@ -104,6 +105,10 @@ export const setRosterAlumni = async (name: string, account: Player | undefined,
     invalidateAlumniNames();
   }
 };
+
+// A player's positions: set in the app (coach, else the player), else the roster file.
+export const positionsOf = (rp: RosterPlayer, classes: Record<string, RosterClass>): Positions =>
+  effectivePositions(rp, classes[classKey(rp.name)]);
 
 // A player's training group: the coach's move on the Groups board, else the roster file.
 export const groupOf = (rp: RosterPlayer, classes: Record<string, RosterClass>): TrainingGroup =>

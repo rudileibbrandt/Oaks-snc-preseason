@@ -52,6 +52,8 @@ export interface RosterClass {
   alumniClass?: number | null; // set = graduated (alumni); null/missing = current player
   squad?: Squad | null; // coach override; null/missing = worked out from the class
   trainingGroup?: TrainingGroup | null; // coach override from the Groups board; null/missing = the roster file
+  positions?: number[] | null; // best, 2nd, 3rd, set in the app; missing = the roster file; [] = cleared
+  positionsBy?: 'coach' | 'player'; // who set them; a player can't change a coach's (services/positions.ts)
 }
 
 // High school squads. JV is freshmen and sophomores (u16); everyone else is Varsity.

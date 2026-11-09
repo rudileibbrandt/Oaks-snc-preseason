@@ -4,7 +4,6 @@ import { Player, TestResult, TestSession } from '../types';
 import { db } from '../services/db';
 import { ROSTER_PLAYERS } from '../services/rosterData';
 import { normalizeName } from '../services/alumni';
-import { loadPositionOverrides } from '../services/positionData';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 import { useRosterClasses } from '../hooks/useRosterContext';
 import {
@@ -146,7 +145,7 @@ interface SessionProps {
 
 const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer, onBack, onChanged }) => {
   const { isAlumniName, ready: alumniReady } = useAlumniNames();
-  const { squadInfo, ready: classesReady } = useRosterClasses();
+  const { squadInfo, positionsOf, ready: classesReady } = useRosterClasses();
   const [query, setQuery] = useState('');
   const [squad, setSquad] = useState<'All' | 'Varsity' | 'JV'>('All');
   const [editing, setEditing] = useState<string | null>(null);
@@ -183,7 +182,6 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer,
   };
 
   const byName = useMemo(() => new Map(results.map(r => [r.nameKey, r])), [results]);
-  const positions = useMemo(() => loadPositionOverrides(), []);
   const players = useMemo(() => ROSTER_PLAYERS
     .filter(p => !isAlumniName(p.name))
     .filter(p => squad === 'All' || squadInfo(p).squad === squad)
@@ -192,8 +190,11 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [query, squad, alumniReady, classesReady]);
 
-  const bestPositionOf = (name: string) =>
-    positions[name]?.bestPosition ?? ROSTER_PLAYERS.find(p => p.name === name)?.bestPosition;
+  // Shared positions (set in the app, else the roster file), the same as every other screen.
+  const bestPositionOf = (name: string) => {
+    const rp = ROSTER_PLAYERS.find(p => p.name === name);
+    return rp ? positionsOf(rp).best : undefined;
+  };
 
   return (
     <div className="space-y-3">
