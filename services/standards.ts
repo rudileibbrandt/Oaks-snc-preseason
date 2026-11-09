@@ -12,6 +12,9 @@
 import { RugbyPosition, TestResult, TestSession } from '../types';
 import { TESTING_SEASON_START } from './season';
 import { parseBronco, parsePositive } from './parseScores';
+import { GROUPS, groupForPosition, groupLabel, testingGroup, DEFAULT_GROUP, type PositionGroup } from './positionGroups';
+export { GROUPS, groupForPosition, groupLabel, testingGroup, DEFAULT_GROUP };
+export type { PositionGroup };
 export { parseBronco, parsePositive };
 
 export const LEVELS = ['Bronze', 'Silver', 'Gold', 'Elite'] as const;
@@ -43,23 +46,6 @@ export const TESTS: TestDef[] = [
   { key: 'squat3rm', label: 'Squat 3RM', unit: 'lb', lowerIsBetter: false,
     how: 'Heaviest weight for 3 clean reps, thighs at least parallel, coach watching. Only once a coach has signed off technique.' },
 ];
-
-export type PositionGroup = 'props' | 'hookers' | 'locks' | 'backrow' | 'scrumhalves' | 'flyhalves' | 'centers' | 'backthree';
-
-export const GROUPS: { key: PositionGroup; label: string; positions: RugbyPosition[] }[] = [
-  { key: 'props', label: 'Props · 1 and 3', positions: [1, 3] },
-  { key: 'hookers', label: 'Hookers · 2', positions: [2] },
-  { key: 'locks', label: 'Locks · 4 and 5', positions: [4, 5] },
-  { key: 'backrow', label: 'Back row · 6, 7 and 8', positions: [6, 7, 8] },
-  { key: 'scrumhalves', label: 'Scrumhalves · 9', positions: [9] },
-  { key: 'flyhalves', label: 'Flyhalves · 10', positions: [10] },
-  { key: 'centers', label: 'Centers · 12 and 13', positions: [12, 13] },
-  { key: 'backthree', label: 'Back three · 11, 14 and 15', positions: [11, 14, 15] },
-];
-
-export const groupLabel = (g: PositionGroup) => GROUPS.find(x => x.key === g)?.label ?? g;
-export const groupForPosition = (pos?: RugbyPosition): PositionGroup | undefined =>
-  pos ? GROUPS.find(g => g.positions.includes(pos))?.key : undefined;
 
 // Bronze, Silver, Gold, Elite. Bronco in seconds.
 type Row = [number, number, number, number];
@@ -230,9 +216,10 @@ export const formatProgress = (test: StandardTest, p: { improved: boolean; amoun
   return `${Math.round(p.amount)} ${TESTS.find(x => x.key === test)!.unit} ${p.improved ? 'more' : 'less'}`;
 };
 
-// The position group a player is tested in: their latest result's group, else their best position.
+// The position group a player is tested in: their latest result's group, else their best position,
+// else back row.
 export const playerGroup = (results: TestResult[], sessions: TestSession[], bestPosition?: RugbyPosition) => {
   const dateOf = new Map(sessions.map(s => [s.id, s.date]));
   const latest = [...results].sort((a, b) => (dateOf.get(b.sessionId) ?? '').localeCompare(dateOf.get(a.sessionId) ?? ''))[0];
-  return latest?.group ?? groupForPosition(bestPosition);
+  return latest?.group ?? testingGroup(bestPosition);
 };

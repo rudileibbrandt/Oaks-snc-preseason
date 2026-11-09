@@ -131,8 +131,8 @@ for (const day of DAYS) {
   for (const r of day.rows) {
     const id = `${sessionId}__${normalizeName(r.name)}`;
     const prev = results.get(id) ?? {};
-    const group = prev.group ?? GROUP_OF_POSITION[positionOf.get(r.name)];
-    if (!group) { console.error(`STOP: ${r.name} has no position on the team list and no group on ${day.date}.`); process.exit(1); }
+    // No position on the team list = back row (Rudi, 8 Nov), as in services/positionGroups.ts.
+    const group = prev.group ?? GROUP_OF_POSITION[positionOf.get(r.name)] ?? 'backrow';
     const values = {};
     if (r.bronco != null) values.bronco = parseBronco(r.bronco);
     if (r.broadJump != null) values.broadJump = r.broadJump;

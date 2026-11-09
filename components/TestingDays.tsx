@@ -8,7 +8,7 @@ import { loadPositionOverrides } from '../services/positionData';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 import { useRosterClasses } from '../hooks/useRosterContext';
 import {
-  GROUPS, PositionGroup, TESTS, formatValue, groupForPosition, groupLabel,
+  GROUPS, PositionGroup, TESTS, formatValue, groupForPosition, groupLabel, testingGroup,
   levelIndex, parseBronco, parsePositive, scoreOf,
 } from '../services/standards';
 import LevelChip from './LevelChip';
@@ -286,7 +286,7 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer,
           session={session}
           playerName={editing}
           existing={byName.get(normalizeName(editing))}
-          defaultGroup={groupForPosition(bestPositionOf(editing))}
+          defaultGroup={testingGroup(bestPositionOf(editing))}
           currentPlayer={currentPlayer}
           onClose={() => setEditing(null)}
           onSaved={async () => { await onChanged(); setEditing(null); }}
@@ -485,8 +485,6 @@ const ImportModal: React.FC<ImportProps> = ({ session, existing, bestPositionOf,
   }, [text, rosterByKey, isAlumniName]);
 
   const ready = plan && !('error' in plan) && plan.rows.length > 0;
-  const noGroup = ready ? (plan as any).rows.filter((r: any) =>
-    !r.group && !existing.get(normalizeName(r.name))?.group && !groupForPosition(bestPositionOf(r.name))).map((r: any) => r.name) : [];
 
   const handleImport = async () => {
     if (!ready) return;
@@ -496,7 +494,7 @@ const ImportModal: React.FC<ImportProps> = ({ session, existing, bestPositionOf,
     let saved = 0;
     for (const row of (plan as any).rows) {
       const prev = existing.get(normalizeName(row.name));
-      const group = row.group ?? prev?.group ?? groupForPosition(bestPositionOf(row.name));
+      const group = row.group ?? prev?.group ?? testingGroup(bestPositionOf(row.name));
       if (!group) continue;
       try {
         await db.saveTestResult({
@@ -542,7 +540,6 @@ const ImportModal: React.FC<ImportProps> = ({ session, existing, bestPositionOf,
             <div className="text-xs space-y-1">
               <p className="text-neutral-300">{plan.rows.length} player{plan.rows.length === 1 ? '' : 's'} matched to the roster.</p>
               {plan.unmatched.length > 0 && <p className="text-amber-400">Not on the roster (skipped): {plan.unmatched.join(', ')}</p>}
-              {noGroup.length > 0 && <p className="text-amber-400">No position group (skipped; add a Group column or enter them one by one): {noGroup.join(', ')}</p>}
               {plan.problems.length > 0 && <p className="text-red-400">Couldn't read (left out): {plan.problems.join('; ')}</p>}
             </div>
           )}
@@ -553,7 +550,7 @@ const ImportModal: React.FC<ImportProps> = ({ session, existing, bestPositionOf,
           )}
           <button onClick={handleImport} disabled={!ready || saving}
             className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm disabled:opacity-40">
-            {saving ? 'Saving...' : ready ? `Import ${(plan as any).rows.length - noGroup.length} player${(plan as any).rows.length - noGroup.length === 1 ? '' : 's'}` : 'Import'}
+            {saving ? 'Saving...' : ready ? `Import ${(plan as any).rows.length} player${(plan as any).rows.length === 1 ? '' : 's'}` : 'Import'}
           </button>
         </div>
       </div>
