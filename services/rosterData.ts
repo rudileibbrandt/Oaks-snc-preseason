@@ -86,8 +86,8 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
 
   // On the 2027 roster sheet with 25 Oct 2026 test results (added Nov 2026).
   { name: "Frank Tucker", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 15 },
-  { name: "Jaden Selha", trainingGroup: "Gold" },
-  { name: "Thunder Hazen", trainingGroup: "Gold" },
+  { name: "Jaden Selha", trainingGroup: "Gold", bestPosition: 1, secondPosition: 3, thirdPosition: 2 },
+  { name: "Thunder Hazen", trainingGroup: "Gold", bestPosition: 4, secondPosition: 5 },
   { name: "Tristan Comiskey", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 15 }, // 40m on 8 Nov 2026
   { name: "Christopher Castro", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 15 }, // "Mac"; on the 2027 registration list; 40m on 8 Nov 2026
   { name: "Zachary Taylor", trainingGroup: "Gold", bestPosition: 12, secondPosition: 10 }, // on the 2027 registration list; 40m on 8 Nov 2026
