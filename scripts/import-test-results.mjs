@@ -16,7 +16,15 @@ const API = 'https://firestore.googleapis.com/v1';
 const ENTERED_BY = 'Rudi Leibbrandt';
 
 // Names as on the app's team list. Bronco in m:ss, broad jump in inches (the sheet's metres x 39.37),
-// 40 m in seconds. null = not tested.
+// 40 m and 10 m in seconds. null = not tested.
+// 8 Nov 10 m times (Rudi's paste). Every name here is also in the 8 Nov 40 m list below.
+const SPRINT10_NOV8 = {
+  'Finn Hegarty': 1.84, 'Joshua Boudreau': 1.85, 'Josh Davis': 1.87, 'Julian Gomez': 1.76,
+  'Nicholas Donnelly': 1.86, 'Duke Chiosso': 1.98, 'Christian Sisneroz': 2.02, 'Luc Purcell': 2.08,
+  'Tristan Comiskey': 1.99, 'Chris Leibbrandt': 1.83, 'Christopher Castro': 1.80, 'Sean Mallie-Ramos': 1.95,
+  'Madden Casson': 1.83, 'Vincenzo Uang': 1.84, 'Xerxes Irani': 1.79, 'Nathan Hoge': 1.76,
+};
+
 const DAYS = [
   {
     date: '2026-10-25', newId: 'tryouts-2026-10-25', newName: 'Try-out testing',
@@ -42,7 +50,7 @@ const DAYS = [
       ['Finn Little', 5.40], ['Andrew Born', 5.33], ['Christian Sisneroz', 5.94], ['Luc Purcell', 6.80],
       ['Duke Chiosso', 5.39], ['Rudy Duggineni', 6.39], ['Frank Tucker', 5.68], ['Julian Gomez', 5.48],
       ['Christopher Castro', 5.59], ['Tristan Comiskey', 6.27], ['Zachary Taylor', 6.37],
-    ].map(([name, sprint40]) => ({ name, sprint40 })),
+    ].map(([name, sprint40]) => ({ name, sprint40, sprint10: SPRINT10_NOV8[name] })),
   },
 ];
 
@@ -62,6 +70,8 @@ for (const day of DAYS) for (const r of day.rows) {
   if (!positionOf.has(r.name)) problems.push(`${r.name} is not on the team list`);
   if (day.rows.filter(x => x.name === r.name).length > 1) problems.push(`${r.name} twice on ${day.date}`);
 }
+const nov8 = new Set(DAYS[1].rows.map(r => r.name));
+for (const n of Object.keys(SPRINT10_NOV8)) if (!nov8.has(n)) problems.push(`${n} has a 10 m time but isn't in the 8 Nov list`);
 if (problems.length) { console.error('STOP:', [...new Set(problems)].join('; ')); process.exit(1); }
 
 const cfg = JSON.parse(fs.readFileSync(os.homedir() + '/.config/configstore/firebase-tools.json', 'utf8'));
@@ -121,6 +131,7 @@ for (const day of DAYS) {
     if (r.bronco != null) values.bronco = parseBronco(r.bronco);
     if (r.broadJump != null) values.broadJump = r.broadJump;
     if (r.sprint40 != null) values.sprint40 = r.sprint40;
+    if (r.sprint10 != null) values.sprint10 = r.sprint10;
     const diff = Object.entries(values).filter(([k, v]) => prev[k] !== v);
     if (diff.length === 0 && prev.group) { console.log(`  ${r.name}: already in, no change`); continue; }
     const notes = diff.map(([k, v]) => prev[k] == null ? `${k} ${v}` : `${k} ${prev[k]} -> ${v} (REPLACES)`);
