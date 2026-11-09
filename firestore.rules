@@ -42,11 +42,15 @@ service cloud.firestore {
 
     match /members/{uid} {
       allow get: if request.auth != null && request.auth.uid == uid;
-      // Join (or re-join) with the team code or the coach code. Neither is readable before joining.
+      // Join (or re-join) as a coach with the coach code, or as a player with the team code.
+      // Neither code is readable before joining; the app tries coach first, then player, and the
+      // one that's accepted decides the sign-up. Missing kind = player (older app versions).
       allow create, update: if request.auth != null && request.auth.uid == uid &&
-                    (request.resource.data.code == get(/databases/$(database)/documents/config/team).data.joinCode ||
-                     request.resource.data.code == coachCode()) &&
-                    request.resource.data.keys().hasOnly(['code', 'joinedAt']);
+                    request.resource.data.keys().hasOnly(['code', 'joinedAt', 'kind']) &&
+                    ((request.resource.data.get('kind', 'player') == 'coach' &&
+                      request.resource.data.code == coachCode()) ||
+                     (request.resource.data.get('kind', 'player') == 'player' &&
+                      request.resource.data.code == get(/databases/$(database)/documents/config/team).data.joinCode));
       allow list, delete: if false;
     }
 
@@ -66,12 +70,12 @@ service cloud.firestore {
                   (request.auth != null && (resource.data.userId == request.auth.uid ||
                                             request.auth.uid in resource.data.get('linkedUserIds', [])));
       // Users can only create profiles with their own auth UID, as a Player, or as a Coach if they
-      // joined with the coach code. Otherwise the admin turns coach access on (Coach requests).
+      // joined as a coach (with the coach code). Otherwise the admin turns coach access on.
       allow create: if isMember() &&
                     request.resource.data.userId == request.auth.uid &&
                     (request.resource.data.role == 'Player' ||
                      (request.resource.data.role == 'Coach' &&
-                      get(/databases/$(database)/documents/members/$(request.auth.uid)).data.code == coachCode()));
+                      get(/databases/$(database)/documents/members/$(request.auth.uid)).data.get('kind', 'player') == 'coach'));
       // Any member can update other fields (merging, positions, classes); only the admin can
       // change a role, so nobody can make themselves (or anyone else) a coach.
       allow update: if isMember() &&

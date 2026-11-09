@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Loader2, AlertCircle, User, Users } from 'lucide-react';
+import React, { useState } from 'react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { db } from '../services/db';
 import type { Player } from '../types';
 import { withTimeout } from '../services/authErrors';
@@ -11,121 +11,73 @@ interface Props {
   onComplete: (player: Player) => void; // the profile just saved
 }
 
-const RoleSelection: React.FC<Props> = ({ onComplete }) => {
-  const [selectedRole, setSelectedRole] = useState<'Player' | 'Coach' | null>(null);
-  const [selectedPosition, setSelectedPosition] = useState<'Forward' | 'Back' | undefined>(undefined);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [needsNameInput, setNeedsNameInput] = useState(false);
-  const [gradYear, setGradYear] = useState<number | null>(null); // players pick their class
-  const [teamCode, setTeamCode] = useState('');
+type Kind = 'coach' | 'player';
 
-  useEffect(() => {
-    // Check if we can get name from user profile
-    const user = getCurrentUser();
-    if (user) {
-      const displayName = user.displayName;
-      const email = user.email;
-      
-      if (displayName) {
-        // Try to split display name into first and last
-        const nameParts = displayName.trim().split(/\s+/);
-        if (nameParts.length >= 2) {
-          setFirstName(nameParts[0]);
-          setLastName(nameParts.slice(1).join(' '));
-          setNeedsNameInput(true); // always confirm: the Google account may be a parent's
-        } else if (nameParts.length === 1) {
-          setFirstName(nameParts[0]);
-          setNeedsNameInput(true); // Need last name
-        } else {
-          setNeedsNameInput(true);
-        }
-      } else if (email) {
-        // Try to extract name from email (e.g., john.doe@example.com)
-        const emailName = email.split('@')[0];
-        const emailParts = emailName.split(/[._-]/);
-        if (emailParts.length >= 2) {
-          setFirstName(emailParts[0].charAt(0).toUpperCase() + emailParts[0].slice(1));
-          setLastName(emailParts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' '));
-          setNeedsNameInput(true); // Let them verify/edit
-        } else {
-          setNeedsNameInput(true);
-        }
-      } else {
-        setNeedsNameInput(true);
-      }
-    } else {
-      setNeedsNameInput(true);
+// A starting guess at the name from the sign-in (Google name, or first.last@ email). Always
+// shown for editing: a Google account may be a parent's.
+const guessName = (): [string, string] => {
+  const user = getCurrentUser();
+  const display = user?.displayName?.trim();
+  if (display) {
+    const parts = display.split(/\s+/);
+    return [parts[0], parts.slice(1).join(' ')];
+  }
+  const local = user?.email?.split('@')[0] ?? '';
+  const parts = local.split(/[._-]/).filter(Boolean);
+  const cap = (p: string) => p.charAt(0).toUpperCase() + p.slice(1);
+  return parts.length >= 2 ? [cap(parts[0]), parts.slice(1).map(cap).join(' ')] : ['', ''];
+};
+
+const inputClass = 'w-full bg-black border border-neutral-800 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-50';
+const choiceClass = (on: boolean) => `rounded-xl border font-bold transition-all disabled:opacity-50 ${
+  on ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+     : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-amber-500/50'}`;
+
+// Sign-up: 1) the code, which decides coach or player (coach code or team code); 2) the profile.
+const RoleSelection: React.FC<Props> = ({ onComplete }) => {
+  const [kind, setKind] = useState<Kind | null>(null);
+  const [code, setCode] = useState('');
+  const [firstName, setFirstName] = useState(() => guessName()[0]);
+  const [lastName, setLastName] = useState(() => guessName()[1]);
+  const [position, setPosition] = useState<'Forward' | 'Back' | undefined>(undefined);
+  const [gradYear, setGradYear] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCode = async () => {
+    if (!code.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setKind(await withTimeout(db.joinTeam(code), 20000, 'Checking the code is taking too long. Check your connection and try again.'));
+    } catch (e: any) {
+      console.error('[RoleSelection] Join failed:', e);
+      setError(e?.code === 'permission-denied'
+        ? "That code isn't right. Check it with your coach."
+        : e?.message || 'Could not check the code. Try again.');
+    } finally {
+      setBusy(false);
     }
-  }, []);
+  };
+
+  const isPlayer = kind === 'player';
+  const ready = !!firstName.trim() && !!lastName.trim() && (!isPlayer || (!!position && !!gradYear));
 
   const handleSubmit = async () => {
-    if (!teamCode.trim()) {
-      setError('Enter the team code from your coach');
-      return;
-    }
-
-    if (!selectedRole) {
-      setError('Please select a role');
-      return;
-    }
-
-    if (selectedRole === 'Player' && !selectedPosition) {
-      setError('Please select a position');
-      return;
-    }
-
-    if (selectedRole === 'Player' && !gradYear) {
-      setError('Please select your class');
-      return;
-    }
-
-    if (needsNameInput) {
-      if (!firstName.trim()) {
-        setError('Please enter your first name');
-        return;
-      }
-      if (!lastName.trim()) {
-        setError('Please enter your last name');
-        return;
-      }
-    }
-
-    setIsSubmitting(true);
+    if (!kind || !ready) return;
+    setBusy(true);
     setError(null);
-
     try {
-      // Build full name
-      const fullName = needsNameInput 
-        ? `${firstName.trim()} ${lastName.trim()}`.trim()
-        : undefined;
-      
-      // Join the team first: without it the profile can't be saved (firestore.rules).
-      try {
-        await withTimeout(db.joinTeam(teamCode), 20000, 'Joining the team is taking too long. Check your connection and tap Continue again.');
-      } catch (joinErr: any) {
-        if (joinErr?.code === 'permission-denied') {
-          joinErr.message = "That team code isn't right. Check it with your coach.";
-        }
-        throw joinErr;
-      }
-
       // A save that never answers must not spin forever. Retrying is safe: the profile is saved
       // under the sign-in's own id, so a second tap can't make a second profile.
       const player = await withTimeout(
-        db.getOrCreatePlayerForUser(
-          selectedRole,
-          selectedRole === 'Player' ? selectedPosition : undefined,
-          fullName
-        ),
+        db.getOrCreatePlayerForUser(isPlayer ? 'Player' : 'Coach', isPlayer ? position : undefined, `${firstName.trim()} ${lastName.trim()}`),
         20000,
         'Saving your profile is taking too long. Check your connection and tap Continue again.'
       );
       // Save the player's class by name (coaches can change it on the Player Roster).
       // A failure here shouldn't block sign-up.
-      if (selectedRole === 'Player' && gradYear) {
+      if (isPlayer && gradYear) {
         try {
           await db.setRosterClass(classKey(player.name), player.name, { gradYear });
         } catch (classErr) {
@@ -134,24 +86,22 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
       }
       onComplete(player);
     } catch (err: any) {
-      console.error('Role selection failed:', err);
-      setError(err?.code === 'timeout' || err?.code === 'permission-denied'
-        ? err.message
-        : err?.message || 'Failed to create profile. Please try again.');
-      setIsSubmitting(false);
+      console.error('[RoleSelection] Profile save failed:', err);
+      setError(err?.message || 'Failed to create profile. Please try again.');
+      setBusy(false);
     }
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[85vh] animate-fade-in">
       <div className="w-full max-w-sm space-y-6">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-black text-white mb-2">Welcome to The Oaks</h1>
-          <p className="text-neutral-400 text-sm">Complete your profile</p>
+          <p className="text-neutral-400 text-sm">
+            {!kind ? 'Enter the code from your coach' : isPlayer ? 'Your player profile' : 'Your coach profile'}
+          </p>
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="bg-red-900/20 border border-red-900/50 p-4 rounded-xl flex items-start text-red-500 text-sm">
             <AlertCircle size={18} className="mr-2 flex-shrink-0 mt-0.5" />
@@ -159,177 +109,74 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
           </div>
         )}
 
-        <TeamCodeField value={teamCode} onChange={v => { setTeamCode(v); setError(null); }} disabled={isSubmitting} />
-
-        {/* Role Selection */}
-        <div>
-          <label className="block text-neutral-400 text-sm mb-3 font-medium">I am a...</label>
-          <div className="grid grid-cols-2 gap-3">
+        {!kind ? (
+          <>
+            <TeamCodeField value={code} onChange={v => { setCode(v); setError(null); }} disabled={busy} />
             <button
-              onClick={() => {
-                setSelectedRole('Player');
-                setError(null);
-              }}
-              disabled={isSubmitting}
-              className={`p-6 rounded-xl border-2 font-bold transition-all ${
-                selectedRole === 'Player'
-                  ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-amber-500/50'
-              } disabled:opacity-50`}
+              onClick={handleCode}
+              disabled={busy || !code.trim()}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold py-4 px-6 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
             >
-              <User size={24} className="mx-auto mb-2" />
-              <div>Player</div>
+              {busy ? <Loader2 size={20} className="animate-spin" /> : 'Continue'}
             </button>
+          </>
+        ) : (
+          <>
+            {!isPlayer && (
+              <p className="text-xs text-amber-300 bg-amber-900/20 border border-amber-700/50 rounded-lg p-3">
+                Coach code accepted: you'll have coach access.
+              </p>
+            )}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-neutral-400 text-sm mb-2 font-medium">First Name</label>
+                <input type="text" value={firstName} placeholder="John" disabled={busy} className={inputClass}
+                  onChange={e => { setFirstName(e.target.value); setError(null); }} />
+              </div>
+              <div>
+                <label className="block text-neutral-400 text-sm mb-2 font-medium">Last Name</label>
+                <input type="text" value={lastName} placeholder="Doe" disabled={busy} className={inputClass}
+                  onChange={e => { setLastName(e.target.value); setError(null); }} />
+              </div>
+            </div>
+
+            {isPlayer && (
+              <>
+                <div>
+                  <label className="block text-neutral-400 text-sm mb-3 font-medium">Position Group</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(['Forward', 'Back'] as const).map(p => (
+                      <button key={p} onClick={() => { setPosition(p); setError(null); }} disabled={busy}
+                        className={`p-4 ${choiceClass(position === p)}`}>{p}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-neutral-400 text-sm mb-3 font-medium">Class (graduation year)</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {currentClassYears().map(year => (
+                      <button key={year} onClick={() => { setGradYear(year); setError(null); }} disabled={busy}
+                        className={`p-3 text-sm ${choiceClass(gradYear === year)}`}>{classLabel(year)}</button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             <button
-              onClick={() => {
-                setSelectedRole('Coach');
-                setError(null);
-              }}
-              disabled={isSubmitting}
-              className={`p-6 rounded-xl border-2 font-bold transition-all ${
-                selectedRole === 'Coach'
-                  ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-amber-500/50'
-              } disabled:opacity-50`}
+              onClick={handleSubmit}
+              disabled={busy || !ready}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold py-4 px-6 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
             >
-              <Users size={24} className="mx-auto mb-2" />
-              <div>Coach</div>
+              {busy ? (<><Loader2 size={20} className="mr-2 animate-spin" />Creating Profile...</>) : 'Continue'}
             </button>
-          </div>
-          {selectedRole === 'Coach' && (
-            <p className="mt-3 text-xs text-neutral-400">
-              Have the coach code? Enter it above and you'll have coach access straight away. Otherwise the club admin approves it; until then you'll see the player view.
-            </p>
-          )}
-        </div>
-
-        {/* Name (always shown, so a name from a parent's Google account can be fixed) */}
-        {needsNameInput && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-neutral-400 text-sm mb-2 font-medium">First Name</label>
-              <input
-                type="text"
-                value={firstName}
-                onChange={(e) => {
-                  setFirstName(e.target.value);
-                  setError(null);
-                }}
-                placeholder="John"
-                disabled={isSubmitting}
-                className="w-full bg-black border border-neutral-800 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-neutral-400 text-sm mb-2 font-medium">Last Name</label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => {
-                  setLastName(e.target.value);
-                  setError(null);
-                }}
-                placeholder="Doe"
-                disabled={isSubmitting}
-                className="w-full bg-black border border-neutral-800 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
-                required
-              />
-            </div>
-          </div>
+          </>
         )}
-
-        {/* Position Selection (only for Players) */}
-        {selectedRole === 'Player' && (
-          <div>
-            <label className="block text-neutral-400 text-sm mb-3 font-medium">Position Group</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => {
-                  setSelectedPosition('Forward');
-                  setError(null);
-                }}
-                disabled={isSubmitting}
-                className={`p-4 rounded-xl border font-bold transition-all ${
-                  selectedPosition === 'Forward'
-                    ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                    : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-amber-500/50'
-                } disabled:opacity-50`}
-              >
-                Forward
-              </button>
-
-              <button
-                onClick={() => {
-                  setSelectedPosition('Back');
-                  setError(null);
-                }}
-                disabled={isSubmitting}
-                className={`p-4 rounded-xl border font-bold transition-all ${
-                  selectedPosition === 'Back'
-                    ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                    : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-amber-500/50'
-                } disabled:opacity-50`}
-              >
-                Back
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Class (only for Players) */}
-        {selectedRole === 'Player' && (
-          <div>
-            <label className="block text-neutral-400 text-sm mb-3 font-medium">Class (graduation year)</label>
-            <div className="grid grid-cols-2 gap-3">
-              {currentClassYears().map(year => (
-                <button
-                  key={year}
-                  onClick={() => {
-                    setGradYear(year);
-                    setError(null);
-                  }}
-                  disabled={isSubmitting}
-                  className={`p-3 rounded-xl border font-bold text-sm transition-all ${
-                    gradYear === year
-                      ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                      : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-amber-500/50'
-                  } disabled:opacity-50`}
-                >
-                  {classLabel(year)}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Submit Button */}
-        <button
-          onClick={handleSubmit}
-          disabled={
-            isSubmitting || 
-            !teamCode.trim() ||
-            !selectedRole || 
-            (selectedRole === 'Player' && (!selectedPosition || !gradYear)) ||
-            (needsNameInput && (!firstName.trim() || !lastName.trim()))
-          }
-          className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold py-4 px-6 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 size={20} className="mr-2 animate-spin" />
-              Creating Profile...
-            </>
-          ) : (
-            'Continue'
-          )}
-        </button>
 
         <button
           type="button"
           onClick={() => signOut().catch(e => console.error('[RoleSelection] Sign out failed:', e))}
-          disabled={isSubmitting}
+          disabled={busy}
           className="w-full text-sm text-neutral-500 hover:text-neutral-300 underline disabled:opacity-50"
         >
           Wrong account? Sign out
@@ -340,4 +187,3 @@ const RoleSelection: React.FC<Props> = ({ onComplete }) => {
 };
 
 export default RoleSelection;
-

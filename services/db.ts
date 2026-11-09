@@ -362,12 +362,23 @@ export const db = {
     return snap.exists;
   },
 
-  // Join with the team code. A wrong code is refused by the rules (code 'permission-denied').
-  joinTeam: async (code: string): Promise<void> => {
-    if (!isConfigured || !dbInstance) return;
+  // Join with a code. The app can't read the codes, so it tries the coach code first, then the
+  // team code: firestore.rules accept only the right one, and that decides coach or player.
+  // A wrong code is refused both times (code 'permission-denied').
+  joinTeam: async (code: string): Promise<'coach' | 'player'> => {
+    if (!isConfigured || !dbInstance) return 'player';
     const user = firebase.auth().currentUser;
     if (!user) throw new Error('User must be authenticated');
-    await dbInstance.collection('members').doc(user.uid).set({ code: cleanJoinCode(code), joinedAt: Date.now() });
+    const ref = dbInstance.collection('members').doc(user.uid);
+    const clean = cleanJoinCode(code);
+    try {
+      await ref.set({ code: clean, joinedAt: Date.now(), kind: 'coach' });
+      return 'coach';
+    } catch (e: any) {
+      if (e?.code !== 'permission-denied') throw e;
+    }
+    await ref.set({ code: clean, joinedAt: Date.now(), kind: 'player' });
+    return 'player';
   },
 
   getJoinCode: async (): Promise<string | null> => {
