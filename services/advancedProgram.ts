@@ -1144,7 +1144,7 @@ export const ADVANCED_WEEKS: AdvancedWeek[] = [
             "reps": "3 × AMAP",
             "isMetric": true,
             "group": "C",
-            "videoUrl": "https://youtu.be/giv9miiVsKs"
+            "videoUrl": "https://youtu.be/6UHYuBtF6MY"
           },
           {
             "id": "adv_w4_tue_5",

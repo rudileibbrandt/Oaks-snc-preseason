@@ -42,7 +42,7 @@ export const TESTS: TestDef[] = [
     how: 'Two-foot take-off, land on both feet. Measure to the back of the nearest heel. Best of 3.' },
   { key: 'chinup', label: 'Chin-up total', unit: 'lb', lowerIsBetter: false,
     how: 'Palms facing you, dead hang to chin over the bar. Score = bodyweight + weight added. Best of 2.',
-    videoUrl: 'https://youtu.be/giv9miiVsKs' },
+    videoUrl: 'https://youtu.be/brhRXlOhsAM' }, // Buff Dudes, chosen by Rudi 22 Nov 2026 (was a snatch video)
   { key: 'squat3rm', label: 'Squat 3RM', unit: 'lb', lowerIsBetter: false,
     how: 'Heaviest weight for 3 clean reps, thighs at least parallel, coach watching. Only once a coach has signed off technique.' },
 ];
