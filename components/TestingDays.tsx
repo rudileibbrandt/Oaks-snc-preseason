@@ -12,6 +12,7 @@ import {
 } from '../services/standards';
 import LevelChip from './LevelChip';
 import { formatClock } from '../services/calendar';
+import { formatBroncoTyping, numbersOnly } from '../services/parseScores';
 
 interface Props {
   currentPlayer: Player;
@@ -27,7 +28,7 @@ const resultId = (sessionId: string, name: string) => `${sessionId}__${normalize
 type Form = { group: PositionGroup | ''; bodyweight: string; bronco: string; sprint10: string; sprint40: string; broadJump: string; chinupAdded: string; squat3rm: string };
 const FIELDS: { key: Exclude<keyof Form, 'group'>; label: string; hint: string }[] = [
   { key: 'bodyweight', label: 'Bodyweight (lb)', hint: 'for chin-up total' },
-  { key: 'bronco', label: 'Bronco (m:ss)', hint: 'e.g. 5:24' },
+  { key: 'bronco', label: 'Bronco (m:ss)', hint: 'type 524 for 5:24' },
   { key: 'sprint10', label: '10 m (s)', hint: 'e.g. 1.82' },
   { key: 'sprint40', label: '40 m (s)', hint: 'e.g. 5.61' },
   { key: 'broadJump', label: 'Broad jump (in)', hint: 'e.g. 94' },
@@ -382,8 +383,8 @@ export const EntryModal: React.FC<EntryProps> = ({ session, playerName, existing
             {FIELDS.map(f => (
               <label key={f.key} className="block">
                 <span className="text-xs text-neutral-400">{f.label}</span>
-                <input value={form[f.key]} inputMode="decimal" placeholder={f.hint}
-                  onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+                <input value={form[f.key]} inputMode={f.key === 'bronco' ? 'numeric' : 'decimal'} placeholder={f.hint}
+                  onChange={e => setForm({ ...form, [f.key]: f.key === 'bronco' ? formatBroncoTyping(e.target.value) : numbersOnly(e.target.value) })}
                   className={`mt-1 w-full px-3 py-2 bg-black border rounded-lg text-sm text-white placeholder-neutral-600 ${
                     parsed[f.key] === 'bad' ? 'border-red-500' : 'border-neutral-700'}`} />
               </label>
