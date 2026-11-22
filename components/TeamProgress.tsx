@@ -145,8 +145,8 @@ const TeamProgress: React.FC<Props> = ({ sessions, results, isCoach, goal: teamG
 
       <div className="grid grid-cols-3 gap-2">
         <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl text-center">
-          <p className="text-xl font-black text-amber-500">{prs && prs.comparable ? `${Math.round((prs.prPlayers.length / prs.comparable) * 100)}%` : '—'}</p>
-          <p className="text-[11px] text-neutral-400">{last ? `set a PR on ${shortDay(last.date)}` : 'PR rate'}</p>
+          <p className="text-xl font-black text-amber-500">{prs && prs.comparableResults ? `${Math.round((prs.prCount / prs.comparableResults) * 100)}%` : '—'}</p>
+          <p className="text-[11px] text-neutral-400">{last ? `of results on ${shortDay(last.date)} were PRs` : 'of results were PRs'}</p>
         </div>
         <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl text-center">
           <p className="text-xl font-black text-white">{totals.broncoSecondsOff > 0 ? formatBronco(totals.broncoSecondsOff) : '—'}</p>

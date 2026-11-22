@@ -60,7 +60,18 @@ test('PRs on a testing day: better than every earlier result; a first-ever resul
     { name: 'D', series: { squat3rm: s(['2026-10-25', 200], [day, 200]) } },                     // tie, not a PR
     { name: 'E', series: { bronco: s(['2026-10-25', 400]) } },                                   // not tested that day
   ], day, LOWER);
-  assert.deepEqual(r, { prPlayers: ['A'], comparable: 3, prCount: 1 });
+  assert.deepEqual(r, { prPlayers: ['A'], comparable: 3, prCount: 1, comparableResults: 3 });
+});
+
+// Rudi, 22 Nov 2026: "at least one PR out of six" was ~100% every time; the tile shows the share of results.
+test('PR share counts each test separately', () => {
+  const day = '2026-11-08';
+  const r = sessionPRs([
+    { name: 'A', series: { bronco: s(['2026-10-25', 400], [day, 390]), sprint10: s(['2026-10-25', 1.8], [day, 1.85]), squat3rm: s(['2026-10-25', 200], [day, 210]) } },
+    { name: 'B', series: { bronco: s(['2026-10-25', 380], [day, 390]) } },
+  ], day, LOWER);
+  assert.equal(r.prCount, 2);           // A's Bronco and squat
+  assert.equal(r.comparableResults, 4); // A's three tests + B's Bronco
 });
 
 test('goal (Bronco, lower is better): counted at or under the line, gaps closest first, untested listed', () => {

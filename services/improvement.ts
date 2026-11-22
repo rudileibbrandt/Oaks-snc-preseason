@@ -56,12 +56,13 @@ export const teamImprovement = (players: PlayerImprovement[], tests: string[]): 
 };
 
 // PRs set on one testing day. comparable = players tested that day who had an earlier result on a
-// test they did that day (so a PR was possible); prCount = PR results across all tests.
+// test they did that day (so a PR was possible); comparableResults = those results, one per player
+// per test; prCount = how many of them were PRs. The Team tab shows prCount / comparableResults.
 export const sessionPRs = (
   players: { name: string; series: Record<string, Series | undefined> }[], day: string, lower: LowerIsBetter,
 ) => {
   const prPlayers: string[] = [];
-  let comparable = 0, prCount = 0;
+  let comparable = 0, prCount = 0, comparableResults = 0;
   for (const p of players) {
     let canPR = false, pr = false;
     for (const [test, s] of Object.entries(p.series)) {
@@ -70,6 +71,7 @@ export const sessionPRs = (
       const earlier = s.filter(x => x.date < day);
       if (today.length === 0 || earlier.length === 0) continue;
       canPR = true;
+      comparableResults++;
       const better = (a: number, b: number) => (lower[test] ? a < b : a > b);
       const todayBest = today.reduce((a, b) => (better(b.value, a.value) ? b : a)).value;
       if (earlier.every(x => better(todayBest, x.value))) { pr = true; prCount++; }
@@ -77,7 +79,7 @@ export const sessionPRs = (
     if (canPR) comparable++;
     if (pr) prPlayers.push(p.name);
   }
-  return { prPlayers, comparable, prCount };
+  return { prPlayers, comparable, prCount, comparableResults };
 };
 
 // The team goal: players reaching a tier's line on one test (Rudi, 22 Nov 2026: every player at
