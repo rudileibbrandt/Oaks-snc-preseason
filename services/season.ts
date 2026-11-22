@@ -1,6 +1,6 @@
 // The current season. Stat boards, leaderboards and the Tracker only count workouts from here on.
 // Older logs are kept: the Alumni board and each player's own workout history still use them.
-import { WorkoutLog } from '../types';
+import { TeamGoal, WorkoutLog } from '../types';
 import { WeekIdentifier, compareWeekIdentifiers, getISOWeek, getISOWeekFromTimestamp } from '../utils/weekUtils';
 
 export const SEASON_START = '2026-11-02'; // Mon 2 Nov 2026, the start of the Advanced program
@@ -20,3 +20,12 @@ const weekOf = (log: WorkoutLog): WeekIdentifier =>
 export const isThisSeason = (log: WorkoutLog) => compareWeekIdentifiers(weekOf(log), seasonStartWeek) >= 0;
 
 export const thisSeasonOnly = (logs: WorkoutLog[]) => logs.filter(isThisSeason);
+
+// The team goal until a coach sets one on the Team tab (Rudi, 22 Nov 2026): every player at Bronze
+// on the Bronco by 4 Jan 2027. The other tests are measured for improvement, not goaled.
+export const DEFAULT_GOAL: TeamGoal = { test: 'bronco', level: 0, squad: 'All', count: null, by: '2027-01-04' };
+
+// "Within reach" of the goal line, per test: shown as "11 within 20 s".
+export const GOAL_REACH: Record<TeamGoal['test'], number> = {
+  bronco: 20, sprint10: 0.1, sprint40: 0.2, broadJump: 5, chinup: 10, squat3rm: 15,
+};

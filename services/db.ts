@@ -1,4 +1,4 @@
-import { Player, WorkoutLog, InjuryRecord, RtpStageEntry, RtpClearance, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamEvent, BodyMeasurement, TRAINING_GROUPS, TrainingGroup } from '../types';
+import { Player, WorkoutLog, InjuryRecord, RtpStageEntry, RtpClearance, PlayerRating, RatingHistoryEntry, ProgramLevel, RosterClass, TestSession, TestResult, TeamGoal, TeamEvent, BodyMeasurement, TRAINING_GROUPS, TrainingGroup } from '../types';
 import { cleanPositions } from './positions';
 import { PROFILE_NOT_FOUND } from './profileLoad';
 import { cleanJoinCode } from './authErrors';
@@ -159,6 +159,13 @@ const ls = {
   saveTestResult: async (result: TestResult) => {
     const all: TestResult[] = JSON.parse(localStorage.getItem('oaks_test_results_v1') || '[]');
     localStorage.setItem('oaks_test_results_v1', JSON.stringify([...all.filter(r => r.id !== result.id), result]));
+  },
+  getTeamGoal: async (): Promise<TeamGoal | null> => JSON.parse(localStorage.getItem('oaks_team_goal_v1') || 'null'),
+  saveTeamGoal: async (goal: TeamGoal) => { localStorage.setItem('oaks_team_goal_v1', JSON.stringify(goal)); },
+  mergeTestResult: async (result: Partial<TestResult> & { id: string }) => {
+    const all: TestResult[] = JSON.parse(localStorage.getItem('oaks_test_results_v1') || '[]');
+    const prev = all.find(r => r.id === result.id);
+    localStorage.setItem('oaks_test_results_v1', JSON.stringify([...all.filter(r => r.id !== result.id), { ...prev, ...result }]));
   },
   getBodyMeasurements: async (): Promise<BodyMeasurement[]> => JSON.parse(localStorage.getItem('oaks_body_v1') || '[]'),
   addBodyMeasurement: async (entry: Omit<BodyMeasurement, 'id'>): Promise<BodyMeasurement> => {
@@ -826,6 +833,43 @@ export const db = {
       await dbInstance.collection('testResults').doc(id).set(clean);
     } catch (e) {
       return handleFirebaseError(e, 'saveTestResult');
+    }
+  },
+
+  // The team goal (config/goal). null = none set yet: the app falls back to DEFAULT_GOAL.
+  getTeamGoal: async (): Promise<TeamGoal | null> => {
+    if (!isConfigured || !dbInstance) return ls.getTeamGoal();
+    try {
+      await ensureAuth();
+      const snap = await dbInstance.collection('config').doc('goal').get();
+      return snap.exists ? (snap.data() as TeamGoal) : null;
+    } catch (e) {
+      return handleFirebaseError(e, 'getTeamGoal');
+    }
+  },
+
+  // Coaches only (firestore.rules).
+  saveTeamGoal: async (goal: TeamGoal) => {
+    if (!isConfigured || !dbInstance) return ls.saveTeamGoal(goal);
+    try {
+      await ensureAuth();
+      await dbInstance.collection('config').doc('goal').set(goal);
+    } catch (e) {
+      return handleFirebaseError(e, 'saveTeamGoal');
+    }
+  },
+
+  // Writes only the given fields, keeping the rest of the player's result for that session. Used at
+  // testing-day stations, where two coaches may enter different tests for the same player at once.
+  mergeTestResult: async (result: Partial<TestResult> & { id: string }) => {
+    if (!isConfigured || !dbInstance) return ls.mergeTestResult(result);
+    try {
+      await ensureAuth();
+      const { id, ...data } = result;
+      const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+      await dbInstance.collection('testResults').doc(id).set(clean, { merge: true });
+    } catch (e) {
+      return handleFirebaseError(e, 'mergeTestResult');
     }
   },
 

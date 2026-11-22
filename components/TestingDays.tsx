@@ -13,12 +13,14 @@ import {
 import LevelChip from './LevelChip';
 import { formatClock } from '../services/calendar';
 import { formatBroncoTyping, numbersOnly } from '../services/parseScores';
+import StationEntry from './StationEntry';
 
 interface Props {
   currentPlayer: Player;
   sessions: TestSession[];
   results: TestResult[];
   onChanged: () => Promise<void>; // reload sessions and results
+  initialOpenId?: string;          // open this testing day straight away (from the Team tab's Start)
 }
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -49,8 +51,8 @@ const toText = (key: Exclude<keyof Form, 'group'>, v: number | null | undefined)
 
 // ---------- Testing days list ----------
 
-const TestingDays: React.FC<Props> = ({ currentPlayer, sessions, results, onChanged }) => {
-  const [openId, setOpenId] = useState<string | null>(null);
+const TestingDays: React.FC<Props> = ({ currentPlayer, sessions, results, onChanged, initialOpenId }) => {
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('Testing day');
   const [date, setDate] = useState(today());
@@ -79,7 +81,7 @@ const TestingDays: React.FC<Props> = ({ currentPlayer, sessions, results, onChan
   };
 
   if (open) {
-    return <SessionPanel session={open} results={results.filter(r => r.sessionId === open.id)} currentPlayer={currentPlayer} onBack={() => setOpenId(null)} onChanged={onChanged} />;
+    return <SessionPanel session={open} results={results.filter(r => r.sessionId === open.id)} allResults={results} sessions={sessions} currentPlayer={currentPlayer} onBack={() => setOpenId(null)} onChanged={onChanged} />;
   }
 
   return (
@@ -139,12 +141,15 @@ const TestingDays: React.FC<Props> = ({ currentPlayer, sessions, results, onChan
 interface SessionProps {
   session: TestSession;
   results: TestResult[];
+  allResults: TestResult[];
+  sessions: TestSession[];
   currentPlayer: Player;
   onBack: () => void;
   onChanged: () => Promise<void>;
 }
 
-const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer, onBack, onChanged }) => {
+const SessionPanel: React.FC<SessionProps> = ({ session, results, allResults, sessions, currentPlayer, onBack, onChanged }) => {
+  const [mode, setMode] = useState<'station' | 'player'>('station');
   const { isAlumniName, ready: alumniReady } = useAlumniNames();
   const { squadInfo, positionsOf, ready: classesReady } = useRosterClasses();
   const [query, setQuery] = useState('');
@@ -235,10 +240,16 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer,
           </button>
         </div>
       )}
+      <div className="flex gap-1 bg-neutral-900 rounded-lg p-1 border border-neutral-800" role="group" aria-label="Enter by">
+        <button onClick={() => setMode('station')} className={`flex-1 min-h-[40px] text-xs font-bold rounded-md ${mode === 'station' ? 'bg-amber-500 text-black' : 'text-neutral-400'}`}>By station (sideline)</button>
+        <button onClick={() => setMode('player')} className={`flex-1 min-h-[40px] text-xs font-bold rounded-md ${mode === 'player' ? 'bg-amber-500 text-black' : 'text-neutral-400'}`}>By player</button>
+      </div>
+      {mode === 'player' && (
       <button onClick={() => setImporting(true)}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-neutral-900 border border-neutral-800 text-sm text-amber-400 hover:text-white">
         <ClipboardPaste size={16} /> Paste results from a sheet
       </button>
+      )}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
@@ -255,6 +266,12 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, currentPlayer,
 
       {!alumniReady || !classesReady ? (
         <div className="flex justify-center py-8"><Loader2 className="animate-spin text-neutral-500" /></div>
+      ) : mode === 'station' ? (
+        <StationEntry session={session} results={results} allResults={allResults} sessions={sessions} currentPlayer={currentPlayer} onChanged={onChanged}
+          players={players
+            // The current team only (on a squad); the roster file also holds past players.
+            .filter(p => p.squad || byName.has(normalizeName(p.name)) || squadInfo(p).source === 'coach')
+            .map(p => ({ name: p.name, group: byName.get(normalizeName(p.name))?.group ?? testingGroup(bestPositionOf(p.name)) }))} />
       ) : (
         <div className="space-y-1">
           {players.map(p => {

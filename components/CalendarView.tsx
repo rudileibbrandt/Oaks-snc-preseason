@@ -180,7 +180,7 @@ const CalendarView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
               <button key={t.id} onClick={() => {
                 // Held (today or earlier): results. Still to come: the standards, or the session for coaches.
                 const held = t.date <= today;
-                openStandardsOn(held ? (isCoach ? 'team' : 'mine') : (isCoach ? 'testing' : 'tables'));
+                openStandardsOn(held ? (isCoach ? 'board' : 'mine') : (isCoach ? 'testing' : 'mine'));
                 onNavigate('STANDARDS');
               }}
                 className="w-full p-3 bg-neutral-900 border border-amber-500/30 rounded-lg text-left flex items-center gap-3">

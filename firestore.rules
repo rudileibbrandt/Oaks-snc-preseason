@@ -54,6 +54,19 @@ service cloud.firestore {
       allow list, delete: if false;
     }
 
+    // The team goal shown on the Standards Team tab. Every member reads it; coaches set it.
+    match /config/goal {
+      allow get: if isMember();
+      allow create, update: if isMember() && isCoach() &&
+                    request.resource.data.keys().hasOnly(['test', 'level', 'squad', 'count', 'by', 'setBy', 'updatedAt']) &&
+                    request.resource.data.test in ['bronco', 'sprint10', 'sprint40', 'broadJump', 'chinup', 'squat3rm'] &&
+                    request.resource.data.level in [0, 1, 2, 3] &&
+                    request.resource.data.squad in ['All', 'Varsity', 'JV'] &&
+                    (request.resource.data.count == null || (request.resource.data.count is int && request.resource.data.count > 0)) &&
+                    request.resource.data.by is string;
+      allow delete, list: if false;
+    }
+
     match /config/team {
       allow get: if isMember();
       allow update: if isMember() && isCoach() &&

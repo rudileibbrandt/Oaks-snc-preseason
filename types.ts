@@ -210,6 +210,18 @@ export interface TestSession {
   createdAt: number;
 }
 
+// The team goal, set by coaches on the Team tab (config/goal). Players reach a tier's line on one
+// test by a date. count = how many players must (null = every player on the squad).
+export interface TeamGoal {
+  test: 'bronco' | 'sprint10' | 'sprint40' | 'broadJump' | 'chinup' | 'squat3rm';
+  level: 0 | 1 | 2 | 3; // Bronze … Elite
+  squad: 'All' | 'Varsity' | 'JV';
+  count: number | null;
+  by: string; // YYYY-MM-DD
+  setBy?: string;
+  updatedAt?: number;
+}
+
 // One player's scores on one testing day, keyed `${sessionId}__${nameKey}`. Stored by roster name,
 // so players without an app account can be tested. A missing or null field = not tested.
 export interface TestResult {

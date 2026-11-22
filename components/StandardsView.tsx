@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Medal, Loader2, Youtube, Pencil } from 'lucide-react';
-import { AppView, Player, TestResult, TestSession } from '../types';
+import { AppView, Player, TeamGoal, TestResult, TestSession } from '../types';
 import { db } from '../services/db';
 import { ROSTER_PLAYERS } from '../services/rosterData';
 import { normalizeName } from '../services/alumni';
-import { TESTING_SEASON_START } from '../services/season';
+import { DEFAULT_GOAL, TESTING_SEASON_START } from '../services/season';
 import { useAlumniNames } from '../hooks/useAlumniNames';
 import { useRosterClasses } from '../hooks/useRosterContext';
 import { classKey } from '../services/classYears';
@@ -18,13 +18,18 @@ import {
 import TestingDays, { EntryModal } from './TestingDays';
 import LevelChip from './LevelChip';
 import ResultCards from './ResultCards';
+import TeamProgress from './TeamProgress';
+import MyProgress, { NextTestingBanner } from './MyProgress';
+import { playerImprovement } from '../services/improvement';
+import { LOWER, fmtPct, seriesOf } from '../services/teamProgress';
 
 interface Props {
   onNavigate: (view: AppView) => void;
   currentPlayer?: Player | null;
 }
 
-type Tab = 'mine' | 'team' | 'testing' | 'tables';
+// Players: Me, Team, Standards. Coaches: Team, Testing, Board, Standards (Rudi, 22 Nov 2026).
+type Tab = 'mine' | 'team' | 'testing' | 'board' | 'tables';
 
 // Another screen (the Calendar) can ask Standards to open on a given tab next time it mounts.
 let startTab: Tab | null = null;
@@ -38,19 +43,26 @@ const StandardsView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   const [tab, setTab] = useState<Tab>(() => {
     const t = startTab;
     startTab = null;
-    const allowed: Tab[] = isCoach ? ['tables', 'team', 'testing'] : ['tables', 'mine'];
-    return t && allowed.includes(t) ? t : 'tables';
+    const allowed: Tab[] = isCoach ? ['team', 'testing', 'board', 'tables'] : ['mine', 'team', 'tables'];
+    return t && allowed.includes(t) ? t : isCoach ? 'team' : currentPlayer ? 'mine' : 'tables';
   });
+  const [openTestingId, setOpenTestingId] = useState<string | undefined>(undefined);
   const [sessions, setSessions] = useState<TestSession[]>([]);
   const [results, setResults] = useState<TestResult[]>([]);
+  const [goal, setGoal] = useState<TeamGoal>(DEFAULT_GOAL);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [s, r] = await Promise.all([db.getTestSessions(), db.getTestResults()]);
+      const [s, r, g] = await Promise.all([
+        db.getTestSessions(), db.getTestResults(),
+        // No goal saved yet (or it can't be read): the default goal.
+        db.getTeamGoal().catch(e => { console.warn('[StandardsView] Could not load goal:', e); return null; }),
+      ]);
       setSessions(s);
       setResults(r);
+      setGoal(g ?? DEFAULT_GOAL);
       setError(null);
     } catch (e) {
       console.error('[StandardsView] Could not load testing data:', e);
@@ -62,8 +74,8 @@ const StandardsView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
   useEffect(() => { load(); }, [load]);
 
   const tabs: [Tab, string][] = isCoach
-    ? [['tables', 'Standards'], ['team', 'Team'], ['testing', 'Testing days']]
-    : [['tables', 'Standards'], ['mine', 'My levels']];
+    ? [['team', 'Team'], ['testing', 'Testing'], ['board', 'Board'], ['tables', 'Standards']]
+    : [['mine', 'Me'], ['team', 'Team'], ['tables', 'Standards']];
 
   return (
     <div className="space-y-4 pb-8">
@@ -77,7 +89,7 @@ const StandardsView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
       <div className="flex gap-1 bg-neutral-900 rounded-lg p-1 border border-neutral-800">
         {tabs.map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
+          <button key={key} onClick={() => { setTab(key); setOpenTestingId(undefined); }}
             className={`flex-1 px-3 py-2 text-xs font-bold rounded-md transition-colors ${tab === key ? 'bg-amber-500 text-black' : 'text-neutral-400 hover:text-white'}`}>
             {label}
           </button>
@@ -88,11 +100,20 @@ const StandardsView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
       {loading && tab !== 'tables' ? (
         <div className="flex justify-center py-12"><Loader2 className="animate-spin text-neutral-500" /></div>
       ) : tab === 'mine' && currentPlayer ? (
-        <MyLevels player={currentPlayer} sessions={sessions} results={results} onChanged={load} />
+        <div className="space-y-3">
+          <NextTestingBanner sessions={sessions} />
+          <MyLevels player={currentPlayer} sessions={sessions} results={results} goal={goal} onChanged={load} />
+        </div>
       ) : tab === 'team' ? (
+        <div className="space-y-3">
+          <NextTestingBanner sessions={sessions} isCoach={isCoach}
+            onStart={id => { setOpenTestingId(id); setTab('testing'); }} />
+          <TeamProgress sessions={sessions} results={results} isCoach={isCoach} goal={goal} onGoalSaved={load} coachName={currentPlayer?.name} />
+        </div>
+      ) : tab === 'board' && isCoach ? (
         <TeamLevels sessions={sessions} results={results} />
       ) : tab === 'testing' && isCoach && currentPlayer ? (
-        <TestingDays currentPlayer={currentPlayer} sessions={sessions} results={results} onChanged={load} />
+        <TestingDays key={openTestingId ?? 'list'} currentPlayer={currentPlayer} sessions={sessions} results={results} onChanged={load} initialOpenId={openTestingId} />
       ) : (
         <StandardsTables />
       )}
@@ -108,7 +129,7 @@ const localToday = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: TestResult[]; onChanged: () => Promise<void> }> = ({ player, sessions, results, onChanged }) => {
+const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: TestResult[]; goal: TeamGoal; onChanged: () => Promise<void> }> = ({ player, sessions, results, goal, onChanged }) => {
   const key = normalizeName(player.name);
   const rosterPlayer = ROSTER_PLAYERS.find(p => normalizeName(p.name) === key);
   const mine = useMemo(() => results.filter(r => r.nameKey === key), [results, key]);
@@ -143,8 +164,7 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
   const resultFor = (sessionId: string) => mine.find(r => r.sessionId === sessionId);
   const coachEntered = (r?: TestResult) => !!r && normalizeName(r.enteredBy) !== key;
 
-  return (
-    <div className="space-y-4">
+  const positionBlock = (
       <label className="block">
         <span className="text-xs text-neutral-500">Your main position</span>
         {canSetPositions('player', positions.source === 'coach' ? 'coach' : 'player') ? (
@@ -162,10 +182,29 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
         <span className="mt-1 block text-[11px] text-neutral-500">Tested as {groupLabel(group).split(' · ')[0]}</span>
         {positionError && <span className="mt-1 block text-xs text-red-400">{positionError}</span>}
       </label>
+  );
+
+  return (
+    <div className="space-y-4">
+      <MyProgress group={group} results={mine} sessions={sessions} goal={goal} />
+
+      <h3 className="text-sm font-bold text-neutral-300 pt-2">All your results</h3>
+      {mine.length === 0 && (
+        <p className="text-sm text-neutral-400 p-4 bg-neutral-900 border border-neutral-800 rounded-xl">
+          No test results yet. Your coaches enter them live on testing day. Until then, the numbers below are the lines to aim for.
+        </p>
+      )}
+      <ResultCards group={group} results={mine} sessions={sessions} />
+      <p className="text-[11px] text-neutral-500">
+        Your tier is your best result since {seasonStartLabel}. Times count at or under the line; jump and lifts at or over.
+        Chin-up total = bodyweight + weight added.
+      </p>
+
+      {positionBlock}
 
       {enterable.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs text-neutral-500">Enter your test results</p>
+          <p className="text-xs text-neutral-500">Missed something? Enter or fix your own results</p>
           {enterable.map(s => {
             const r = resultFor(s.id);
             const locked = coachEntered(r);
@@ -185,12 +224,6 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
         </div>
       )}
 
-      {mine.length === 0 && (
-        <p className="text-sm text-neutral-400 p-4 bg-neutral-900 border border-neutral-800 rounded-xl">
-          No test results yet. Enter yours above after a testing day, or your coach will. Until then, the numbers below are the lines to aim for.
-        </p>
-      )}
-
       {entering && (
         <EntryModal
           session={entering}
@@ -203,22 +236,18 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
         />
       )}
 
-      <ResultCards group={group} results={mine} sessions={sessions} />
-      <p className="text-[11px] text-neutral-500">
-        Your tier is your best result since {seasonStartLabel}. Times count at or under the line; jump and lifts at or over.
-        Chin-up total = bodyweight + weight added.
-      </p>
     </div>
   );
 };
 
 // ---------- Coaches: everyone's levels ----------
 
-type Mode = 'best' | 'latest' | 'worst';
+type Mode = 'best' | 'latest' | 'worst' | 'change';
 const MODE_NOTE: Record<Mode, string> = {
   best: `Best result per test since ${seasonStartLabel}. The chip is the player's tier.`,
   latest: 'Most recent result per test. The chip shows the tier that result reaches.',
   worst: `Weakest result per test since ${seasonStartLabel}. Missed tests are not counted.`,
+  change: 'Latest result vs first test this season, as a %: faster or more is +, blue is backwards. Overall = the average of tests done twice. Bottom row = the median player.',
 };
 
 const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> = ({ sessions, results }) => {
@@ -238,7 +267,7 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
       .map(p => {
         const mine = byPlayer.get(normalizeName(p.name)) ?? [];
         const summaries = Object.fromEntries(TESTS.map(t => [t.key, testSummary(mine, sessions, t.key)]));
-        return { p, mine, group: playerGroup(mine, sessions, positionsOf(p).best), summaries };
+        return { p, mine, group: playerGroup(mine, sessions, positionsOf(p).best), summaries, imp: playerImprovement(seriesOf(mine, sessions), LOWER) };
       })
       .filter(r => !testedOnly || Object.values(r.summaries).some(Boolean))
       .sort((a, b) => a.p.name.localeCompare(b.p.name));
@@ -246,10 +275,17 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
   }, [results, sessions, squad, testedOnly, alumniReady, classesReady, classes]);
 
   // Players at Silver or better per test, for the chosen result.
-  const silverPlus = TESTS.map(t => rows.filter(({ group, summaries }) => {
+  const silverPlus = mode === 'change' ? [] : TESTS.map(t => rows.filter(({ group, summaries }) => {
     const s = summaries[t.key];
     return s && group && levelIndex(group, t.key, s[mode].value) >= 1;
   }).length);
+  const medianOf = (xs: (number | undefined)[]) => {
+    const a = xs.filter((x): x is number => x !== undefined).sort((x, y) => x - y);
+    return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : undefined;
+  };
+  const pctCell = (v: number | undefined, bold?: boolean) => v === undefined
+    ? <span className="text-neutral-700">—</span>
+    : <span className={`${bold ? 'font-bold ' : ''}${v > 0 ? 'text-amber-500' : v < 0 ? 'text-sky-300' : 'text-neutral-300'}`}>{fmtPct(v)}</span>;
 
   const picked = rows.find(r => r.p.name === selected);
 
@@ -266,7 +302,7 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
           ))}
         </div>
         <div className="flex gap-1 bg-neutral-900 rounded-lg p-1 border border-neutral-800" role="group" aria-label="Show result">
-          {([['best', 'Best'], ['latest', 'Latest'], ['worst', 'Worst']] as const).map(([m, label]) => (
+          {([['best', 'Best'], ['latest', 'Latest'], ['worst', 'Worst'], ['change', 'Change']] as const).map(([m, label]) => (
             <button key={m} onClick={() => setMode(m)} className={seg(mode === m)}>{label}</button>
           ))}
         </div>
@@ -285,10 +321,11 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
               <tr>
                 <th className="text-left p-2 sticky left-0 bg-neutral-900">Player</th>
                 {TESTS.map(t => <th key={t.key} className="p-2 text-center whitespace-nowrap">{t.label}</th>)}
+                {mode === 'change' && <th className="p-2 text-center whitespace-nowrap">Overall</th>}
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ p, group, summaries }) => {
+              {rows.map(({ p, group, summaries, imp }) => {
                 const isSel = p.name === selected;
                 return (
                   <tr key={p.name} tabIndex={0}
@@ -301,6 +338,7 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
                     </td>
                     {TESTS.map(t => {
                       const s = summaries[t.key];
+                      if (mode === 'change') return <td key={t.key} className="p-2 text-center">{pctCell(imp.perTest[t.key])}</td>;
                       return (
                         <td key={t.key} className="p-2 text-center">
                           {s && group ? (
@@ -312,13 +350,22 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
                         </td>
                       );
                     })}
+                    {mode === 'change' && <td className="p-2 text-center">{pctCell(imp.overall, true)}</td>}
                   </tr>
                 );
               })}
+              {mode === 'change' ? (
+                <tr className="border-t border-neutral-700 bg-neutral-900/60 text-[11px]">
+                  <td className="p-2 sticky left-0 bg-neutral-900 whitespace-nowrap text-neutral-400">Team (median)</td>
+                  {TESTS.map(t => <td key={t.key} className="p-2 text-center">{pctCell(medianOf(rows.map(r => r.imp.perTest[t.key])))}</td>)}
+                  <td className="p-2 text-center">{pctCell(medianOf(rows.map(r => r.imp.overall)), true)}</td>
+                </tr>
+              ) : (
               <tr className="border-t border-neutral-700 bg-neutral-900/60 text-[10px] text-neutral-400">
                 <td className="p-2 sticky left-0 bg-neutral-900 whitespace-nowrap">Silver or better</td>
                 {silverPlus.map((n, i) => <td key={TESTS[i].key} className="p-2 text-center">{n} of {rows.length}</td>)}
               </tr>
+              )}
             </tbody>
           </table>
         </div>
