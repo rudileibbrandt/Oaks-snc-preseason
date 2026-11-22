@@ -19,6 +19,7 @@ import {
   parseWeekIdentifier,
   WeekIdentifier
 } from '../utils/weekUtils';
+import { isLogDone } from '../services/logStatus';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -570,7 +571,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       for (const player of playerPlayers) {
         for (const day of PROGRAM.DAYS) {
           const dayLog = weekLogs.find(l => l.playerId === player.id && l.dayId === day.id);
-          if (dayLog && dayLog.completed) {
+          if (isLogDone(dayLog)) {
             completed++;
           }
         }
@@ -627,7 +628,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       }
 
       // Count completed workouts
-      const completedWorkouts = weekLogs.filter(l => l.completed).length;
+      const completedWorkouts = weekLogs.filter(isLogDone).length;
 
       return {
         week: formatWeekIdentifier(week),
@@ -1254,7 +1255,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
                 // Completion view: Show workout details for selected week
                 PROGRAM.DAYS.map(day => {
                   const dayLog = logs.find(l => l.playerId === selectedPlayer.id && l.dayId === day.id);
-                  const isComplete = dayLog?.completed;
+                  const isComplete = isLogDone(dayLog);
                   
                   return (
                     <div key={day.id} className={`p-4 rounded-xl border ${isComplete ? 'bg-neutral-900/50 border-green-900/30' : 'bg-neutral-900 border-neutral-800'}`}>

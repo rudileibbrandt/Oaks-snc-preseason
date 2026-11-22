@@ -8,6 +8,7 @@ import {
 import { compareWeekIdentifiers, WeekIdentifier } from '../utils/weekUtils';
 import { Trophy, AlertCircle, X, TrendingUp, Users, Activity } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { isLogDone } from '../services/logStatus';
 
 export type StatView = 'completion' | 'metrics' | 'analytics' | 'performers';
 
@@ -69,7 +70,7 @@ const AdvancedStatBoard: React.FC<Props> = ({ players, allLogs, selectedWeek, on
       const due = w.days.filter(d => isSessionDay(d) && d.date && d.date <= today);
       const possible = due.length * squad.length;
       const done = squad.reduce((sum, r) =>
-        sum + due.filter(d => latestLogForDay(r.logs, d.id)?.completed).length, 0);
+        sum + due.filter(d => isLogDone(latestLogForDay(r.logs, d.id))).length, 0);
       return { week: `W${w.week}`, possible, completionRate: possible > 0 ? Math.round((done / possible) * 100) : 0 };
     })
     .filter(w => w.possible > 0), [rows, today]);

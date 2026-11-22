@@ -4,6 +4,7 @@
 import type { WorkoutLog } from '../types';
 import { compareWeekIdentifiers, getISOWeekFromTimestamp } from '../utils/weekUtils.ts';
 import type { WeekIdentifier } from '../utils/weekUtils.ts';
+import { isLogDone } from './logStatus.ts';
 
 const weekOf = (log: WorkoutLog): WeekIdentifier =>
   log.weekYear !== undefined && log.week !== undefined
@@ -24,7 +25,7 @@ export const intermediateCompletionRate = (
     if (order > 0) break;
     const doneDays = new Set(
       playerLogs
-        .filter(l => l.completed && dayIds.includes(l.dayId) && compareWeekIdentifiers(weekOf(l), week) === 0)
+        .filter(l => isLogDone(l) && dayIds.includes(l.dayId) && compareWeekIdentifiers(weekOf(l), week) === 0)
         .map(l => l.dayId),
     );
     done += doneDays.size;

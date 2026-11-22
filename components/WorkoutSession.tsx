@@ -4,6 +4,7 @@ import { PROGRAM } from '../services/programData';
 import { db } from '../services/db';
 import { ChevronLeft, Save, CheckCircle, Youtube } from 'lucide-react';
 import { getISOWeekFromTimestamp, getISOWeekStart, getCurrentISOWeek, compareWeekIdentifiers, WeekIdentifier } from '../utils/weekUtils';
+import { isLogDone } from '../services/logStatus';
 
 interface Props {
   player: Player;
@@ -117,7 +118,10 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
   const logDataRef = useRef<Record<string, string>>({});
   const [customWorkout, setCustomWorkout] = useState<string>('');
   const customWorkoutRef = useRef<string>('');
+  const [ownWorkout, setOwnWorkout] = useState(false);
+  const ownWorkoutRef = useRef(false);
   const [completed, setCompleted] = useState(false);
+  const completedRef = useRef(false); // a finished session stays finished when a box saves on its own
   const [isSaving, setIsSaving] = useState(false);
   const isSavingRef = useRef(false); // Ref to prevent double-clicks
   const [warmupOpen, setWarmupOpen] = useState(true);
@@ -144,7 +148,11 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
       console.log('[WorkoutSession] Setting customWorkout state to:', loadedCustomWorkout);
       setCustomWorkout(loadedCustomWorkout);
       customWorkoutRef.current = loadedCustomWorkout; // Update ref immediately
-      setCompleted(existingLog.completed);
+      const loadedOwn = existingLog.ownWorkout ?? !!loadedCustomWorkout.trim();
+      setOwnWorkout(loadedOwn);
+      ownWorkoutRef.current = loadedOwn;
+      completedRef.current = !!existingLog.completed;
+      setCompleted(isLogDone(existingLog));
       setWarmupOpen(false);
     } else {
       // Initialize with default "0" values for all exercise fields
@@ -253,7 +261,9 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
       weekYear: weekId.year,
       week: weekId.week,
       data: currentLogData,
-      completed: markComplete
+      // Saving a box after Finish Workout used to save the session as not finished.
+      completed: markComplete || completedRef.current,
+      ownWorkout: ownWorkoutRef.current,
     };
     
     // Only add customWorkout if it has a value (Firestore doesn't accept undefined)
@@ -275,7 +285,8 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
     try {
       await db.saveLog(newLog);
       console.log('[WorkoutSession] Log saved successfully with weekYear:', newLog.weekYear, 'week:', newLog.week);
-      setCompleted(markComplete);
+      completedRef.current = newLog.completed;
+      setCompleted(isLogDone(newLog));
       isSavingRef.current = false;
       setIsSaving(false);
       
@@ -294,6 +305,12 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
       setIsSaving(false);
     }
   }, [isFutureWeek, selectedWeek, player.id, day.id, onExit]);
+
+  const handleOwnWorkoutToggle = useCallback((checked: boolean) => {
+    setOwnWorkout(checked);
+    ownWorkoutRef.current = checked;
+    handleSave(false);
+  }, [handleSave]);
 
   const handleInputBlur = useCallback(() => {
     handleSave(false);
@@ -319,6 +336,33 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
       </div>
 
       <div className="space-y-6">
+
+        {/* Did My Own Workout: near the top, so a player who trained on their own can tick it and go.
+            Ticking it counts the session as done (services/logStatus.ts). */}
+        <div className={`rounded-2xl border overflow-hidden ${ownWorkout ? 'bg-amber-500/10 border-amber-700' : 'bg-neutral-900 border-neutral-800'}`}>
+          <label className={`flex items-center gap-3 p-4 min-h-[56px] ${isFutureWeek ? 'opacity-50' : 'cursor-pointer'}`}>
+            <input type="checkbox" checked={ownWorkout} disabled={isFutureWeek}
+              onChange={e => handleOwnWorkoutToggle(e.target.checked)}
+              className="w-6 h-6 accent-amber-500 flex-shrink-0" />
+            <span className="flex flex-col">
+              <span className="text-base font-bold text-white">I did my own workout</span>
+              <span className="text-xs text-neutral-400">Counts as a completed session. Say what you did below.</span>
+            </span>
+          </label>
+          {ownWorkout && (
+            <div className="px-4 pb-4">
+              <textarea
+                value={customWorkout || ''}
+                onChange={(e) => setCustomWorkout(e.target.value)}
+                onBlur={() => handleSave(false)}
+                placeholder="Describe what you did for your workout today..."
+                rows={3}
+                className="w-full bg-neutral-950 border-2 border-neutral-800 rounded-xl px-4 py-3 text-white text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all resize-none"
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="true"
+              />
+            </div>
+          )}
+        </div>
 
         {day.note && (
           <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-sm text-amber-200">
@@ -494,8 +538,8 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
           ))}
         </div>
 
-        {/* Did My Own Workout Section */}
-        <div className="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden">
+        {/* Did My Own Workout Section (the same text; shown here until the tick box at the top is ticked) */}
+        {!ownWorkout && <div className="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden">
           <div className="p-4 bg-neutral-950/50 border-b border-neutral-800">
             <h3 className="text-lg font-bold text-white">Did My Own Workout</h3>
             <p className="text-xs text-neutral-400 mt-1">Describe what you did instead of the assigned workout</p>
@@ -507,7 +551,8 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
                 console.log('[WorkoutSession] Textarea onChange:', e.target.value);
                 setCustomWorkout(e.target.value);
               }}
-              onBlur={() => handleSave(false)}
+              // Writing here counts too: it ticks "I did my own workout" (the box moves up to the top).
+              onBlur={() => (customWorkoutRef.current.trim() ? handleOwnWorkoutToggle(true) : handleSave(false))}
               placeholder="Describe what you did for your workout today..."
               rows={4}
               className="w-full bg-neutral-950 border-2 border-neutral-800 rounded-xl px-4 py-3 text-white text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all resize-none"
@@ -517,7 +562,7 @@ const WorkoutSession: React.FC<Props> = ({ player, day, existingLog, selectedWee
               spellCheck="true"
             />
           </div>
-        </div>
+        </div>}
 
         {error && (
           <div className="mb-4 bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-500 text-sm">

@@ -19,6 +19,7 @@ import {
   compareWeekIdentifiers,
   WeekIdentifier
 } from '../utils/weekUtils';
+import { isLogDone } from '../services/logStatus';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -132,7 +133,7 @@ const AthleteView: React.FC<Props> = ({ onNavigate }) => {
 
   const isDayComplete = (dayId: string) => {
     // Check if day is complete in the selected week
-    return playerLogs.some(l => l.dayId === dayId && l.completed);
+    return playerLogs.some(l => l.dayId === dayId && isLogDone(l));
   };
 
   const handleUpdatePosition = async (position: 'Forward' | 'Back') => {

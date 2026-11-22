@@ -11,6 +11,7 @@ import {
   formatWeekIdentifier,
   WeekIdentifier
 } from '../utils/weekUtils';
+import { isLogDone } from '../services/logStatus';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -88,7 +89,8 @@ const TrackerView: React.FC<Props> = ({ onNavigate }) => {
     // Short text for a logged day: the first exercise's weight or sprint time.
     const cellText = (log: WorkoutLog): string => {
       if (!log.data) return '';
-      if (!log.completed) return 'Partial';
+      if (!isLogDone(log)) return 'Partial';
+      if (!log.completed) return 'Own';
       const day = PROGRAM.DAYS.find(d => d.id === log.dayId);
       const first = day?.exercises[0];
       if (!first) return '✓';
@@ -108,7 +110,7 @@ const TrackerView: React.FC<Props> = ({ onNavigate }) => {
         const wk = formatWeekIdentifier(week);
         const log = logs.find(l => l.playerId === playerId && l.dayId === day.id && formatWeekIdentifier(weekOf(l)) === wk);
         if (!log) return { text: '', status: 'empty' as const };
-        return { text: cellText(log), status: log.completed ? 'complete' as const : 'partial' as const };
+        return { text: cellText(log), status: isLogDone(log) ? 'complete' as const : 'partial' as const };
       },
     })));
 

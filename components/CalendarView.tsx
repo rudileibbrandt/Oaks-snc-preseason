@@ -6,6 +6,7 @@ import { PROGRAM, PROGRAM_DATES_LABEL } from '../services/programData';
 import { advancedDayOn, formatClock, isoDate, logDate, monthGrid, parseIso, programWeekOn, weekOfIso } from '../services/calendar';
 import { isAdvancedLog } from '../services/advancedStats';
 import { openStandardsOn } from './StandardsView';
+import { isLogDone } from '../services/logStatus';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -79,14 +80,14 @@ const CalendarView: React.FC<Props> = ({ onNavigate, currentPlayer }) => {
 
   const doneOn = useMemo(() => {
     const map = new Map<string, WorkoutLog[]>();
-    for (const l of logs) if (l.completed) map.set(logDate(l), [...(map.get(logDate(l)) ?? []), l]);
+    for (const l of logs) if (isLogDone(l)) map.set(logDate(l), [...(map.get(logDate(l)) ?? []), l]);
     return map;
   }, [logs]);
 
   // Intermediate: how many of Days 1–4 the player has done in a week.
   const intermediateDoneInWeek = (iso: string) => {
     const wk = weekOfIso(iso);
-    const ids = new Set(logs.filter(l => l.completed && !isAdvancedLog(l) && l.weekYear === wk.year && l.week === wk.week).map(l => l.dayId));
+    const ids = new Set(logs.filter(l => isLogDone(l) && !isAdvancedLog(l) && l.weekYear === wk.year && l.week === wk.week).map(l => l.dayId));
     return PROGRAM.DAYS.filter(d => ids.has(d.id)).length;
   };
 

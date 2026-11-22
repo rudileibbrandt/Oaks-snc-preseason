@@ -5,6 +5,7 @@
 // from its dayId, and which headline lift an exercise is comes from its name.
 import { ExerciseDef, Player, WorkoutDay, WorkoutLog } from '../types';
 import { ADVANCED_WEEKS } from './advancedProgram';
+import { isLogDone } from './logStatus.ts';
 
 // ---------- Program lookups ----------
 
@@ -121,7 +122,7 @@ const logsByDay = (playerLogs: WorkoutLog[]) => {
 export const dayStatus = (day: WorkoutDay, log: WorkoutLog | undefined): DayStatus => {
   if (!isSessionDay(day)) return 'rest';
   if (!log) return 'empty';
-  if (log.completed) return 'complete';
+  if (isLogDone(log)) return 'complete';
   return hasAnyEntry(log) ? 'partial' : 'empty';
 };
 
@@ -138,8 +139,8 @@ export const computePlayerStats = (playerLogs: WorkoutLog[], todayIso: string): 
       const log = byDay.get(day.id);
       if (day.date && day.date <= todayIso) {
         stats.sessionsScheduled++;
-        if (log?.completed) stats.sessionsDone++;
-      } else if (log?.completed) {
+        if (isLogDone(log)) stats.sessionsDone++;
+      } else if (isLogDone(log)) {
         // Logged ahead of schedule: count it as done and scheduled.
         stats.sessionsScheduled++;
         stats.sessionsDone++;

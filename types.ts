@@ -69,6 +69,7 @@ export interface WorkoutLog {
   data: Record<string, string>; // exerciseId -> value (e.g., "100lbs")
   completed: boolean;
   customWorkout?: string; // Optional text description when player did their own workout
+  ownWorkout?: boolean; // "I did my own workout" ticked: counts as done (services/logStatus.ts)
 }
 
 export type AppView = 'LOGIN' | 'LANDING' | 'COACH' | 'ATHLETE_SELECT' | 'ATHLETE_DASHBOARD' | 'WORKOUT_SESSION' | 'TRACKER' | 'ROSTER' | 'INJURIES' | 'RATING_ANALYTICS' | 'COACHES_CORNER' | 'DEPTH_CHART' | 'STANDARDS' | 'CALENDAR';
