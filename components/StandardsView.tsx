@@ -244,10 +244,10 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
 
 type Mode = 'best' | 'latest' | 'worst' | 'change';
 const MODE_NOTE: Record<Mode, string> = {
-  best: `Best result per test since ${seasonStartLabel}. The chip is the player's tier.`,
-  latest: 'Most recent result per test. The chip shows the tier that result reaches.',
-  worst: `Weakest result per test since ${seasonStartLabel}. Missed tests are not counted.`,
-  change: 'Latest result vs first test this season, as a %: faster or more is +, blue is backwards. Overall = the average of tests done twice. Bottom row = the median player.',
+  best: `Best result per test since ${seasonStartLabel}. The chip is the player's tier. Red = not at Bronze yet.`,
+  latest: 'Most recent result per test. The chip shows the tier that result reaches. Red = not at Bronze yet.',
+  worst: `Weakest result per test since ${seasonStartLabel}. Missed tests are not counted. Red = below Bronze.`,
+  change: 'Latest result vs first test this season, as a %: faster or more is +, blue is backwards. Overall = the average of tests done twice. Bottom row = the median player. A red name is below Bronze on a test (best results).',
 };
 
 const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> = ({ sessions, results }) => {
@@ -327,13 +327,20 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
             <tbody>
               {rows.map(({ p, group, summaries, imp }) => {
                 const isSel = p.name === selected;
+                // Rudi, 22 Nov 2026: red = not at Bronze yet. Change view judges the name on best results.
+                const scoreMode = mode === 'change' ? 'best' : mode;
+                const belowBronze = (key: typeof TESTS[number]['key']) => {
+                  const r = summaries[key];
+                  return !!r && !!group && levelIndex(group, key, r[scoreMode].value) < 0;
+                };
+                const anyBelow = TESTS.some(t => belowBronze(t.key));
                 return (
                   <tr key={p.name} tabIndex={0}
                     onClick={() => setSelected(isSel ? null : p.name)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(isSel ? null : p.name); } }}
                     className={`border-t border-neutral-800 cursor-pointer ${isSel ? 'bg-amber-500/10' : 'hover:bg-neutral-900'}`}>
                     <td className={`p-2 sticky left-0 ${isSel ? 'bg-[#1c1608]' : 'bg-neutral-950'}`}>
-                      <div className="text-white whitespace-nowrap">{p.name}</div>
+                      <div className={`whitespace-nowrap ${anyBelow ? 'text-red-400 font-semibold' : 'text-white'}`}>{p.name}</div>
                       <div className="text-[10px] text-neutral-500 whitespace-nowrap">{group ? groupLabel(group).split(' · ')[0] : 'No position'}</div>
                     </td>
                     {TESTS.map(t => {
@@ -343,7 +350,7 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
                         <td key={t.key} className="p-2 text-center">
                           {s && group ? (
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className="text-neutral-200">{formatValue(t.key, s[mode].value)}</span>
+                              <span className={belowBronze(t.key) ? 'text-red-400 font-semibold' : 'text-neutral-200'}>{formatValue(t.key, s[mode].value)}</span>
                               <LevelChip idx={levelIndex(group, t.key, s[mode].value)} small />
                             </div>
                           ) : <span className="text-neutral-700">—</span>}
