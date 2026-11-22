@@ -870,7 +870,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
         <AlumniBoard players={players} allLogs={everyLog} currentPlayer={currentPlayer} />
       )}
 
-      {showIntermediate && <h3 className="text-sm font-bold uppercase tracking-wider text-amber-500 mb-2">Intermediate</h3>}
+      {showIntermediate && viewMode !== 'completion' && <h3 className="text-sm font-bold uppercase tracking-wider text-amber-500 mb-2">Intermediate</h3>}
 
       {/* Analytics View */}
       {showIntermediate && viewMode === 'analytics' && (
