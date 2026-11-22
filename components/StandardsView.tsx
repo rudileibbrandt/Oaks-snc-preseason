@@ -263,7 +263,7 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
   // On a phone the picked test's column can be off to the right: bring it into view, past the sticky names.
   const tableBox = useRef<HTMLDivElement>(null);
 
-  const allRows = useMemo(() => {
+  const squadRows = useMemo(() => {
     const byPlayer = new Map<string, TestResult[]>();
     for (const r of results) byPlayer.set(r.nameKey, [...(byPlayer.get(r.nameKey) ?? []), r]);
     return ROSTER_PLAYERS
@@ -274,20 +274,25 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
         const summaries = Object.fromEntries(TESTS.map(t => [t.key, testSummary(mine, sessions, t.key)]));
         return { p, mine, group: playerGroup(mine, sessions, positionsOf(p).best), summaries, imp: playerImprovement(seriesOf(mine, sessions), LOWER) };
       })
-      .filter(r => !testedOnly || Object.values(r.summaries).some(Boolean))
       .sort((a, b) => a.p.name.localeCompare(b.p.name));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, sessions, squad, testedOnly, alumniReady, classesReady, classes]);
+  }, [results, sessions, squad, alumniReady, classesReady, classes]);
+  // "Not tested" looks at the whole squad, so players with no tests at all are included.
+  const notTestedMode = !!hl.test && hl.show === 'untested';
+  const allRows = testedOnly && !notTestedMode ? squadRows.filter(r => Object.values(r.summaries).some(Boolean)) : squadRows;
 
   // Highlight (Rudi, 22 Nov 2026): the players short of the chosen tier line on the chosen test.
-  // Untested players aren't flagged. The Change view has no tier per cell, so it judges on best results.
+  // Untested players aren't flagged as short; the "Not tested" option flags them instead.
+  // The Change view has no tier per cell, so it judges on best results.
   const scoreMode = mode === 'change' ? 'best' : mode;
   const isShort = (r: typeof allRows[number]) => {
     const s = hl.test ? r.summaries[hl.test] : undefined;
     return !!hl.test && !!s && !!r.group && levelIndex(r.group, hl.test, s[scoreMode].value) < hl.level;
   };
-  const flagged = new Set(allRows.filter(isShort).map(r => r.p.name));
-  const untested = hl.test ? allRows.filter(r => !r.summaries[hl.test!]).length : 0;
+  const isUntested = (r: typeof allRows[number]) => !!hl.test && !r.summaries[hl.test];
+  const flagged = new Set(allRows.filter(notTestedMode ? isUntested : isShort).map(r => r.p.name));
+  const untested = hl.test ? squadRows.filter(isUntested).length : 0;
+  const short = hl.test ? squadRows.filter(isShort).length : 0;
   const rows = hl.test && hl.onlyFlagged ? allRows.filter(r => flagged.has(r.p.name)) : allRows;
   const tableShown = alumniReady && classesReady && rows.length > 0;
   useEffect(() => {
@@ -336,10 +341,10 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
           <input type="checkbox" checked={testedOnly} onChange={e => setTestedOnly(e.target.checked)} /> Tested this season only
         </label>
       </div>
-      <BoardHighlight value={hl} onChange={changeHl} flagged={flagged.size} untested={untested} changeMode={mode === 'change'} />
+      <BoardHighlight value={hl} onChange={changeHl} short={short} untested={untested} changeMode={mode === 'change'} />
       {rows.length === 0 ? (
         <p className="text-sm text-neutral-500 text-center py-8">
-          {allRows.length > 0 && hl.test ? `Nobody is below ${LEVELS[hl.level]} on ${SHORT[hl.test]}.`
+          {allRows.length > 0 && hl.test ? (notTestedMode ? `Everyone has done ${SHORT[hl.test]}.` : `Nobody is below ${LEVELS[hl.level]} on ${SHORT[hl.test]}.`)
             : testedOnly ? 'Nobody tested yet this season. Add results under Testing days.' : 'No players in this squad.'}
         </p>
       ) : (
@@ -356,20 +361,28 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
               {rows.map(({ p, group, summaries, imp }) => {
                 const isSel = p.name === selected;
                 const hot = flagged.has(p.name);
+                const tint = notTestedMode
+                  ? { row: 'bg-sky-500/[0.07] hover:bg-sky-500/10', name: 'bg-[#0c1519] shadow-[inset_3px_0_0_#38bdf8]' }
+                  : { row: 'bg-red-500/[0.07] hover:bg-red-500/10', name: 'bg-[#1a0d0d] shadow-[inset_3px_0_0_#ef4444]' };
                 return (
                   <tr key={p.name} tabIndex={0}
                     onClick={() => setSelected(isSel ? null : p.name)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(isSel ? null : p.name); } }}
-                    className={`border-t border-neutral-800 cursor-pointer ${isSel ? 'bg-amber-500/10' : hot ? 'bg-red-500/[0.07] hover:bg-red-500/10' : 'hover:bg-neutral-900'}`}>
-                    <td className={`p-2 sticky left-0 ${isSel ? 'bg-[#1c1608]' : hot ? 'bg-[#1a0d0d] shadow-[inset_3px_0_0_#ef4444]' : 'bg-neutral-950'}`}>
+                    className={`border-t border-neutral-800 cursor-pointer ${isSel ? 'bg-amber-500/10' : hot ? tint.row : 'hover:bg-neutral-900'}`}>
+                    <td className={`p-2 sticky left-0 ${isSel ? 'bg-[#1c1608]' : hot ? tint.name : 'bg-neutral-950'}`}>
                       <div className="whitespace-nowrap text-white">
                         {p.name}
-                        {hot && <span className="sr-only"> (below {LEVELS[hl.level]} on {SHORT[hl.test!]})</span>}
+                        {hot && <span className="sr-only"> ({notTestedMode ? 'not tested' : `below ${LEVELS[hl.level]}`} on {SHORT[hl.test!]})</span>}
                       </div>
                       <div className="text-[10px] text-neutral-500 whitespace-nowrap">{group ? groupLabel(group).split(' · ')[0] : 'No position'}</div>
                     </td>
                     {TESTS.map(t => {
                       const s = summaries[t.key];
+                      if (hot && notTestedMode && hl.test === t.key) return (
+                        <td key={t.key} className="p-1.5 text-center">
+                          <div className="rounded-lg border border-dashed border-sky-500/50 bg-sky-500/10 px-1 py-1.5 text-[10px] font-bold text-sky-300 whitespace-nowrap">Not tested</div>
+                        </td>
+                      );
                       if (mode === 'change') return <td key={t.key} className="p-2 text-center">{pctCell(imp.perTest[t.key])}</td>;
                       return (
                         <td key={t.key} className="p-1.5 text-center">
