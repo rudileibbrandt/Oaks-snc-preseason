@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Player, WorkoutLog } from '../types';
-import { ADVANCED_WEEKS, getAdvancedWeek, ADVANCED_FIRST_WEEK, ADVANCED_LAST_WEEK } from '../services/programData';
+import { ADVANCED_WEEKS, getAdvancedWeek } from '../services/programData';
 import {
   HEADLINE_LIFTS, TIMED_TESTS, LiftKey, PlayerStats, advancedPlayers, computePlayerStats, dayStatus,
   isSessionDay, formatSeconds, compareByCompletionThenLoad, avgWeeklyLoad, describeEntry, latestLogForDay,
 } from '../services/advancedStats';
-import { compareWeekIdentifiers, WeekIdentifier } from '../utils/weekUtils';
+import { WeekIdentifier } from '../utils/weekUtils';
 import { Trophy, AlertCircle, X, TrendingUp, Users, Activity } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { isLogDone } from '../services/logStatus';
@@ -19,6 +19,8 @@ interface Props {
   onSelectWeek: (week: WeekIdentifier) => void;
   currentPlayer?: Player | null;
   viewMode: StatView;
+  focusPlayer?: Player | null;   // opened from the combined Workouts Completed table
+  onFocusDone?: () => void;
 }
 
 interface Row {
@@ -37,12 +39,16 @@ const TOOLTIP_STYLE = { backgroundColor: '#171717', border: '1px solid #404040',
 const rateColor = (rate: number | null) =>
   rate === null ? 'text-neutral-500' : rate >= 80 ? 'text-green-500' : rate >= 60 ? 'text-amber-500' : 'text-red-500';
 
-const AdvancedStatBoard: React.FC<Props> = ({ players, allLogs, selectedWeek, onSelectWeek, currentPlayer, viewMode }) => {
+const AdvancedStatBoard: React.FC<Props> = ({ players, allLogs, selectedWeek, currentPlayer, viewMode, focusPlayer, onFocusDone }) => {
   const isCoach = currentPlayer?.role === 'Coach';
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [chartPlayerId, setChartPlayerId] = useState<string>('');
   const [chartLift, setChartLift] = useState<LiftKey>('frontSquat');
   const today = todayIso();
+
+  useEffect(() => {
+    if (focusPlayer) { setSelectedPlayer(focusPlayer); onFocusDone?.(); }
+  }, [focusPlayer, onFocusDone]);
 
   // Players see the board for themselves.
   useEffect(() => {
@@ -61,7 +67,6 @@ const AdvancedStatBoard: React.FC<Props> = ({ players, allLogs, selectedWeek, on
   }, [players, allLogs, isCoach, today]);
 
   const programWeek = getAdvancedWeek(selectedWeek);
-  const isBefore = compareWeekIdentifiers(selectedWeek, ADVANCED_FIRST_WEEK) < 0;
 
   // Team completion per program week (players only), for weeks that have started.
   const teamCompletion = useMemo(() => ADVANCED_WEEKS
@@ -93,18 +98,6 @@ const AdvancedStatBoard: React.FC<Props> = ({ players, allLogs, selectedWeek, on
     </div>
   );
 
-  const outsideProgram = (
-    <div className="p-6 rounded-xl border border-neutral-800 bg-neutral-900 text-center mb-8">
-      <h3 className="text-lg font-bold text-white mb-2">No Advanced sessions this week</h3>
-      <p className="text-sm text-neutral-400 mb-4">The Advanced program runs Mon 2 Nov – Sun 20 Dec 2026.</p>
-      <button
-        onClick={() => onSelectWeek(isBefore ? ADVANCED_FIRST_WEEK : ADVANCED_LAST_WEEK)}
-        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold rounded-lg transition-colors"
-      >
-        {isBefore ? 'Go to Week 1' : 'Go to Week 7'}
-      </button>
-    </div>
-  );
 
   const playerCell = (player: Player) => (
     <td className="px-2 py-2 font-medium text-white cursor-pointer group sticky left-8 bg-neutral-900/95 z-10" onClick={() => setSelectedPlayer(player)}>
@@ -138,27 +131,17 @@ const AdvancedStatBoard: React.FC<Props> = ({ players, allLogs, selectedWeek, on
   );
 
   // ---------- Workouts Completed / Best tables ----------
-  const table = (viewMode === 'completion' || viewMode === 'metrics') && (
-    viewMode === 'completion' && !programWeek ? outsideProgram : (
+  // Workouts Completed is the combined table on the dashboard (22 Nov 2026); this one is Best only.
+  const table = viewMode === 'metrics' && (
+    (
       <div className="bg-neutral-900/50 rounded-xl overflow-hidden border border-neutral-800 mb-8 shadow-xl">
-        {viewMode === 'completion' && programWeek && (
-          <div className="px-4 py-3 border-b border-neutral-800 text-xs font-bold uppercase tracking-wider text-amber-500">
-            Week {programWeek.week} · {programWeek.phase}
-          </div>
-        )}
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-sm text-left text-neutral-400 min-w-max">
             <thead className="bg-black text-neutral-200 uppercase text-[10px] tracking-wider font-bold sticky top-0 z-10">
               <tr>
                 <th className="px-2 py-2 text-neutral-500 sticky left-0 bg-black z-20">Rank</th>
                 <th className="px-2 py-2 text-neutral-500 sticky left-8 bg-black z-20">Player</th>
-                {viewMode === 'completion' && programWeek
-                  ? programWeek.days.map(d => (
-                      <th key={d.id} className={`px-2 py-3 text-center ${isSessionDay(d) ? '' : 'text-neutral-600'}`}>
-                        {d.title.split(' ')[0]}
-                      </th>
-                    ))
-                  : (
+                {(
                     <>
                       {HEADLINE_LIFTS.map(l => <th key={l.key} className="px-2 py-3 text-center text-amber-500">{l.label}</th>)}
                       {TIMED_TESTS.map(t => <th key={t.key} className="px-2 py-3 text-center text-amber-500">{t.label}</th>)}
@@ -169,27 +152,11 @@ const AdvancedStatBoard: React.FC<Props> = ({ players, allLogs, selectedWeek, on
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ player, logs, stats }, index) => (
+              {rows.map(({ player, stats }, index) => (
                 <tr key={player.id} className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors">
                   {rankCell(index)}
                   {playerCell(player)}
-                  {viewMode === 'completion' && programWeek
-                    ? programWeek.days.map(d => {
-                        const status = dayStatus(d, latestLogForDay(logs, d.id));
-                        return (
-                          <td key={d.id} className="px-2 py-2 text-center">
-                            {status === 'rest' ? (
-                              <span className="text-neutral-700">–</span>
-                            ) : (
-                              <div className={`w-3 h-3 rounded-sm rotate-45 mx-auto ${
-                                status === 'complete' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' :
-                                status === 'partial' ? 'bg-amber-500' : 'bg-transparent border border-neutral-800'
-                              }`} />
-                            )}
-                          </td>
-                        );
-                      })
-                    : (
+                  {(
                       <>
                         {HEADLINE_LIFTS.map(l => (
                           <td key={l.key} className="px-2 py-2 text-center font-mono text-white font-bold text-xs">

@@ -8,6 +8,8 @@ import {
   PositionGroup, StandardTest, TESTS, formatValue, levelIndex, parseBronco, parsePositive, scoreOf,
 } from '../services/standards';
 import LevelChip from './LevelChip';
+import { useBodyStats } from '../hooks/useBodyStats';
+import { ROSTER_PLAYERS } from '../services/rosterData';
 
 // Sideline entry on a testing day (Rudi, 22 Nov 2026: testing is live, with coaches, on Sunday).
 // Each coach picks their station and works down the roster for that one test. Each box saves on
@@ -69,6 +71,13 @@ const StationEntry: React.FC<Props> = ({ session, players, results, allResults, 
     .filter(r => r.nameKey === normalizeName(name) && (dateOf.get(r.sessionId) ?? '') < session.date)
     .sort((a, b) => (dateOf.get(a.sessionId) ?? '').localeCompare(dateOf.get(b.sessionId) ?? ''));
 
+  // Rudi, 22 Nov 2026: don't ask for a bodyweight the app already has. The chin-up station starts
+  // with the player's current weight (their own or a coach's entry, an earlier weigh-in, or the
+  // team list) and saves it with the chin-up; the coach only types over it if it has changed.
+  const { statsFor, ready: weightsReady } = useBodyStats();
+  const knownWeight = (name: string) =>
+    statsFor(name, ROSTER_PLAYERS.find(r => normalizeName(r.name) === normalizeName(name))).weightLb;
+
   const pick = (key: string) => { setStationKey(key); setFrozen(null); };
   const pickShow = (s: typeof show) => { setShow(s); setFrozen(null); };
 
@@ -96,7 +105,7 @@ const StationEntry: React.FC<Props> = ({ session, players, results, allResults, 
       </div>
       <div className="space-y-1.5">
         {listed.map(p => (
-          <StationRow key={`${stationKey}-${p.name}`} station={station} session={session} name={p.name} group={p.group}
+          <StationRow key={`${stationKey}-${p.name}-${weightsReady}`} station={station} knownWeight={knownWeight(p.name)} session={session} name={p.name} group={p.group}
             existing={byName.get(normalizeName(p.name))} earlier={earlier(p.name)} currentPlayer={currentPlayer}
             onSaving={() => setFrozen(f => (f ? (f.includes(p.name) ? f : [...f, p.name]) : [p.name]))} onChanged={onChanged} />
         ))}
@@ -108,10 +117,13 @@ const StationEntry: React.FC<Props> = ({ session, players, results, allResults, 
 
 const StationRow: React.FC<{
   station: Station; session: TestSession; name: string; group: PositionGroup; existing?: TestResult; earlier: TestResult[];
-  currentPlayer: Player; onSaving: () => void; onChanged: () => Promise<void>;
-}> = ({ station, session, name, group, existing, earlier, currentPlayer, onSaving, onChanged }) => {
+  currentPlayer: Player; onSaving: () => void; onChanged: () => Promise<void>; knownWeight?: number;
+}> = ({ station, session, name, group, existing, earlier, currentPlayer, onSaving, onChanged, knownWeight }) => {
+  // Bodyweight starts filled in from what the app knows; it's only saved along with a chin-up.
+  const prefillWeight = existing?.bodyweight == null && knownWeight != null && station.fields.some(f => f.key === 'bodyweight');
   const [text, setText] = useState<Record<string, string>>(() =>
-    Object.fromEntries(station.fields.map(f => [f.key, toText(f.key, existing?.[f.key])])));
+    Object.fromEntries(station.fields.map(f => [f.key,
+      f.key === 'bodyweight' && prefillWeight ? String(knownWeight) : toText(f.key, existing?.[f.key])])));
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const parsed = Object.fromEntries(station.fields.map(f => [f.key, parse(f.key, text[f.key])])) as Record<FieldKey, number | null | 'bad'>;
   const bad = station.fields.some(f => parsed[f.key] === 'bad');
@@ -133,7 +145,9 @@ const StationRow: React.FC<{
 
   const save = async () => {
     if (bad) return;
-    const changed = station.fields.filter(f => (parsed[f.key] ?? null) !== (existing?.[f.key] ?? null));
+    const changed = station.fields.filter(f => (parsed[f.key] ?? null) !== (existing?.[f.key] ?? null))
+      // A filled-in bodyweight on its own isn't an entry: wait for the chin-up.
+      .filter(f => !(f.key === 'bodyweight' && prefillWeight && parsed.chinupAdded == null && parsed.bodyweight === knownWeight));
     if (changed.length === 0) return;
     onSaving();
     setState('saving');
@@ -176,7 +190,7 @@ const StationRow: React.FC<{
       </div>
       {station.fields.map(f => (
         <label key={f.key} className="flex flex-col items-center gap-0.5">
-          {station.fields.length > 1 && <span className="text-[10px] text-neutral-500">{f.label}</span>}
+          {station.fields.length > 1 && <span className="text-[10px] text-neutral-500">{f.key === 'bodyweight' && prefillWeight && parsed.bodyweight === knownWeight ? 'Body lb (known)' : f.label}</span>}
           <input value={text[f.key]} placeholder={f.hint} aria-label={`${name} ${f.label}`}
             inputMode={f.key === 'bronco' ? 'numeric' : 'decimal'}
             enterKeyHint="next"

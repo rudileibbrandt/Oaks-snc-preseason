@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Medal, Loader2, Youtube, Pencil } from 'lucide-react';
 import { AppView, Player, TeamGoal, TestResult, TestSession } from '../types';
 import { db } from '../services/db';
@@ -17,6 +17,7 @@ import {
 } from '../services/standards';
 import TestingDays, { EntryModal } from './TestingDays';
 import LevelChip from './LevelChip';
+import BoardHighlight, { Highlight, SHORT, loadHighlight, saveHighlight } from './BoardHighlight';
 import ResultCards from './ResultCards';
 import TeamProgress from './TeamProgress';
 import MyProgress, { NextTestingBanner } from './MyProgress';
@@ -244,10 +245,10 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
 
 type Mode = 'best' | 'latest' | 'worst' | 'change';
 const MODE_NOTE: Record<Mode, string> = {
-  best: `Best result per test since ${seasonStartLabel}. The chip is the player's tier. Red = not at Bronze yet.`,
-  latest: 'Most recent result per test. The chip shows the tier that result reaches. Red = not at Bronze yet.',
-  worst: `Weakest result per test since ${seasonStartLabel}. Missed tests are not counted. Red = below Bronze.`,
-  change: 'Latest result vs first test this season, as a %: faster or more is +, blue is backwards. Overall = the average of tests done twice. Bottom row = the median player. A red name is below Bronze on a test (best results).',
+  best: `Best result per test since ${seasonStartLabel}. The chip is the player's tier.`,
+  latest: 'Most recent result per test. The chip shows the tier that result reaches.',
+  worst: `Weakest result per test since ${seasonStartLabel}. Missed tests are not counted.`,
+  change: 'Latest result vs first test this season, as a %: faster or more is +, blue is backwards. Overall = the average of tests done twice. Bottom row = the median player.',
 };
 
 const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> = ({ sessions, results }) => {
@@ -257,8 +258,12 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
   const [testedOnly, setTestedOnly] = useState(true);
   const [mode, setMode] = useState<Mode>('best');
   const [selected, setSelected] = useState<string | null>(null);
+  const [hl, setHl] = useState<Highlight>(loadHighlight);
+  const changeHl = (h: Highlight) => { setHl(h); saveHighlight(h); };
+  // On a phone the picked test's column can be off to the right: bring it into view, past the sticky names.
+  const tableBox = useRef<HTMLDivElement>(null);
 
-  const rows = useMemo(() => {
+  const allRows = useMemo(() => {
     const byPlayer = new Map<string, TestResult[]>();
     for (const r of results) byPlayer.set(r.nameKey, [...(byPlayer.get(r.nameKey) ?? []), r]);
     return ROSTER_PLAYERS
@@ -274,11 +279,32 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results, sessions, squad, testedOnly, alumniReady, classesReady, classes]);
 
-  // Players at Silver or better per test, for the chosen result.
-  const silverPlus = mode === 'change' ? [] : TESTS.map(t => rows.filter(({ group, summaries }) => {
-    const s = summaries[t.key];
-    return s && group && levelIndex(group, t.key, s[mode].value) >= 1;
-  }).length);
+  // Highlight (Rudi, 22 Nov 2026): the players short of the chosen tier line on the chosen test.
+  // Untested players aren't flagged. The Change view has no tier per cell, so it judges on best results.
+  const scoreMode = mode === 'change' ? 'best' : mode;
+  const isShort = (r: typeof allRows[number]) => {
+    const s = hl.test ? r.summaries[hl.test] : undefined;
+    return !!hl.test && !!s && !!r.group && levelIndex(r.group, hl.test, s[scoreMode].value) < hl.level;
+  };
+  const flagged = new Set(allRows.filter(isShort).map(r => r.p.name));
+  const untested = hl.test ? allRows.filter(r => !r.summaries[hl.test!]).length : 0;
+  const rows = hl.test && hl.onlyFlagged ? allRows.filter(r => flagged.has(r.p.name)) : allRows;
+  const tableShown = alumniReady && classesReady && rows.length > 0;
+  useEffect(() => {
+    // A short wait: the Tailwind CDN styles new markup a moment after React renders it.
+    const id = setTimeout(() => {
+      const box = tableBox.current, th = box?.querySelector<HTMLElement>(`th[data-test="${hl.test}"]`);
+      const names = box?.querySelector<HTMLElement>('th');
+      if (box && th && names) box.scrollTo({ left: Math.max(0, th.offsetLeft - names.offsetWidth - 8), behavior: 'smooth' });
+    }, 150);
+    return () => clearTimeout(id);
+  }, [hl.test, mode, tableShown]);
+
+  // Players at Silver or better per test, out of those who did that test (no score isn't counted against).
+  const silverPlus = mode === 'change' ? [] : TESTS.map(t => {
+    const did = allRows.filter(({ group, summaries }) => summaries[t.key] && group);
+    return { n: did.filter(({ group, summaries }) => levelIndex(group!, t.key, summaries[t.key]![mode].value) >= 1).length, of: did.length };
+  });
   const medianOf = (xs: (number | undefined)[]) => {
     const a = xs.filter((x): x is number => x !== undefined).sort((x, y) => x - y);
     return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : undefined;
@@ -310,50 +336,54 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
           <input type="checkbox" checked={testedOnly} onChange={e => setTestedOnly(e.target.checked)} /> Tested this season only
         </label>
       </div>
+      <BoardHighlight value={hl} onChange={changeHl} flagged={flagged.size} untested={untested} changeMode={mode === 'change'} />
       {rows.length === 0 ? (
         <p className="text-sm text-neutral-500 text-center py-8">
-          {testedOnly ? 'Nobody tested yet this season. Add results under Testing days.' : 'No players in this squad.'}
+          {allRows.length > 0 && hl.test ? `Nobody is below ${LEVELS[hl.level]} on ${SHORT[hl.test]}.`
+            : testedOnly ? 'Nobody tested yet this season. Add results under Testing days.' : 'No players in this squad.'}
         </p>
       ) : (
-        <div className="overflow-x-auto border border-neutral-800 rounded-xl">
+        <div ref={tableBox} className="overflow-x-auto border border-neutral-800 rounded-xl">
           <table className="w-full text-xs tabular-nums">
             <thead className="bg-neutral-900 text-neutral-400">
               <tr>
                 <th className="text-left p-2 sticky left-0 bg-neutral-900">Player</th>
-                {TESTS.map(t => <th key={t.key} className="p-2 text-center whitespace-nowrap">{t.label}</th>)}
+                {TESTS.map(t => <th key={t.key} data-test={t.key} className={`p-2 text-center whitespace-nowrap ${hl.test === t.key ? 'text-red-300 bg-red-500/10' : ''}`}>{t.label}</th>)}
                 {mode === 'change' && <th className="p-2 text-center whitespace-nowrap">Overall</th>}
               </tr>
             </thead>
             <tbody>
               {rows.map(({ p, group, summaries, imp }) => {
                 const isSel = p.name === selected;
-                // Rudi, 22 Nov 2026: red = not at Bronze yet. Change view judges the name on best results.
-                const scoreMode = mode === 'change' ? 'best' : mode;
-                const belowBronze = (key: typeof TESTS[number]['key']) => {
-                  const r = summaries[key];
-                  return !!r && !!group && levelIndex(group, key, r[scoreMode].value) < 0;
-                };
-                const anyBelow = TESTS.some(t => belowBronze(t.key));
+                const hot = flagged.has(p.name);
                 return (
                   <tr key={p.name} tabIndex={0}
                     onClick={() => setSelected(isSel ? null : p.name)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(isSel ? null : p.name); } }}
-                    className={`border-t border-neutral-800 cursor-pointer ${isSel ? 'bg-amber-500/10' : 'hover:bg-neutral-900'}`}>
-                    <td className={`p-2 sticky left-0 ${isSel ? 'bg-[#1c1608]' : 'bg-neutral-950'}`}>
-                      <div className={`whitespace-nowrap ${anyBelow ? 'text-red-400 font-semibold' : 'text-white'}`}>{p.name}</div>
+                    className={`border-t border-neutral-800 cursor-pointer ${isSel ? 'bg-amber-500/10' : hot ? 'bg-red-500/[0.07] hover:bg-red-500/10' : 'hover:bg-neutral-900'}`}>
+                    <td className={`p-2 sticky left-0 ${isSel ? 'bg-[#1c1608]' : hot ? 'bg-[#1a0d0d] shadow-[inset_3px_0_0_#ef4444]' : 'bg-neutral-950'}`}>
+                      <div className="whitespace-nowrap text-white">
+                        {p.name}
+                        {hot && <span className="sr-only"> (below {LEVELS[hl.level]} on {SHORT[hl.test!]})</span>}
+                      </div>
                       <div className="text-[10px] text-neutral-500 whitespace-nowrap">{group ? groupLabel(group).split(' · ')[0] : 'No position'}</div>
                     </td>
                     {TESTS.map(t => {
                       const s = summaries[t.key];
                       if (mode === 'change') return <td key={t.key} className="p-2 text-center">{pctCell(imp.perTest[t.key])}</td>;
                       return (
-                        <td key={t.key} className="p-2 text-center">
-                          {s && group ? (
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className={belowBronze(t.key) ? 'text-red-400 font-semibold' : 'text-neutral-200'}>{formatValue(t.key, s[mode].value)}</span>
+                        <td key={t.key} className="p-1.5 text-center">
+                          {s && group ? (hot && hl.test === t.key ? (
+                            <div className="flex flex-col items-center gap-0.5 rounded-lg bg-red-500/10 ring-1 ring-inset ring-red-500/40 px-1 py-1">
+                              <span className="text-red-300 font-bold">{formatValue(t.key, s[mode].value)}</span>
                               <LevelChip idx={levelIndex(group, t.key, s[mode].value)} small />
                             </div>
-                          ) : <span className="text-neutral-700">—</span>}
+                          ) : (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-neutral-200">{formatValue(t.key, s[mode].value)}</span>
+                              <LevelChip idx={levelIndex(group, t.key, s[mode].value)} small />
+                            </div>
+                          )) : <span className="text-neutral-700">—</span>}
                         </td>
                       );
                     })}
@@ -364,13 +394,13 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
               {mode === 'change' ? (
                 <tr className="border-t border-neutral-700 bg-neutral-900/60 text-[11px]">
                   <td className="p-2 sticky left-0 bg-neutral-900 whitespace-nowrap text-neutral-400">Team (median)</td>
-                  {TESTS.map(t => <td key={t.key} className="p-2 text-center">{pctCell(medianOf(rows.map(r => r.imp.perTest[t.key])))}</td>)}
-                  <td className="p-2 text-center">{pctCell(medianOf(rows.map(r => r.imp.overall)), true)}</td>
+                  {TESTS.map(t => <td key={t.key} className="p-2 text-center">{pctCell(medianOf(allRows.map(r => r.imp.perTest[t.key])))}</td>)}
+                  <td className="p-2 text-center">{pctCell(medianOf(allRows.map(r => r.imp.overall)), true)}</td>
                 </tr>
               ) : (
               <tr className="border-t border-neutral-700 bg-neutral-900/60 text-[10px] text-neutral-400">
                 <td className="p-2 sticky left-0 bg-neutral-900 whitespace-nowrap">Silver or better</td>
-                {silverPlus.map((n, i) => <td key={TESTS[i].key} className="p-2 text-center">{n} of {rows.length}</td>)}
+                {silverPlus.map((x, i) => <td key={TESTS[i].key} className="p-2 text-center">{x.of ? `${x.n} of ${x.of}` : '—'}</td>)}
               </tr>
               )}
             </tbody>

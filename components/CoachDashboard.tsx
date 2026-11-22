@@ -6,7 +6,8 @@ import AdvancedStatBoard from './AdvancedStatBoard';
 import AlumniBoard from './AlumniBoard';
 import { isAlumni } from '../services/alumni';
 import { UserPlus, LogOut, Trophy, ChevronRight, AlertCircle, X, Dumbbell, ChevronLeft, TrendingUp, Users } from 'lucide-react';
-import { PROGRAM, PROGRAM_CALENDAR_WEEKS } from '../services/programData';
+import { PROGRAM, PROGRAM_CALENDAR_WEEKS, getAdvancedWeek } from '../services/programData';
+import { advancedPlayers, computePlayerStats, dayStatus, isSessionDay, latestLogForDay } from '../services/advancedStats';
 import { intermediateCompletionRate } from '../services/intermediateCompletion';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { 
@@ -51,8 +52,12 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
   const showIntermediate = board === 'Season';
   // Current team only: alumni are kept off the program boards.
   const currentPlayers = useMemo(() => players.filter(p => !isAlumni(p)), [players]);
-  // Each program has its own board: Advanced players only appear on the Advanced one.
-  const intermediatePlayers = useMemo(() => currentPlayers.filter(p => p.program !== 'Advanced'), [currentPlayers]);
+  // A player is on one program only (Rudi, 22 Nov 2026): Advanced if set to it or they have logged an
+  // Advanced session (the Advanced board's own rule), Intermediate otherwise. Before this, a player who
+  // opened an Advanced day while still set to Intermediate showed on both boards.
+  const advancedIds = useMemo(() => new Set(advancedPlayers(currentPlayers, allLogs).map(p => p.id)), [currentPlayers, allLogs]);
+  const intermediatePlayers = useMemo(() => currentPlayers.filter(p => !advancedIds.has(p.id)), [currentPlayers, advancedIds]);
+  const [focusAdvanced, setFocusAdvanced] = useState<Player | null>(null);
   const pickedProgramRef = useRef(false);
   // The app's currentPlayer can predate a program switch, so default from the freshly loaded roster.
   useEffect(() => {
@@ -535,6 +540,29 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
       });
     }
   }, [intermediatePlayers, allLogs, viewMode, currentPlayer]);
+
+  // Workouts Completed: one table for both programs, with a Program column (Rudi, 22 Nov 2026).
+  // Players with no finished workouts this season are left off.
+  const advancedWeek = getAdvancedWeek(selectedWeek);
+  const completionRows = useMemo(() => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const visible = currentPlayer?.role === 'Player' ? currentPlayers.filter(p => p.role === 'Player') : currentPlayers;
+    return visible
+      .map(player => {
+        const mine = allLogs.filter(l => l.playerId === player.id);
+        const advanced = advancedIds.has(player.id);
+        return {
+          player, advanced, mine,
+          done: mine.filter(isLogDone).length,
+          rate: advanced ? computePlayerStats(mine, today).completionRate : getPlayerCompletionRate(player.id),
+        };
+      })
+      .filter(r => r.done > 0)
+      .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1) || b.done - a.done || a.player.name.localeCompare(b.player.name));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlayers, allLogs, advancedIds, currentPlayer]);
+  const hiddenNoWorkouts = (currentPlayer?.role === 'Player' ? currentPlayers.filter(p => p.role === 'Player') : currentPlayers).length - completionRows.length;
 
   // Calculate completion rates for analytics
   const completionData = useMemo(() => {
@@ -1113,7 +1141,75 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
 
 
       {/* Main Table Area - Hide in analytics and performers views */}
-      {showIntermediate && viewMode !== 'analytics' && viewMode !== 'performers' && (
+      {showIntermediate && viewMode === 'completion' && (
+      <div className="bg-neutral-900/50 rounded-xl overflow-hidden border border-neutral-800 mb-8 shadow-xl">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-sm text-left text-neutral-400">
+            <thead className="bg-black text-neutral-200 uppercase text-[10px] tracking-wider font-bold">
+              <tr>
+                <th className="px-2 py-2 text-neutral-500">Rank</th>
+                <th className="px-2 py-2 text-neutral-500">Player</th>
+                <th className="px-2 py-2 text-center">Program</th>
+                <th className="px-2 py-2 text-center">This week</th>
+                <th className="px-2 py-2 text-center text-amber-500">Completion</th>
+              </tr>
+            </thead>
+            <tbody>
+              {completionRows.map(({ player, advanced, mine, rate }, index) => {
+                const diamonds: ('complete' | 'partial' | 'empty')[] | null = advanced
+                  ? (advancedWeek ? advancedWeek.days.filter(isSessionDay).map(d => dayStatus(d, latestLogForDay(mine, d.id)) as 'complete' | 'partial' | 'empty') : null)
+                  : PROGRAM.DAYS.map(d => getStatus(player.id, d.id) as 'complete' | 'partial' | 'empty');
+                return (
+                  <tr key={player.id} onClick={() => (advanced ? setFocusAdvanced(player) : setSelectedPlayer(player))}
+                    className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors cursor-pointer">
+                    <td className="px-2 py-2 text-center">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold mx-auto ${
+                        index === 0 ? 'bg-amber-500 text-black' : index === 1 ? 'bg-neutral-400 text-black' :
+                        index === 2 ? 'bg-amber-800 text-white' : 'bg-neutral-800 text-neutral-400'}`}>{index + 1}</div>
+                    </td>
+                    <td className="px-2 py-2 min-w-0">
+                      <div className="text-sm font-medium text-white truncate max-w-[9rem]">{player.name}</div>
+                      <div className="text-[9px] text-neutral-600 uppercase truncate max-w-[9rem]">{player.position || 'No position'}</div>
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${advanced ? 'bg-amber-500/20 text-amber-400' : 'bg-neutral-800 text-neutral-300'}`}>
+                        {advanced ? 'ADV' : 'INT'}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2">
+                      {diamonds ? (
+                        <div className="flex items-center justify-center gap-1.5" aria-label={`${diamonds.filter(x => x === 'complete').length} of ${diamonds.length} done this week`}>
+                          {diamonds.map((st, i) => (
+                            <div key={i} className={`w-2.5 h-2.5 rounded-sm rotate-45 ${
+                              st === 'complete' ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' :
+                              st === 'partial' ? 'bg-amber-500' : 'border border-neutral-700'}`} />
+                          ))}
+                        </div>
+                      ) : <div className="text-center text-neutral-700">–</div>}
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      <span className={`text-xs font-bold ${rate === null ? 'text-neutral-500' : rate >= 80 ? 'text-green-500' : rate >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
+                        {rate === null ? '–' : `${rate}%`}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {completionRows.length === 0 && (
+                <tr><td colSpan={5} className="p-8 text-center text-neutral-500">No finished workouts yet this season.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {hiddenNoWorkouts > 0 && (
+          <p className="px-3 py-2 text-[11px] text-neutral-500 border-t border-neutral-800">
+            {hiddenNoWorkouts} with no finished workouts this season not shown. Each program's % uses its own sessions.
+          </p>
+        )}
+      </div>
+      )}
+
+      {showIntermediate && viewMode === 'metrics' && (
       <div className="bg-neutral-900/50 rounded-xl overflow-hidden border border-neutral-800 mb-8 shadow-xl">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-sm text-left text-neutral-400 min-w-max">
@@ -1121,14 +1217,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
               <tr>
                 <th className="px-2 py-2 text-neutral-500 sticky left-0 bg-black z-20">Rank</th>
                 <th className="px-2 py-2 text-neutral-500 sticky left-8 bg-black z-20">Player</th>
-                {viewMode === 'completion' ? (
-                  <>
-                    <th className="px-2 py-3 text-center">D1</th>
-                    <th className="px-2 py-3 text-center">D2</th>
-                    <th className="px-2 py-3 text-center">D3</th>
-                    <th className="px-2 py-3 text-center">D4</th>
-                  </>
-                ) : (
+                {(
                   ALL_EXERCISES.map(ex => (
                     <th key={ex.id} className="px-2 py-3 text-center text-amber-500" title={ex.name}>
                       <div className="text-[9px] leading-tight">{ex.name}</div>
@@ -1165,20 +1254,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
                     </div>
                   </td>
                   
-                          {viewMode === 'completion' ? (
-                            PROGRAM.DAYS.map(day => {
-                              const status = getStatus(player.id, day.id);
-                              return (
-                                <td key={day.id} className="px-2 py-2 text-center">
-                                  <div className={`w-3 h-3 rounded-sm rotate-45 mx-auto transition-all ${
-                                    status === 'complete' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' :
-                                    status === 'partial' ? 'bg-amber-500' :
-                                    'bg-transparent border border-neutral-800'
-                                  }`} />
-                                </td>
-                              );
-                            })
-                          ) : (
+                  {(
                     ALL_EXERCISES.map(ex => (
                       <td key={ex.id} className="px-2 py-2 text-center font-mono text-white font-bold text-xs">
                         {getExerciseValue(player.id, ex.id, ex.isSprint)}
@@ -1205,7 +1281,7 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
               ))}
               {sortedPlayers.length === 0 && (
                 <tr>
-                  <td colSpan={viewMode === 'completion' ? 7 : ALL_EXERCISES.length + 4} className="p-8 text-center text-neutral-500">No players registered yet.</td>
+                  <td colSpan={ALL_EXERCISES.length + 4} className="p-8 text-center text-neutral-500">No players registered yet.</td>
                 </tr>
               )}
             </tbody>
@@ -1216,8 +1292,10 @@ const CoachDashboard: React.FC<Props> = ({ onNavigate, currentPlayer, refreshTri
 
       {board === 'Season' && (
         <>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-amber-500 mb-2">Advanced</h3>
+          {viewMode !== 'completion' && <h3 className="text-sm font-bold uppercase tracking-wider text-amber-500 mb-2">Advanced</h3>}
           <AdvancedStatBoard
+            focusPlayer={focusAdvanced}
+            onFocusDone={() => setFocusAdvanced(null)}
             players={currentPlayers}
             allLogs={allLogs}
             selectedWeek={selectedWeek}

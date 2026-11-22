@@ -135,14 +135,16 @@ export const formatGap = (test: StandardTest, gap: number) =>
 
 // ---------- Results ----------
 
-// A result's score on one test. Chin-up total = bodyweight + added (needs both).
+// A result's score on one test. Chin-up total = bodyweight + added (needs both). No score is not a
+// bad score (Rudi, 22 Nov 2026): a blank or 0 is left out, except 0 lb added, a bodyweight chin-up.
 export const scoreOf = (r: TestResult, test: StandardTest): number | undefined => {
+  const real = (v: number | null | undefined) => v != null && Number.isFinite(v) && v > 0;
   if (test === 'chinup') {
-    if (r.bodyweight == null || r.chinupAdded == null) return undefined;
-    return r.bodyweight + r.chinupAdded;
+    if (!real(r.bodyweight) || r.chinupAdded == null || !Number.isFinite(r.chinupAdded)) return undefined;
+    return r.bodyweight! + r.chinupAdded;
   }
   const v = r[test];
-  return v == null ? undefined : v;
+  return real(v) ? v! : undefined;
 };
 
 export interface BestScore {
