@@ -5,7 +5,7 @@ import { RosterPlayer } from '../types';
 export const ROSTER_PLAYERS: RosterPlayer[] = [
   // Everyone trains in the Gold group (from Nov 2026). Earlier Black/Silver/Bronze splits are in git history.
   { name: "Andrew Campbell", trainingGroup: "Gold", squad: "Varsity", height: "5'9\"", weight: 186, bestPosition: 6, secondPosition: 7, thirdPosition: 12 },
-  { name: "Armando Hall", trainingGroup: "Gold", height: "6'1\"", weight: 211, bestPosition: 8, secondPosition: 6, thirdPosition: 7 },
+  { name: "Armando Hall", trainingGroup: "Gold", squad: "Varsity", height: "6'1\"", weight: 211, bestPosition: 8, secondPosition: 6, thirdPosition: 7 },
   { name: "Asher Ball", trainingGroup: "Gold", squad: "Varsity", height: "6'0\"", weight: 211, bestPosition: 14, secondPosition: 13, thirdPosition: 6 },
   { name: "Brandon Levyash", trainingGroup: "Gold", squad: "Varsity", height: "6'1\"", weight: 241, bestPosition: 2, secondPosition: 1, thirdPosition: 6 },
   { name: "Chris Leibbrandt", trainingGroup: "Gold", squad: "Varsity", height: "5'11\"", weight: 187, kicker: true, bestPosition: 9, secondPosition: 10, thirdPosition: 15 },
@@ -13,7 +13,7 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   { name: "Jackson Evans", trainingGroup: "Gold", squad: "Varsity", grade: 10, classYear: "Sophomore", bestPosition: 1, secondPosition: 2, thirdPosition: 3 },
   { name: "Jared Randall", trainingGroup: "Gold", height: "5'7\"", weight: 185, kicker: true, bestPosition: 12, secondPosition: 10, thirdPosition: 15 },
   { name: "Jules Prevot", trainingGroup: "Gold", height: "6'2\"", weight: 202, bestPosition: 4, secondPosition: 5, thirdPosition: 6 },
-  { name: "Kai Stone", trainingGroup: "Gold", height: "6'3\"", weight: 249, bestPosition: 3, secondPosition: 4, thirdPosition: 6 },
+  { name: "Kai Stone", trainingGroup: "Gold", squad: "Varsity", height: "6'3\"", weight: 249, bestPosition: 3, secondPosition: 4, thirdPosition: 6 },
   { name: "Kayvon Foreman", trainingGroup: "Gold", height: "5'9\"", weight: 174, bestPosition: 13, secondPosition: 12, thirdPosition: 11 },
   { name: "Luke Choochagi", trainingGroup: "Gold" },
   { name: "Rowan Hester", trainingGroup: "Gold", height: "6'7\"", weight: 237, bestPosition: 5, secondPosition: 4, thirdPosition: 6 },
@@ -28,15 +28,19 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   { name: "Johann Turk", trainingGroup: "Gold", height: "5'9\"", weight: 165, grade: 12, classYear: "Senior", bestPosition: 11, secondPosition: 14, thirdPosition: 15 },
   { name: "Thomas Eldridge", trainingGroup: "Gold", squad: "Varsity", height: "5'9\"", weight: 166, bestPosition: 14, secondPosition: 11, thirdPosition: 13 },
 
-  { name: "Zachary Filal", trainingGroup: "Gold", height: "5'8\"", weight: 159, bestPosition: 10, secondPosition: 15, thirdPosition: 9 },
+  { name: "Zachary Filal", trainingGroup: "Gold", squad: "Varsity", height: "5'8\"", weight: 159, bestPosition: 10, secondPosition: 15, thirdPosition: 9 },
   { name: "Rudy Duggineni", trainingGroup: "Gold", squad: "Varsity", height: "6'6\"", weight: 207, bestPosition: 5, secondPosition: 4, thirdPosition: 6 },
   { name: "Benjamin Knauf", trainingGroup: "Gold", height: "6'3\"", weight: 155, bestPosition: 4, secondPosition: 5, thirdPosition: 6 },
-  { name: "Chase Chippero", trainingGroup: "Gold", height: "6'0\"", weight: 216, bestPosition: 1, secondPosition: 4, thirdPosition: 6 },
-  { name: "Eddie Westmoreland", trainingGroup: "Gold", height: "5'7\"", weight: 139, bestPosition: 9, secondPosition: 14, thirdPosition: 15 },
+  { name: "Chase Chippero", trainingGroup: "Gold", squad: "Varsity", height: "6'0\"", weight: 216, bestPosition: 1, secondPosition: 4, thirdPosition: 6 },
+  { name: "Eddie Westmoreland", trainingGroup: "Gold", squad: "Varsity", height: "5'7\"", weight: 139, bestPosition: 9, secondPosition: 14, thirdPosition: 15 },
   { name: "Finn Hegarty", trainingGroup: "Gold", squad: "Varsity", height: "5'8\"", weight: 235, bestPosition: 3, secondPosition: 1, thirdPosition: 2 },
   { name: "Gavin Carney", trainingGroup: "Gold", height: "5'9\"", weight: 191, bestPosition: 7, secondPosition: 6, thirdPosition: 12 },
   { name: "Givani Jimenez", trainingGroup: "Gold", squad: "Varsity", height: "5'10\"", weight: 160, bestPosition: 11, secondPosition: 9, thirdPosition: 15 },
   { name: "Jack Kroha", trainingGroup: "Gold", height: "5'7\"", weight: 145, bestPosition: 11, secondPosition: 14, thirdPosition: 11 },
+  // SportsEngine HS Boys Varsity contact list, 22 Nov 2026.
+  { name: "Landon Cooper", trainingGroup: "Gold", squad: "Varsity" }, // back row (Rudi); no number yet, and none = back row
+  { name: "Rocco Montalvo", trainingGroup: "Gold", squad: "Varsity", bestPosition: 1 }, // prop (Rudi); loose or tight not known
+
   { name: "Jackson Neufeld", trainingGroup: "Gold", squad: "Varsity", height: "5'7\"", weight: 192, bestPosition: 7, secondPosition: 6, thirdPosition: 2 },
   { name: "Luke Cubiburu", trainingGroup: "Gold" },
   { name: "Nicholas Donnelly", trainingGroup: "Gold", squad: "Varsity", height: "5'8\"", weight: 154, bestPosition: 14, secondPosition: 11, thirdPosition: 15 },
@@ -47,7 +51,7 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   { name: "Vincenzo Uang", trainingGroup: "Gold", squad: "Varsity", height: "5'10\"", weight: 149, bestPosition: 15, secondPosition: 9, thirdPosition: 10 },
   { name: "Xerxes Irani", trainingGroup: "Gold", squad: "Varsity", height: "5'8\"", weight: 125, bestPosition: 11, secondPosition: 14, thirdPosition: 15 },
   { name: "Zayn Fassi-Fihri", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 13 },
-  { name: "Aden Riley", trainingGroup: "Gold", height: "5'7\"", weight: 134, bestPosition: 15, secondPosition: 11, thirdPosition: 14 },
+  { name: "Aden Riley", trainingGroup: "Gold", squad: "Varsity", height: "5'7\"", weight: 134, bestPosition: 15, secondPosition: 11, thirdPosition: 14 },
   { name: "Madden Casson", trainingGroup: "Gold", squad: "Varsity", height: "5'9\"", weight: 142, bestPosition: 14, secondPosition: 11, thirdPosition: 13 },
   { name: "Ruston Safehashemi", trainingGroup: "Gold", height: "5'8\"", weight: 158, grade: 11, classYear: "Junior", bestPosition: 11, secondPosition: 14, thirdPosition: 15 },
 
@@ -87,7 +91,7 @@ export const ROSTER_PLAYERS: RosterPlayer[] = [
   // On the 2027 roster sheet with 25 Oct 2026 test results (added Nov 2026).
   { name: "Frank Tucker", trainingGroup: "Gold", squad: "Varsity", bestPosition: 14, secondPosition: 11, thirdPosition: 15 },
   { name: "Jaden Selha", trainingGroup: "Gold", squad: "Varsity", bestPosition: 1, secondPosition: 3, thirdPosition: 2 },
-  { name: "Thunder Hazen", trainingGroup: "Gold", bestPosition: 4, secondPosition: 5 },
+  { name: "Thunder Hazen", trainingGroup: "Gold", squad: "Varsity", bestPosition: 4, secondPosition: 5 },
   { name: "Tristan Comiskey", trainingGroup: "Gold", bestPosition: 14, secondPosition: 11, thirdPosition: 15 }, // 40m on 8 Nov 2026
   { name: "Christopher Castro", trainingGroup: "Gold", squad: "Varsity", bestPosition: 14, secondPosition: 11, thirdPosition: 15 }, // "Mac"; on the 2027 registration list; 40m on 8 Nov 2026
   { name: "Zachary Taylor", trainingGroup: "Gold", squad: "Varsity", bestPosition: 12, secondPosition: 10 }, // on the 2027 registration list; 40m on 8 Nov 2026
