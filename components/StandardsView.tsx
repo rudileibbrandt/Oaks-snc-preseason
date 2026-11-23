@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Medal, Loader2, Youtube, Pencil, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Medal, Loader2, Youtube, Pencil, ChevronRight, ChevronDown } from 'lucide-react';
 import { AppView, Player, TeamGoal, TestResult, TestSession } from '../types';
 import { db } from '../services/db';
 import { ROSTER_PLAYERS } from '../services/rosterData';
@@ -155,6 +155,8 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
     }
   };
   const [entering, setEntering] = useState<TestSession | null>(null);
+  // Every testing day sits behind an expander, so the list doesn't run down the page (Rudi, 22 Nov 2026).
+  const [pastOpen, setPastOpen] = useState(false);
 
   // Players enter their own scores for testing days that have started (most recent first).
   // A score a coach entered is the player's to see, not to change.
@@ -224,8 +226,15 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
 
       {enterable.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs text-neutral-500">Your scores, every testing day: enter or check them</p>
-          {enterable.map(s => {
+          <button type="button" onClick={() => setPastOpen(o => !o)} aria-expanded={pastOpen}
+            className="w-full flex items-center gap-3 p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">Past results</p>
+              <p className="text-[11px] text-neutral-500">{enterable.length} testing day{enterable.length === 1 ? '' : 's'} · enter or check your scores</p>
+            </div>
+            <ChevronDown size={18} className={`text-neutral-400 transition-transform ${pastOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {pastOpen && enterable.map(s => {
             const r = resultFor(s.id);
             const locked = coachEntered(r);
             return (

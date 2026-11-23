@@ -40,6 +40,8 @@ const TeamProgress: React.FC<Props> = ({ sessions, results, isCoach, goal: teamG
   const { positionsOf, squadInfo, classes, ready: classesReady } = useRosterClasses();
   const [showAllShort, setShowAllShort] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Varsity and JV side by side (Rudi, 22 Nov 2026). The goal card keeps its own squad.
+  const [squad, setSquad] = useState<'All' | 'Varsity' | 'JV'>('All');
 
   const data = useMemo(() => {
     const byPlayer = new Map<string, TestResult[]>();
@@ -53,18 +55,24 @@ const TeamProgress: React.FC<Props> = ({ sessions, results, isCoach, goal: teamG
       const group = playerGroup(mine, sessions, positionsOf(p).best);
       return { name: p.name, squad: squadInfo(p).squad, series, group, imp: playerImprovement(series, LOWER) };
     });
-    const team = teamImprovement(players.map(p => p.imp), TEST_KEYS);
-    const last = lastTestingDay(sessions, results);
-    const prs = last ? sessionPRs(players.map(p => ({ name: p.name, series: p.series })), last.date, LOWER) : undefined;
-    const totals = teamTotals(players.map(p => p.series));
-    const backwards = players.filter(p => Object.values(p.imp.perTest).filter(v => v !== undefined && v < 0).length >= 2).map(p => p.name);
-    return { players, team, last, prs, totals, backwards };
+    return { players, last: lastTestingDay(sessions, results) };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results, sessions, alumniReady, classesReady, classes]);
 
+  // Improvement, PRs, totals and who went backwards, for the squad picked.
+  const view = useMemo(() => {
+    const shown = data.players.filter(p => squad === 'All' || p.squad === squad);
+    const team = teamImprovement(shown.map(p => p.imp), TEST_KEYS);
+    const prs = data.last ? sessionPRs(shown.map(p => ({ name: p.name, series: p.series })), data.last.date, LOWER) : undefined;
+    const totals = teamTotals(shown.map(p => p.series));
+    const backwards = shown.filter(p => Object.values(p.imp.perTest).filter(v => v !== undefined && v < 0).length >= 2).map(p => p.name);
+    return { team, prs, totals, backwards };
+  }, [data, squad]);
+
   if (!alumniReady || !classesReady) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-neutral-500" /></div>;
 
-  const { players, team, last, prs, totals, backwards } = data;
+  const { players, last } = data;
+  const { team, prs, totals, backwards } = view;
   const goal = goalStatus(teamGoal, players);
   const goalPct = goal.target ? Math.min(100, Math.round((goal.counted / goal.target) * 100)) : 0;
   const testLabel = TESTS.find(t => t.key === teamGoal.test)!.label;
@@ -120,9 +128,21 @@ const TeamProgress: React.FC<Props> = ({ sessions, results, isCoach, goal: teamG
         </div>
       )}
 
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-bold tracking-wider text-neutral-400">SQUAD</span>
+        <div className="flex gap-1 bg-neutral-900 rounded-lg p-1 border border-neutral-800" role="radiogroup" aria-label="Squad">
+          {(['All', 'Varsity', 'JV'] as const).map(s => (
+            <button key={s} type="button" role="radio" aria-checked={squad === s} onClick={() => setSquad(s)}
+              className={`min-h-[32px] px-3 text-xs font-bold rounded-md flex items-center gap-1.5 ${squad === s ? 'bg-amber-500 text-black' : 'text-neutral-400 hover:text-white'}`}>
+              <span className={`w-2.5 h-2.5 rounded-full border-2 ${squad === s ? 'border-black bg-black/80' : 'border-neutral-500'}`} />{s}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="p-4 bg-neutral-900 border border-neutral-800 rounded-xl space-y-3">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="text-[11px] font-bold tracking-wider text-neutral-400 flex items-center gap-1.5"><TrendingUp size={13} /> TEAM IMPROVEMENT SINCE {seasonStartLabel.toUpperCase()}</p>
+          <p className="text-[11px] font-bold tracking-wider text-neutral-400 flex items-center gap-1.5"><TrendingUp size={13} /> {squad === 'All' ? 'TEAM' : squad.toUpperCase()} IMPROVEMENT SINCE {seasonStartLabel.toUpperCase()}</p>
           {team.overall && <span className="text-xl font-black text-amber-500">{fmtPct(team.overall.median)}</span>}
         </div>
         {TESTS.map(t => {
@@ -150,11 +170,11 @@ const TeamProgress: React.FC<Props> = ({ sessions, results, isCoach, goal: teamG
         </div>
         <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl text-center">
           <p className="text-xl font-black text-white">{totals.broncoSecondsOff > 0 ? formatBronco(totals.broncoSecondsOff) : '—'}</p>
-          <p className="text-[11px] text-neutral-400">off the team's Bronco total</p>
+          <p className="text-[11px] text-neutral-400">off the {squad === 'All' ? "team's" : `${squad}'s`} Bronco total</p>
         </div>
         <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl text-center">
           <p className="text-xl font-black text-white">{totals.squatLbAdded > 0 ? `+${Math.round(totals.squatLbAdded).toLocaleString()} lb` : '—'}</p>
-          <p className="text-[11px] text-neutral-400">added to the team's squat</p>
+          <p className="text-[11px] text-neutral-400">added to the {squad === 'All' ? "team's" : `${squad}'s`} squat</p>
         </div>
       </div>
 
