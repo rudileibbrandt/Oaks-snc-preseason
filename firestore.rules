@@ -59,7 +59,7 @@ service cloud.firestore {
       allow get: if isMember();
       allow create, update: if isMember() && isCoach() &&
                     request.resource.data.keys().hasOnly(['test', 'level', 'squad', 'count', 'by', 'setBy', 'updatedAt']) &&
-                    request.resource.data.test in ['bronco', 'sprint10', 'sprint40', 'broadJump', 'chinup', 'squat3rm'] &&
+                    request.resource.data.test in ['bronco', 'sprint10', 'sprint40', 'broadJump', 'chinup', 'chinupReps', 'squat3rm'] &&
                     request.resource.data.level in [0, 1, 2, 3] &&
                     request.resource.data.squad in ['All', 'Varsity', 'JV'] &&
                     (request.resource.data.count == null || (request.resource.data.count is int && request.resource.data.count > 0)) &&

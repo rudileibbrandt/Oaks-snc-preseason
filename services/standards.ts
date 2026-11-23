@@ -20,7 +20,7 @@ export { parseBronco, parsePositive };
 export const LEVELS = ['Bronze', 'Silver', 'Gold', 'Elite'] as const;
 export type Level = typeof LEVELS[number];
 
-export type StandardTest = 'bronco' | 'sprint10' | 'sprint40' | 'broadJump' | 'chinup' | 'squat3rm';
+export type StandardTest = 'bronco' | 'sprint10' | 'sprint40' | 'broadJump' | 'chinup' | 'chinupReps' | 'squat3rm';
 
 export interface TestDef {
   key: StandardTest;
@@ -43,6 +43,11 @@ export const TESTS: TestDef[] = [
   { key: 'chinup', label: 'Chin-up total', unit: 'lb', lowerIsBetter: false,
     how: 'Palms facing you, dead hang to chin over the bar. Score = bodyweight + weight added. Best of 2.',
     videoUrl: 'https://youtu.be/brhRXlOhsAM' }, // Buff Dudes, chosen by Rudi 22 Nov 2026 (was a snatch video)
+  // Rudi, 22 Nov 2026: testing days count bodyweight reps. Graded like the 8 Nov sheet: the reps give
+  // an estimated chin-up total (Wathan), checked against the Chin-up total lines.
+  { key: 'chinupReps', label: 'Chin-up reps', unit: 'reps', lowerIsBetter: false,
+    how: 'Bodyweight only, palms facing you, dead hang to chin over the bar. Max strict reps in one set, weigh in the same day. Graded on the estimated chin-up total those reps give at your bodyweight, against the Chin-up total lines below.',
+    videoUrl: 'https://youtu.be/brhRXlOhsAM' },
   { key: 'squat3rm', label: 'Squat 3RM', unit: 'lb', lowerIsBetter: false,
     how: 'Heaviest weight for 3 clean reps, thighs at least parallel, coach watching. Only once a coach has signed off technique.' },
 ];
@@ -52,7 +57,7 @@ type Row = [number, number, number, number];
 const t = (s: string) => parseBronco(s)!;
 const bronco = (a: string, b: string, c: string, d: string): Row => [t(a), t(b), t(c), t(d)];
 
-export const STANDARDS: Record<PositionGroup, Record<StandardTest, Row>> = {
+const DECK: Record<PositionGroup, Record<Exclude<StandardTest, 'chinupReps'>, Row>> = {
   props: {
     bronco: bronco('6:14', '5:57', '5:47', '5:05'), sprint10: [1.96, 1.91, 1.87, 1.75], sprint40: [6.32, 6.08, 5.97, 5.60],
     broadJump: [83, 88, 91, 100], chinup: [215, 255, 280, 330], squat3rm: [220, 285, 335, 420],
@@ -87,6 +92,25 @@ export const STANDARDS: Record<PositionGroup, Record<StandardTest, Row>> = {
   },
 };
 
+// The deck's lines, plus Chin-up reps graded on the Chin-up total lines (lb), via the estimate below.
+export const STANDARDS = Object.fromEntries(
+  (Object.keys(DECK) as PositionGroup[]).map(g => [g, { ...DECK[g], chinupReps: DECK[g].chinup }]),
+) as Record<PositionGroup, Record<StandardTest, Row>>;
+
+// Estimated one-rep chin-up total from bodyweight reps: Wathan's equation, the one used for the
+// 8 Nov chin-ups (best record in comparisons of rep formulas; none is validated on chin-ups, and all
+// get less accurate past about 10 reps).
+export const wathanTotal = (bodyweight: number, reps: number) =>
+  (100 * bodyweight) / (48.8 + 53.8 * Math.exp(-0.075 * reps));
+
+// Reps needed at this bodyweight to reach a chin-up total line (at least 1).
+export const repsForLine = (bodyweight: number, line: number) => {
+  const x = (100 * bodyweight) / line - 48.8;
+  if (x >= 53.8) return 1;
+  if (x <= 0) return Infinity; // out of reach by reps alone
+  return Math.max(1, Math.ceil(-Math.log(x / 53.8) / 0.075 - 1e-9));
+};
+
 // ---------- Numbers in and out ----------
 
 // "5:24" or "324" (seconds) → 324. Anything else → undefined.
@@ -96,7 +120,10 @@ export const formatBronco = (sec: number) => {
   return `${m}:${String(s).padStart(2, '0')}`;
 };
 
-export const formatValue = (test: StandardTest, v: number) => {
+// A score for display. Chin-up reps show the reps when known, else the estimated total.
+export const formatValue = (test: StandardTest, x: number | BestScore) => {
+  const v = typeof x === 'number' ? x : x.value;
+  if (test === 'chinupReps') return typeof x !== 'number' && x.reps != null ? `${x.reps} reps` : `≈${Math.round(v)} lb`;
   if (test === 'bronco') return formatBronco(v);
   if (test === 'sprint10' || test === 'sprint40') return `${v.toFixed(2)}s`;
   return `${Math.round(v * 10) / 10} ${TESTS.find(x => x.key === test)!.unit}`;
@@ -131,6 +158,7 @@ export const nextLevel = (group: PositionGroup, test: StandardTest, value: numbe
 
 export const formatGap = (test: StandardTest, gap: number) =>
   test === 'bronco' ? `${Math.ceil(gap)}s` : test === 'sprint10' || test === 'sprint40' ? `${gap.toFixed(2)}s`
+    : test === 'chinupReps' ? `≈${Math.ceil(gap)} lb`
     : `${Math.ceil(gap)} ${TESTS.find(x => x.key === test)!.unit}`;
 
 // ---------- Results ----------
@@ -143,6 +171,11 @@ export const scoreOf = (r: TestResult, test: StandardTest): number | undefined =
     if (!real(r.bodyweight) || r.chinupAdded == null || !Number.isFinite(r.chinupAdded)) return undefined;
     return r.bodyweight! + r.chinupAdded;
   }
+  if (test === 'chinupReps') {
+    if (!real(r.bodyweight) || r.chinupReps == null || !Number.isFinite(r.chinupReps) || r.chinupReps < 0) return undefined;
+    if (r.chinupReps === 0) return 0; // no chin-up: below every line, whatever the bodyweight
+    return Math.round(wathanTotal(r.bodyweight!, r.chinupReps) * 10) / 10;
+  }
   const v = r[test];
   return real(v) ? v! : undefined;
 };
@@ -151,7 +184,11 @@ export interface BestScore {
   value: number;
   sessionId: string;
   date: string;
+  reps?: number;       // Chin-up reps only: the reps behind the estimate
+  bodyweight?: number; // Chin-up reps only
 }
+const extras = (r: TestResult, test: StandardTest) =>
+  test === 'chinupReps' ? { reps: r.chinupReps ?? undefined, bodyweight: r.bodyweight ?? undefined } : {};
 
 // A player's best score per test, this season only (sessions dated on or after TESTING_SEASON_START).
 export const bestThisSeason = (results: TestResult[], sessions: TestSession[], seasonStart = TESTING_SEASON_START) => {
@@ -164,7 +201,7 @@ export const bestThisSeason = (results: TestResult[], sessions: TestSession[], s
       const v = scoreOf(r, test.key);
       if (v === undefined) continue;
       const cur = best[test.key];
-      if (!cur || (test.lowerIsBetter ? v < cur.value : v > cur.value)) best[test.key] = { value: v, sessionId: r.sessionId, date };
+      if (!cur || (test.lowerIsBetter ? v < cur.value : v > cur.value)) best[test.key] = { value: v, sessionId: r.sessionId, date, ...extras(r, test.key) };
     }
   }
   return best;
@@ -189,7 +226,7 @@ export const testSummary = (
     const date = dateOf.get(r.sessionId);
     const value = scoreOf(r, test);
     if (!date || date < seasonStart || value === undefined) continue;
-    list.push({ value, sessionId: r.sessionId, date });
+    list.push({ value, sessionId: r.sessionId, date, ...extras(r, test) });
   }
   if (list.length === 0) return undefined;
   list.sort((a, b) => a.date.localeCompare(b.date));
@@ -215,6 +252,7 @@ export const formatProgress = (test: StandardTest, p: { improved: boolean; amoun
   if (p.amount === 0) return 'no change';
   if (test === 'bronco') return `${Math.round(p.amount)}s ${p.improved ? 'faster' : 'slower'}`;
   if (test === 'sprint10' || test === 'sprint40') return `${p.amount.toFixed(2)}s ${p.improved ? 'faster' : 'slower'}`;
+  if (test === 'chinupReps') return `≈${Math.round(p.amount)} lb ${p.improved ? 'stronger' : 'weaker'}`;
   return `${Math.round(p.amount)} ${TESTS.find(x => x.key === test)!.unit} ${p.improved ? 'more' : 'less'}`;
 };
 

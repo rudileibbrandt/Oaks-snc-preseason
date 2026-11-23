@@ -27,21 +27,23 @@ const today = () => new Date().toISOString().split('T')[0];
 const resultId = (sessionId: string, name: string) => `${sessionId}__${normalizeName(name)}`;
 
 // The fields a coach types in, as text (Bronco as m:ss).
-type Form = { group: PositionGroup | ''; bodyweight: string; bronco: string; sprint10: string; sprint40: string; broadJump: string; chinupAdded: string; squat3rm: string };
+type Form = { group: PositionGroup | ''; bodyweight: string; bronco: string; sprint10: string; sprint40: string; broadJump: string; chinupAdded: string; chinupReps: string; squat3rm: string };
 const FIELDS: { key: Exclude<keyof Form, 'group'>; label: string; hint: string }[] = [
-  { key: 'bodyweight', label: 'Bodyweight (lb)', hint: 'for chin-up total' },
+  { key: 'bodyweight', label: 'Bodyweight (lb)', hint: 'for chin-ups' },
   { key: 'bronco', label: 'Bronco (m:ss)', hint: 'type 524 for 5:24' },
   { key: 'sprint10', label: '10 m (s)', hint: 'e.g. 1.82' },
   { key: 'sprint40', label: '40 m (s)', hint: 'e.g. 5.61' },
   { key: 'broadJump', label: 'Broad jump (in)', hint: 'e.g. 94' },
   { key: 'chinupAdded', label: 'Chin-up added (lb)', hint: '0 = bodyweight only' },
+  { key: 'chinupReps', label: 'Chin-up reps', hint: 'bodyweight, e.g. 8' },
   { key: 'squat3rm', label: 'Squat 3RM (lb)', hint: 'e.g. 245' },
 ];
 
 // "" → null (not tested); bad text → 'bad'.
 const parseField = (key: Exclude<keyof Form, 'group'>, text: string): number | null | 'bad' => {
   if (text.trim() === '') return null;
-  if (key === 'chinupAdded' && text.trim() === '0') return 0;
+  if ((key === 'chinupAdded' || key === 'chinupReps') && text.trim() === '0') return 0;
+  if (key === 'chinupReps' && !/^\d+$/.test(text.trim())) return 'bad'; // whole reps
   const v = key === 'bronco' ? parseBronco(text) : parsePositive(text);
   return v === undefined ? 'bad' : v;
 };
@@ -288,7 +290,7 @@ const SessionPanel: React.FC<SessionProps> = ({ session, results, allResults, se
                     )}
                   </p>
                   <p className="text-[11px] text-neutral-500 truncate">
-                    {r ? `${groupLabel(r.group)} · ${done.map(t => `${t.label} ${formatValue(t.key, scoreOf(r, t.key)!)}`).join(' · ') || 'nothing yet'}` : 'Not entered'}
+                    {r ? `${groupLabel(r.group)} · ${done.map(t => `${t.label} ${formatValue(t.key, { value: scoreOf(r, t.key)!, sessionId: r.sessionId, date: '', reps: r.chinupReps ?? undefined })}`).join(' · ') || 'nothing yet'}` : 'Not entered'}
                   </p>
                 </div>
                 <span className={`text-xs flex-shrink-0 ${done.length === TESTS.length ? 'text-green-400' : 'text-neutral-500'}`}>
@@ -441,6 +443,7 @@ const HEADER_ALIASES: Record<string, keyof Form | 'name'> = {
   '40': 'sprint40', '40m': 'sprint40', '40ms': 'sprint40', sprint40: 'sprint40',
   broad: 'broadJump', broadjump: 'broadJump', broadjumpin: 'broadJump', bj: 'broadJump',
   chin: 'chinupAdded', chinup: 'chinupAdded', chinupadded: 'chinupAdded', chinupaddedlb: 'chinupAdded', chinupaddedweight: 'chinupAdded',
+  reps: 'chinupReps', chinreps: 'chinupReps', chinupreps: 'chinupReps', chinuprep: 'chinupReps',
   squat: 'squat3rm', squat3rm: 'squat3rm', squat3rmlb: 'squat3rm',
 };
 const headerKey = (h: string) => HEADER_ALIASES[h.toLowerCase().replace(/[^a-z0-9]/g, '')];

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Medal, Loader2, Youtube, Pencil } from 'lucide-react';
+import { ArrowLeft, Medal, Loader2, Youtube, Pencil, ChevronRight } from 'lucide-react';
 import { AppView, Player, TeamGoal, TestResult, TestSession } from '../types';
 import { db } from '../services/db';
 import { ROSTER_PLAYERS } from '../services/rosterData';
@@ -22,7 +22,7 @@ import ResultCards from './ResultCards';
 import TeamProgress from './TeamProgress';
 import MyProgress, { NextTestingBanner } from './MyProgress';
 import { playerImprovement } from '../services/improvement';
-import { LOWER, fmtPct, seriesOf } from '../services/teamProgress';
+import { LOWER, fmtPct, seriesOf, shortDay } from '../services/teamProgress';
 
 interface Props {
   onNavigate: (view: AppView) => void;
@@ -185,27 +185,46 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
       </label>
   );
 
+  // The latest testing day, one tap from the top (Rudi, 22 Nov 2026). Hidden once a coach has
+  // entered it; older days stay in the list at the bottom.
+  const latest = enterable[0];
+  const latestResult = latest ? resultFor(latest.id) : undefined;
+  const latestCard = latest && !coachEntered(latestResult) && (
+    <button onClick={() => setEntering(latest)}
+      className={`w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${latestResult
+        ? 'bg-neutral-900 border-neutral-800 hover:bg-neutral-800'
+        : 'bg-amber-500/10 border-amber-600/60 hover:bg-amber-500/15'}`}>
+      <div className={`p-2 rounded-lg flex-shrink-0 ${latestResult ? 'bg-neutral-800 text-neutral-300' : 'bg-amber-500 text-black'}`}><Pencil size={18} /></div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-white truncate">{latestResult ? 'Your testing results are in' : 'Add your testing results'}</p>
+        <p className="text-xs text-neutral-400 truncate">{latest.name} · {shortDay(latest.date)} · {latestResult ? 'tap to check or change' : 'tap to enter'}</p>
+      </div>
+      <ChevronRight size={18} className={latestResult ? 'text-neutral-500' : 'text-amber-400'} />
+    </button>
+  );
+
   return (
     <div className="space-y-4">
+      {latestCard}
       <MyProgress group={group} results={mine} sessions={sessions} goal={goal} />
 
       <h3 className="text-sm font-bold text-neutral-300 pt-2">All your results</h3>
       {mine.length === 0 && (
         <p className="text-sm text-neutral-400 p-4 bg-neutral-900 border border-neutral-800 rounded-xl">
-          No test results yet. Your coaches enter them live on testing day. Until then, the numbers below are the lines to aim for.
+          No test results yet. Capture your scores here after each testing day. Until then, the numbers below are the lines to aim for.
         </p>
       )}
       <ResultCards group={group} results={mine} sessions={sessions} />
       <p className="text-[11px] text-neutral-500">
         Your tier is your best result since {seasonStartLabel}. Times count at or under the line; jump and lifts at or over.
-        Chin-up total = bodyweight + weight added.
+        Chin-up total = bodyweight + weight added. Chin-up reps are graded on the total those reps estimate at your bodyweight.
       </p>
 
       {positionBlock}
 
       {enterable.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs text-neutral-500">Missed something? Enter or fix your own results</p>
+          <p className="text-xs text-neutral-500">Your scores, every testing day: enter or check them</p>
           {enterable.map(s => {
             const r = resultFor(s.id);
             const locked = coachEntered(r);
@@ -388,12 +407,12 @@ const TeamLevels: React.FC<{ sessions: TestSession[]; results: TestResult[] }> =
                         <td key={t.key} className="p-1.5 text-center">
                           {s && group ? (hot && hl.test === t.key ? (
                             <div className="flex flex-col items-center gap-0.5 rounded-lg bg-red-500/10 ring-1 ring-inset ring-red-500/40 px-1 py-1">
-                              <span className="text-red-300 font-bold">{formatValue(t.key, s[mode].value)}</span>
+                              <span className="text-red-300 font-bold">{formatValue(t.key, s[mode])}</span>
                               <LevelChip idx={levelIndex(group, t.key, s[mode].value)} small />
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className="text-neutral-200">{formatValue(t.key, s[mode].value)}</span>
+                              <span className="text-neutral-200">{formatValue(t.key, s[mode])}</span>
                               <LevelChip idx={levelIndex(group, t.key, s[mode].value)} small />
                             </div>
                           )) : <span className="text-neutral-700">—</span>}

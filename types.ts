@@ -214,7 +214,7 @@ export interface TestSession {
 // The team goal, set by coaches on the Team tab (config/goal). Players reach a tier's line on one
 // test by a date. count = how many players must (null = every player on the squad).
 export interface TeamGoal {
-  test: 'bronco' | 'sprint10' | 'sprint40' | 'broadJump' | 'chinup' | 'squat3rm';
+  test: 'bronco' | 'sprint10' | 'sprint40' | 'broadJump' | 'chinup' | 'chinupReps' | 'squat3rm';
   level: 0 | 1 | 2 | 3; // Bronze … Elite
   squad: 'All' | 'Varsity' | 'JV';
   count: number | null;
@@ -237,6 +237,7 @@ export interface TestResult {
   sprint40?: number | null; // seconds
   broadJump?: number | null; // inches
   chinupAdded?: number | null; // lb added
+  chinupReps?: number | null; // max bodyweight reps (graded via an estimated total, services/standards.ts)
   squat3rm?: number | null; // lb
   enteredBy: string;
   updatedAt: number;

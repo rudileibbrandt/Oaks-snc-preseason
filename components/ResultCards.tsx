@@ -4,7 +4,7 @@ import { TESTING_SEASON_START } from '../services/season';
 import { isoDate } from '../services/calendar';
 import {
   LEVELS, PositionGroup, STANDARDS, TESTS, TestDef, BestScore, formatGap, formatProgress, formatStandard,
-  formatValue, levelIndex, nextLevel, progressOf, testSummary,
+  formatValue, levelIndex, nextLevel, progressOf, repsForLine, testSummary,
 } from '../services/standards';
 import LevelChip, { CHIP, DOT } from './LevelChip';
 
@@ -90,6 +90,9 @@ const TestCard: React.FC<{
   const idx = s ? levelIndex(group, test.key, s.best.value) : null;
   const next = s ? nextLevel(group, test.key, s.best.value) : undefined;
   const progress = s ? progressOf(s, test.key) : undefined;
+  // Chin-up reps: the lines are chin-up totals (lb); at the latest bodyweight they become reps to hit.
+  const bw = test.key === 'chinupReps' ? s?.latest.bodyweight : undefined;
+  const repsAt = (line: number) => { const n = repsForLine(bw!, line); return Number.isFinite(n) ? n : undefined; };
   // "Fitness testing · Baseline" → "Baseline"
   const short = (name: string) => name.split(' · ').pop() || name;
   const nameOf = (id: string) => short(season.find(x => x.id === id)?.name ?? 'Testing day');
@@ -99,7 +102,7 @@ const TestCard: React.FC<{
   const stat = (label: string, x: BestScore) => (
     <div className="bg-black/40 rounded-lg px-2 py-1.5 flex flex-col gap-0.5 min-w-0">
       <span className="text-[9px] uppercase tracking-wider text-neutral-500">{label}</span>
-      <span className="text-sm font-bold text-white tabular-nums">{formatValue(test.key, x.value)}</span>
+      <span className="text-sm font-bold text-white tabular-nums">{formatValue(test.key, x)}</span>
       <span><LevelChip idx={levelIndex(group, test.key, x.value)} small /></span>
     </div>
   );
@@ -130,7 +133,9 @@ const TestCard: React.FC<{
                 : <><span className={progress.improved ? 'text-green-400' : 'text-red-400'}>{progress.improved ? '▲' : '▼'} {formatProgress(test.key, progress)}</span> since {nameOf(progress.since)}</>
               : 'One result so far'}
             {' · '}
-            <span className="text-amber-400">{next ? `${formatGap(test.key, next.gap)} to ${next.level}` : 'top tier'}</span>
+            <span className="text-amber-400">{!next ? 'top tier'
+              : bw && repsAt(next.line) !== undefined ? `${repsAt(next.line)} reps for ${next.level}`
+              : `${formatGap(test.key, next.gap)} to ${next.level}`}</span>
           </p>
         </>
       ) : (
@@ -141,7 +146,9 @@ const TestCard: React.FC<{
         {LEVELS.map((lvl, i) => (
           <div key={lvl} className={`text-center rounded-md py-1 ${idx !== null && idx >= i ? CHIP[i] : 'bg-black/40 text-neutral-500'}`}>
             <div className="text-[9px] uppercase tracking-wide">{lvl}</div>
-            <div className="text-[11px] font-bold tabular-nums">{formatStandard(test.key, row[i])}</div>
+            <div className="text-[11px] font-bold tabular-nums">{bw
+              ? (repsAt(row[i]) !== undefined ? `${repsAt(row[i])} reps` : '—')
+              : formatStandard(test.key, row[i])}</div>
           </div>
         ))}
       </div>
@@ -156,7 +163,7 @@ const TestCard: React.FC<{
                 {x
                   ? <span className={`w-3 h-3 rounded-full ${DOT[levelIndex(group, test.key, x.value)]}`} />
                   : <span className={`w-3 h-3 rounded-full border-[1.5px] border-neutral-600 ${upcoming ? 'border-dashed' : ''}`} />}
-                <span className="text-neutral-200 tabular-nums">{x ? formatValue(test.key, x.value) : upcoming ? '' : '–'}</span>
+                <span className="text-neutral-200 tabular-nums">{x ? formatValue(test.key, x) : upcoming ? '' : '–'}</span>
                 <span>{shortDate(ss.date)}</span>
               </div>
             );
@@ -180,14 +187,14 @@ const TestCard: React.FC<{
                   {x ? (
                     <>
                       <td className="py-1.5 text-white">
-                        {formatValue(test.key, x.value)}
+                        {formatValue(test.key, x)}
                         {x === s.best && <Tag className="bg-green-900/50 text-green-400">Best</Tag>}
                         {x === s.worst && s.list.length > 1 && <Tag className="bg-red-900/40 text-red-400">Worst</Tag>}
                         {x === s.latest && <Tag className="bg-neutral-800 text-neutral-400">Latest</Tag>}
                       </td>
                       <td className="py-1.5"><LevelChip idx={levelIndex(group, test.key, x.value)} small /></td>
                     </>
-                  ) : <><td className="py-1.5 text-neutral-500">Missed</td><td /></>}
+                  ) : <><td className="py-1.5 text-neutral-500">No score</td><td /></>}
                 </tr>
               );
             })}

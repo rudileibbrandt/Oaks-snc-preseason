@@ -27,5 +27,5 @@ export const DEFAULT_GOAL: TeamGoal = { test: 'bronco', level: 0, squad: 'All', 
 
 // "Within reach" of the goal line, per test: shown as "11 within 20 s".
 export const GOAL_REACH: Record<TeamGoal['test'], number> = {
-  bronco: 20, sprint10: 0.1, sprint40: 0.2, broadJump: 5, chinup: 10, squat3rm: 15,
+  bronco: 20, sprint10: 0.1, sprint40: 0.2, broadJump: 5, chinup: 10, chinupReps: 10, squat3rm: 15,
 };

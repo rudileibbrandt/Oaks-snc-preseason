@@ -16,7 +16,7 @@ import { ROSTER_PLAYERS } from '../services/rosterData';
 // its own when you leave it, and only that test is written, so two coaches at different stations
 // can enter the same player at once without overwriting each other.
 
-type FieldKey = 'bronco' | 'sprint10' | 'sprint40' | 'broadJump' | 'bodyweight' | 'chinupAdded' | 'squat3rm';
+type FieldKey = 'bronco' | 'sprint10' | 'sprint40' | 'broadJump' | 'bodyweight' | 'chinupAdded' | 'chinupReps' | 'squat3rm';
 interface Station { key: string; label: string; fields: { key: FieldKey; label: string; hint: string }[]; tests: StandardTest[] }
 
 export const STATIONS: Station[] = [
@@ -24,6 +24,7 @@ export const STATIONS: Station[] = [
   { key: 'sprint', label: '10 / 40 m', fields: [{ key: 'sprint10', label: '10 m', hint: '1.82' }, { key: 'sprint40', label: '40 m', hint: '5.61' }], tests: ['sprint10', 'sprint40'] },
   { key: 'broadJump', label: 'Broad jump', fields: [{ key: 'broadJump', label: 'Inches', hint: '94' }], tests: ['broadJump'] },
   { key: 'chinup', label: 'Chin-up', fields: [{ key: 'bodyweight', label: 'Body lb', hint: '170' }, { key: 'chinupAdded', label: 'Added lb', hint: '0' }], tests: ['chinup'] },
+  { key: 'chinupReps', label: 'Chin reps', fields: [{ key: 'bodyweight', label: 'Body lb', hint: '170' }, { key: 'chinupReps', label: 'Reps', hint: '8' }], tests: ['chinupReps'] },
   { key: 'squat3rm', label: 'Squat', fields: [{ key: 'squat3rm', label: 'Lb', hint: '245' }], tests: ['squat3rm'] },
 ];
 
@@ -33,7 +34,8 @@ const toText = (key: FieldKey, v: number | null | undefined) =>
 // '' → null (clear); bad → 'bad'.
 const parse = (key: FieldKey, text: string): number | null | 'bad' => {
   if (text.trim() === '') return null;
-  if (key === 'chinupAdded' && text.trim() === '0') return 0;
+  if ((key === 'chinupAdded' || key === 'chinupReps') && text.trim() === '0') return 0;
+  if (key === 'chinupReps' && !/^\d+$/.test(text.trim())) return 'bad'; // whole reps
   const v = key === 'bronco' ? parseBronco(text) : parsePositive(text);
   return v === undefined ? 'bad' : v;
 };
@@ -140,14 +142,15 @@ const StationRow: React.FC<{
   }).filter(Boolean) as { t: StandardTest; v: number; idx: number; pr: boolean }[];
   const lastText = station.tests.map(t => {
     const prev = [...earlier].reverse().find(r => scoreOf(r, t) !== undefined);
-    return prev ? formatValue(t, scoreOf(prev, t)!) : null;
+    return prev ? formatValue(t, { value: scoreOf(prev, t)!, sessionId: prev.sessionId, date: '', reps: prev.chinupReps ?? undefined }) : null;
   }).filter(Boolean).join(' · ');
 
   const save = async () => {
     if (bad) return;
     const changed = station.fields.filter(f => (parsed[f.key] ?? null) !== (existing?.[f.key] ?? null))
       // A filled-in bodyweight on its own isn't an entry: wait for the chin-up.
-      .filter(f => !(f.key === 'bodyweight' && prefillWeight && parsed.chinupAdded == null && parsed.bodyweight === knownWeight));
+      .filter(f => !(f.key === 'bodyweight' && prefillWeight && parsed.bodyweight === knownWeight
+        && station.fields.every(g => g.key === 'bodyweight' || parsed[g.key] == null)));
     if (changed.length === 0) return;
     onSaving();
     setState('saving');

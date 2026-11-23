@@ -8,8 +8,8 @@ import { playerImprovement } from '../services/improvement';
 import { LOWER, daysUntil, fmtPct, goalByLabel, goalLine, localToday, nextTestingDay, seriesOf, shortDay } from '../services/teamProgress';
 import LevelChip from './LevelChip';
 
-// The next testing day. Coaches enter results live on the day (Rudi, 22 Nov 2026), so players
-// get a countdown, not a prompt to enter anything.
+// The next testing day. Players capture their own scores whenever they can (Rudi, 22 Nov 2026),
+// so the banner tells them to; coaches get a Start button on the day.
 export const NextTestingBanner: React.FC<{ sessions: TestSession[]; isCoach?: boolean; onStart?: (sessionId: string) => void }> = ({ sessions, isCoach, onStart }) => {
   const next = nextTestingDay(sessions);
   if (!next) return null;
@@ -19,7 +19,7 @@ export const NextTestingBanner: React.FC<{ sessions: TestSession[]; isCoach?: bo
     <>
       <span className="flex flex-col gap-0.5 text-left">
         <span className="text-sm font-black flex items-center gap-1.5"><CalendarClock size={15} />{today ? `Testing today · ${shortDay(next.date)}` : `Testing ${shortDay(next.date)}`}</span>
-        <span className="text-xs font-medium">{isCoach ? (today ? 'Open it and pick your station.' : next.name) : 'Coaches enter results live on the day.'}</span>
+        <span className="text-xs font-medium">{isCoach ? (today ? 'Open it and pick your station.' : next.name) : (today ? 'Capture your scores in the app as you test.' : 'Capture your scores in the app on the day.')}</span>
       </span>
       <span className="text-sm font-black flex-shrink-0">{today ? (isCoach ? 'Start' : 'Today') : `${days} day${days === 1 ? '' : 's'}`}</span>
     </>
@@ -98,7 +98,7 @@ const MyProgress: React.FC<{ group: PositionGroup; results: TestResult[]; sessio
                 {t.label}
                 {s && latestIsPR(s.list, t.lowerIsBetter) && <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-500 text-black text-[10px] font-black">PR</span>}
               </span>
-              <span className="text-sm text-white font-bold tabular-nums">{s ? formatValue(t.key, s.latest.value) : '—'}</span>
+              <span className="text-sm text-white font-bold tabular-nums">{s ? formatValue(t.key, s.latest) : '—'}</span>
               <span className={`w-28 text-right text-xs font-bold ${!p ? 'text-neutral-500' : p.amount === 0 ? 'text-neutral-400' : p.improved ? 'text-amber-500' : 'text-sky-300'}`}>
                 {!s ? 'not tested' : !p ? 'first test' : p.amount === 0 ? 'same' : `${p.improved ? '▲' : '▼'} ${pct !== undefined ? fmtPct(Math.abs(pct)).replace('+', '') : formatProgress(t.key, p)}`}
               </span>

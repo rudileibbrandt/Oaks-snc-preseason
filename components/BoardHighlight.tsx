@@ -28,7 +28,7 @@ export const loadHighlight = (): Highlight => {
 export const saveHighlight = (h: Highlight) => { try { localStorage.setItem(KEY, JSON.stringify(h)); } catch { /* not kept */ } };
 
 export const SHORT: Record<StandardTest, string> = {
-  bronco: 'Bronco', sprint10: '10 m', sprint40: '40 m', broadJump: 'Broad', chinup: 'Chin-up', squat3rm: 'Squat',
+  bronco: 'Bronco', sprint10: '10 m', sprint40: '40 m', broadJump: 'Broad', chinup: 'Chin-up', chinupReps: 'Chin reps', squat3rm: 'Squat',
 };
 
 const chip = (on: boolean) =>
