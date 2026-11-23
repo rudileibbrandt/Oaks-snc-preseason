@@ -108,7 +108,7 @@ const MyProgress: React.FC<{ group: PositionGroup; results: TestResult[]; sessio
       </div>
       <p className="text-[11px] text-neutral-500">
         Change is your latest result vs your first test this season; overall is the average across tests you've done twice.
-        Your full results and tiers for every test are below.
+        Tap a testing day below for its results card, or open Every test for your tiers test by test.
       </p>
     </div>
   );

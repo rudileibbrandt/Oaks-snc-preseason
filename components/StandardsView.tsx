@@ -13,12 +13,15 @@ import { POSITION_OPTIONS } from '../services/positionData';
 import type { RugbyPosition } from '../types';
 import {
   GROUPS, LEVELS, PositionGroup, STANDARDS, TESTS, formatStandard, formatValue,
-  groupLabel, levelIndex, playerGroup, testSummary,
+  groupLabel, levelIndex, playerGroup, scoreOf, testSummary,
 } from '../services/standards';
 import TestingDays, { EntryModal } from './TestingDays';
 import LevelChip from './LevelChip';
 import BoardHighlight, { Highlight, SHORT, loadHighlight, saveHighlight } from './BoardHighlight';
 import ResultCards from './ResultCards';
+import DayCard from './DayCard';
+import { dayResults } from '../services/dayResults';
+import { DOT } from './LevelChip';
 import TeamProgress from './TeamProgress';
 import MyProgress, { NextTestingBanner } from './MyProgress';
 import { playerImprovement } from '../services/improvement';
@@ -155,8 +158,10 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
     }
   };
   const [entering, setEntering] = useState<TestSession | null>(null);
-  // Every testing day sits behind an expander, so the list doesn't run down the page (Rudi, 22 Nov 2026).
-  const [pastOpen, setPastOpen] = useState(false);
+  // Results are a list of testing days; each opens as its own shareable card (Rudi, 22 Nov 2026).
+  // The per-test cards (best, worst, tier lines) sit behind an expander.
+  const [testsOpen, setTestsOpen] = useState(false);
+  const [viewing, setViewing] = useState<TestSession | null>(null);
 
   // Players enter their own scores for testing days that have started (most recent first).
   // A score a coach entered is the player's to see, not to change.
@@ -165,6 +170,11 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
     return sessions.filter(s => s.date <= today).sort((a, b) => b.date.localeCompare(a.date));
   }, [sessions]);
   const resultFor = (sessionId: string) => mine.find(r => r.sessionId === sessionId);
+  const dayScores = useMemo(() => mine.flatMap(r => {
+    const ses = sessions.find(x => x.id === r.sessionId);
+    return ses ? [{ sessionId: r.sessionId, date: ses.date, scores: Object.fromEntries(TESTS.map(t => [t.key, scoreOf(r, t.key)])) }] : [];
+  }), [mine, sessions]);
+  const dayOf = (sessionId: string) => dayResults(dayScores, sessionId, LOWER);
   const coachEntered = (r?: TestResult) => !!r && normalizeName(r.enteredBy) !== key;
 
   const positionBlock = (
@@ -213,44 +223,68 @@ const MyLevels: React.FC<{ player: Player; sessions: TestSession[]; results: Tes
       <h3 className="text-sm font-bold text-neutral-300 pt-2">All your results</h3>
       {mine.length === 0 && (
         <p className="text-sm text-neutral-400 p-4 bg-neutral-900 border border-neutral-800 rounded-xl">
-          No test results yet. Capture your scores here after each testing day. Until then, the numbers below are the lines to aim for.
+          No test results yet. Capture your scores here after each testing day. Open <b>Every test</b> below for the lines to aim for.
         </p>
       )}
-      <ResultCards group={group} results={mine} sessions={sessions} />
-      <p className="text-[11px] text-neutral-500">
-        Your tier is your best result since {seasonStartLabel}. Times count at or under the line; jump and lifts at or over.
-        Chin-up total = bodyweight + weight added. Chin-up reps are graded on the total those reps estimate at your bodyweight.
-      </p>
-
-      {positionBlock}
-
       {enterable.length > 0 && (
-        <div className="space-y-1">
-          <button type="button" onClick={() => setPastOpen(o => !o)} aria-expanded={pastOpen}
-            className="w-full flex items-center gap-3 p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">Past results</p>
-              <p className="text-[11px] text-neutral-500">{enterable.length} testing day{enterable.length === 1 ? '' : 's'} · enter or check your scores</p>
-            </div>
-            <ChevronDown size={18} className={`text-neutral-400 transition-transform ${pastOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {pastOpen && enterable.map(s => {
+        <div className="space-y-1.5">
+          {enterable.map(s => {
             const r = resultFor(s.id);
             const locked = coachEntered(r);
+            const day = r ? dayOf(s.id) : {};
+            const done = TESTS.filter(t => day[t.key]);
+            const prs = done.filter(t => day[t.key].pr).length;
+            const open = () => (r && done.length ? setViewing(s) : setEntering(s));
             return (
-              <button key={s.id} disabled={locked} onClick={() => setEntering(s)}
-                className="w-full flex items-center justify-between gap-3 p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left disabled:hover:bg-neutral-900">
-                <div className="min-w-0">
-                  <p className="text-sm text-white truncate">{s.name}</p>
-                  <p className="text-[11px] text-neutral-500">
-                    {s.date} · {!r ? 'Not entered' : locked ? `Entered by ${r.enteredBy}` : 'Entered by you, tap to change'}
-                  </p>
+              <button key={s.id} disabled={!r && locked} onClick={open}
+                className="w-full flex items-center gap-3 p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl text-left">
+                <div className="w-11 flex-shrink-0 text-center leading-tight">
+                  <p className="text-[10px] font-bold uppercase text-amber-500">{new Date(s.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short' })}</p>
+                  <p className="text-lg font-black text-white tabular-nums">{Number(s.date.slice(8))}</p>
                 </div>
-                {!locked && <Pencil size={14} className="text-amber-400 flex-shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-white truncate">{s.name}</p>
+                  {done.length ? (
+                    <div className="flex items-center gap-1 mt-1">
+                      {done.map(t => <span key={t.key} title={t.label} className={`w-2.5 h-2.5 rounded-full ${DOT[levelIndex(group, t.key, day[t.key].value)]}`} />)}
+                      <span className="text-[11px] text-neutral-500 ml-1">{done.length} test{done.length === 1 ? '' : 's'}</span>
+                      {prs > 0 && <span className="ml-1 px-1.5 py-px rounded bg-amber-500 text-black text-[9px] font-black">{prs} PR{prs === 1 ? '' : 's'}</span>}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-amber-400/80">Not entered · tap to add your scores</p>
+                  )}
+                </div>
+                {done.length ? <ChevronRight size={18} className="text-neutral-500 flex-shrink-0" /> : <Pencil size={14} className="text-amber-400 flex-shrink-0" />}
               </button>
             );
           })}
         </div>
+      )}
+
+      <button type="button" onClick={() => setTestsOpen(o => !o)} aria-expanded={testsOpen}
+        className="w-full flex items-center gap-3 p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl text-left">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white">Every test</p>
+          <p className="text-[11px] text-neutral-500">Best, worst, latest and the tier lines, test by test</p>
+        </div>
+        <ChevronDown size={18} className={`text-neutral-400 transition-transform ${testsOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {testsOpen && (
+        <>
+          <ResultCards group={group} results={mine} sessions={sessions} />
+          <p className="text-[11px] text-neutral-500">
+            Your tier is your best result since {seasonStartLabel}. Times count at or under the line; jump and lifts at or over.
+            Chin-up total = bodyweight + weight added. Chin-up reps are graded on the total those reps estimate at your bodyweight.
+          </p>
+        </>
+      )}
+
+      {positionBlock}
+
+      {viewing && resultFor(viewing.id) && (
+        <DayCard session={viewing} result={resultFor(viewing.id)!} tests={dayOf(viewing.id)} group={group}
+          playerName={rosterPlayer?.name ?? player.name} onClose={() => setViewing(null)}
+          onEdit={coachEntered(resultFor(viewing.id)) ? undefined : () => { setEntering(viewing); setViewing(null); }} />
       )}
 
       {entering && (
